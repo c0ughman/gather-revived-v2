@@ -69,25 +69,33 @@ function App() {
       const timeoutId = setTimeout(() => {
         console.log('⏰ Loading timeout reached, forcing completion');
         setLoading(false);
-      }, 10000); // 10 second timeout
+      }, 15000); // Increased to 15 seconds
 
       try {
-        // Load user agents with timeout
+        // Load user agents with improved timeout handling
         console.log('🤖 Loading user agents...');
         let agents = [];
         
         try {
           const agentsPromise = supabaseService.getUserAgents(user.id);
           const agentsTimeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Agents loading timeout')), 8000)
+            setTimeout(() => reject(new Error('Agents loading timeout')), 12000) // Increased to 12 seconds
           );
           
           agents = await Promise.race([agentsPromise, agentsTimeoutPromise]) || [];
           console.log('🤖 Loaded agents:', agents.length, 'agents');
         } catch (agentsError) {
           console.error('❌ Error loading agents:', agentsError);
-          // Continue with empty agents array
-          agents = [];
+          // Try one more time with a direct call
+          try {
+            console.log('🔄 Retrying agents load with direct call...');
+            agents = await supabaseService.getUserAgents(user.id);
+            console.log('✅ Retry successful, loaded:', agents.length, 'agents');
+          } catch (retryError) {
+            console.error('❌ Retry failed:', retryError);
+            // Continue with empty agents array
+            agents = [];
+          }
         }
         
         // Transform database agents to AIContact format
