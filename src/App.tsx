@@ -404,21 +404,98 @@ function App() {
   };
 
   const handleSaveContact = async (updatedContact: AIContact) => {
-    if (!user) return;
+    if (!user) {
+      console.error('❌ No user available for saving contact');
+      return;
+    }
 
     console.log(`💾 Saving contact: ${updatedContact.name}`);
     
     try {
       if (updatedContact.id.startsWith('new-')) {
-        // Create new agent
-        const newAgent = await supabaseService.createUserAgent(user.id, updatedContact);
-        const transformedContact = {
+        console.log('🆕 Creating new agent...');
+        
+        // Create new agent in Supabase
+        const newAgent = await supabaseService.createUserAgent(user.id, {
+          name: updatedContact.name,
+          description: updatedContact.description,
+          initials: updatedContact.initials,
+          color: updatedContact.color,
+          voice: updatedContact.voice,
+          avatar: updatedContact.avatar,
+          status: updatedContact.status || 'online',
+          lastSeen: 'now'
+        });
+
+        console.log('✅ Agent created in database:', newAgent.id);
+
+        // Create the transformed contact with the real ID
+        const transformedContact: AIContact = {
           ...updatedContact,
           id: newAgent.id
         };
+
+        // Save integrations if any
+        if (updatedContact.integrations && updatedContact.integrations.length > 0) {
+          console.log(`🔧 Saving ${updatedContact.integrations.length} integrations...`);
+          
+          const savedIntegrations = [];
+          for (const integration of updatedContact.integrations) {
+            try {
+              const savedIntegration = await supabaseService.createAgentIntegration(newAgent.id, integration);
+              savedIntegrations.push({
+                id: savedIntegration.id,
+                integrationId: integration.integrationId,
+                name: integration.name,
+                config: integration.config,
+                status: savedIntegration.status
+              });
+              console.log(`✅ Integration saved: ${integration.name}`);
+            } catch (integrationError) {
+              console.error(`❌ Failed to save integration ${integration.name}:`, integrationError);
+            }
+          }
+          
+          transformedContact.integrations = savedIntegrations;
+        }
+
+        // Save documents if any
+        if (updatedContact.documents && updatedContact.documents.length > 0) {
+          console.log(`📄 Saving ${updatedContact.documents.length} documents...`);
+          
+          const savedDocuments = [];
+          for (const document of updatedContact.documents) {
+            try {
+              const savedDocument = await supabaseService.createAgentDocument(newAgent.id, document);
+              savedDocuments.push({
+                id: savedDocument.id,
+                name: document.name,
+                type: document.type,
+                size: document.size,
+                uploadedAt: new Date(savedDocument.uploaded_at),
+                content: document.content,
+                summary: document.summary,
+                extractedText: document.extractedText,
+                metadata: document.metadata
+              });
+              console.log(`✅ Document saved: ${document.name}`);
+            } catch (documentError) {
+              console.error(`❌ Failed to save document ${document.name}:`, documentError);
+            }
+          }
+          
+          transformedContact.documents = savedDocuments;
+        }
+
+        // Add to local state
         setContacts(prev => [...prev, transformedContact]);
         setSelectedContact(transformedContact);
+        
+        console.log('✅ New agent created and added to contacts');
+
       } else {
+        console.log('📝 Updating existing agent...');
+        
         // Update existing agent
         await supabaseService.updateUserAgent(updatedContact.id, {
           name: updatedContact.name,
@@ -429,13 +506,94 @@ function App() {
           avatar_url: updatedContact.avatar,
           status: updatedContact.status
         });
+
+        // Handle integrations updates
+        if (updatedContact.integrations) {
+          console.log(`🔧 Updating integrations for existing agent...`);
+          
+          // For simplicity, we'll delete all existing integrations and recreate them
+          // In a production app, you'd want to do a proper diff and update
+          const existingContact = contacts.find(c => c.id === updatedContact.id);
+          if (existingContact?.integrations) {
+            for (const integration of existingContact.integrations) {
+              try {
+                await supabaseService.deleteAgentIntegration(integration.id);
+              } catch (error) {
+                console.error(`❌ Failed to delete integration ${integration.id}:`, error);
+              }
+            }
+          }
+
+          // Create new integrations
+          const savedIntegrations = [];
+          for (const integration of updatedContact.integrations) {
+            try {
+              const savedIntegration = await supabaseService.createAgentIntegration(updatedContact.id, integration);
+              savedIntegrations.push({
+                id: savedIntegration.id,
+                integrationId: integration.integrationId,
+                name: integration.name,
+                config: integration.config,
+                status: savedIntegration.status
+              });
+            } catch (error) {
+              console.error(`❌ Failed to save integration ${integration.name}:`, error);
+            }
+          }
+          
+          updatedContact.integrations = savedIntegrations;
+        }
+
+        // Handle documents updates
+        if (updatedContact.documents) {
+          console.log(`📄 Updating documents for existing agent...`);
+          
+          // For simplicity, we'll delete all existing documents and recreate them
+          // In a production app, you'd want to do a proper diff and update
+          const existingContact = contacts.find(c => c.id === updatedContact.id);
+          if (existingContact?.documents) {
+            for (const document of existingContact.documents) {
+              try {
+                await supabaseService.deleteAgentDocument(document.id);
+              } catch (error) {
+                console.error(`❌ Failed to delete document ${document.id}:`, error);
+              }
+            }
+          }
+
+          // Create new documents
+          const savedDocuments = [];
+          for (const document of updatedContact.documents) {
+            try {
+              const savedDocument = await supabaseService.createAgentDocument(updatedContact.id, document);
+              savedDocuments.push({
+                id: savedDocument.id,
+                name: document.name,
+                type: document.type,
+                size: document.size,
+                uploadedAt: new Date(savedDocument.uploaded_at),
+                content: document.content,
+                summary: document.summary,
+                extractedText: document.extractedText,
+                metadata: document.metadata
+              });
+            } catch (error) {
+              console.error(`❌ Failed to save document ${document.name}:`, error);
+            }
+          }
+          
+          updatedContact.documents = savedDocuments;
+        }
         
+        // Update local state
         setContacts(prev => 
           prev.map(contact => 
             contact.id === updatedContact.id ? updatedContact : contact
           )
         );
         setSelectedContact(updatedContact);
+        
+        console.log('✅ Existing agent updated');
       }
 
       // Restart integrations with new configuration
@@ -459,8 +617,12 @@ function App() {
         console.log(`🛑 Stopping all integrations for ${updatedContact.name}`);
         integrationsService.stopAllExecution();
       }
+
+      console.log('✅ Contact saved successfully');
+      
     } catch (error) {
-      console.error('Failed to save contact:', error);
+      console.error('❌ Failed to save contact:', error);
+      alert(`Failed to save agent: ${error.message || error}`);
     }
   };
 
