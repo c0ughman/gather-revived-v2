@@ -44,10 +44,10 @@ function App() {
   // Load user data when authenticated
   useEffect(() => {
     if (user) {
-      console.log('User authenticated, loading data for:', user.email);
+      console.log('🔄 User authenticated, loading data for:', user.email);
       loadUserData();
     } else {
-      console.log('No user, clearing data');
+      console.log('❌ No user, clearing data');
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
@@ -56,27 +56,51 @@ function App() {
   }, [user]);
 
   const loadUserData = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('❌ No user provided to loadUserData');
+      return;
+    }
 
     try {
       setLoading(true);
-      console.log('Loading user data for:', user.id);
+      console.log('🔄 Starting to load user data for:', user.id);
+      
+      // Test basic Supabase connection first
+      console.log('🔍 Testing Supabase connection...');
       
       // Ensure user profile exists (this should already be handled by useAuth)
-      let profile = await supabaseService.getUserProfile(user.id);
-      if (!profile) {
-        console.log('Creating user profile...');
-        profile = await supabaseService.createUserProfile(user.id, user.email?.split('@')[0]);
+      console.log('👤 Checking user profile...');
+      let profile;
+      try {
+        profile = await supabaseService.getUserProfile(user.id);
+        console.log('👤 Profile check result:', profile ? 'Found' : 'Not found');
+      } catch (profileError) {
+        console.error('❌ Error checking profile:', profileError);
+        // Try to create profile if it doesn't exist
+        try {
+          console.log('👤 Attempting to create profile...');
+          profile = await supabaseService.createUserProfile(user.id, user.email?.split('@')[0]);
+          console.log('✅ Profile created successfully');
+        } catch (createError) {
+          console.error('❌ Error creating profile:', createError);
+          throw createError;
+        }
       }
 
-      console.log('User profile loaded:', profile);
-
       // Load user agents
-      const agents = await supabaseService.getUserAgents(user.id);
-      console.log('Loaded agents:', agents);
+      console.log('🤖 Loading user agents...');
+      let agents;
+      try {
+        agents = await supabaseService.getUserAgents(user.id);
+        console.log('🤖 Loaded agents:', agents?.length || 0, 'agents');
+      } catch (agentsError) {
+        console.error('❌ Error loading agents:', agentsError);
+        // Continue with empty agents array
+        agents = [];
+      }
       
       // Transform database agents to AIContact format
-      const transformedContacts: AIContact[] = agents.map(agent => ({
+      const transformedContacts: AIContact[] = (agents || []).map(agent => ({
         id: agent.id,
         name: agent.name,
         initials: agent.initials,
@@ -106,10 +130,11 @@ function App() {
         }))
       }));
 
+      console.log('🔄 Setting contacts:', transformedContacts.length, 'contacts');
       setContacts(transformedContacts);
-      console.log('Contacts set:', transformedContacts);
       
       // Initialize integrations for loaded contacts
+      console.log('🔧 Initializing integrations...');
       transformedContacts.forEach(contact => {
         if (contact.integrations) {
           contact.integrations.forEach(integrationInstance => {
@@ -135,6 +160,7 @@ function App() {
       // Don't leave the user stuck in loading state
       setContacts([]);
     } finally {
+      console.log('🏁 Finishing loadUserData, setting loading to false');
       setLoading(false);
     }
   };
@@ -447,6 +473,7 @@ function App() {
 
   // Show loading screen while checking auth
   if (authLoading) {
+    console.log('🔄 Auth loading...');
     return (
       <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -457,13 +484,9 @@ function App() {
     );
   }
 
-  // Show auth screen if not authenticated
-  if (!user) {
-    return <AuthScreen />;
-  }
-
   // Show loading screen while loading user data
   if (loading) {
+    console.log('🔄 User data loading...');
     return (
       <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -474,6 +497,14 @@ function App() {
       </div>
     );
   }
+
+  // Show auth screen if not authenticated
+  if (!user) {
+    console.log('❌ No user, showing auth screen');
+    return <AuthScreen />;
+  }
+
+  console.log('✅ Rendering main app for user:', user.email);
 
   // Get messages for selected contact
   const contactMessages = selectedContact 

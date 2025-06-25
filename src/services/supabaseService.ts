@@ -4,6 +4,8 @@ import { AIContact, DocumentInfo, Message } from '../types'
 export class SupabaseService {
   // User Profile Management
   async createUserProfile(userId: string, displayName?: string) {
+    console.log('📝 Creating user profile for:', userId, 'with name:', displayName);
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .insert({
@@ -15,22 +17,36 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating user profile:', error);
+      throw error;
+    }
+    
+    console.log('✅ User profile created:', data);
     return data
   }
 
   async getUserProfile(userId: string) {
+    console.log('🔍 Getting user profile for:', userId);
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error
+    if (error && error.code !== 'PGRST116') {
+      console.error('❌ Error getting user profile:', error);
+      throw error;
+    }
+    
+    console.log('✅ User profile result:', data ? 'Found' : 'Not found');
     return data
   }
 
   async updateUserProfile(userId: string, updates: any) {
+    console.log('📝 Updating user profile for:', userId, 'with:', updates);
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .update(updates)
@@ -38,12 +54,19 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error updating user profile:', error);
+      throw error;
+    }
+    
+    console.log('✅ User profile updated:', data);
     return data
   }
 
   // Agent Management
   async getUserAgents(userId: string) {
+    console.log('🤖 Getting user agents for:', userId);
+    
     const { data, error } = await supabase
       .from('user_agents')
       .select(`
@@ -74,11 +97,18 @@ export class SupabaseService {
       .eq('user_id', userId)
       .order('sort_order', { ascending: true })
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error getting user agents:', error);
+      throw error;
+    }
+    
+    console.log('✅ User agents result:', data?.length || 0, 'agents found');
     return data
   }
 
   async createUserAgent(userId: string, agent: Partial<AIContact>) {
+    console.log('📝 Creating user agent for:', userId, 'with name:', agent.name);
+    
     const { data, error } = await supabase
       .from('user_agents')
       .insert({
@@ -102,11 +132,18 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating user agent:', error);
+      throw error;
+    }
+    
+    console.log('✅ User agent created:', data);
     return data
   }
 
   async updateUserAgent(agentId: string, updates: any) {
+    console.log('📝 Updating user agent:', agentId, 'with:', updates);
+    
     const { data, error } = await supabase
       .from('user_agents')
       .update(updates)
@@ -114,45 +151,73 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error updating user agent:', error);
+      throw error;
+    }
+    
+    console.log('✅ User agent updated:', data);
     return data
   }
 
   async deleteUserAgent(agentId: string) {
+    console.log('🗑️ Deleting user agent:', agentId);
+    
     const { error } = await supabase
       .from('user_agents')
       .delete()
       .eq('id', agentId)
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error deleting user agent:', error);
+      throw error;
+    }
+    
+    console.log('✅ User agent deleted');
   }
 
   // Agent Templates (Global)
   async getAgentTemplates() {
+    console.log('🔍 Getting agent templates');
+    
     const { data, error } = await supabase
       .from('agent_templates')
       .select('*')
       .eq('is_active', true)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error getting agent templates:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent templates result:', data?.length || 0, 'templates found');
     return data
   }
 
   // Integration Templates (Global)
   async getIntegrationTemplates() {
+    console.log('🔍 Getting integration templates');
+    
     const { data, error } = await supabase
       .from('integration_templates')
       .select('*')
       .eq('is_active', true)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error getting integration templates:', error);
+      throw error;
+    }
+    
+    console.log('✅ Integration templates result:', data?.length || 0, 'templates found');
     return data
   }
 
   // Agent Integrations
   async createAgentIntegration(agentId: string, integration: any) {
+    console.log('📝 Creating agent integration for:', agentId);
+    
     const { data, error } = await supabase
       .from('agent_integrations')
       .insert({
@@ -168,11 +233,18 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating agent integration:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent integration created:', data);
     return data
   }
 
   async updateAgentIntegration(integrationId: string, updates: any) {
+    console.log('📝 Updating agent integration:', integrationId);
+    
     const { data, error } = await supabase
       .from('agent_integrations')
       .update(updates)
@@ -180,21 +252,35 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error updating agent integration:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent integration updated:', data);
     return data
   }
 
   async deleteAgentIntegration(integrationId: string) {
+    console.log('🗑️ Deleting agent integration:', integrationId);
+    
     const { error } = await supabase
       .from('agent_integrations')
       .delete()
       .eq('id', integrationId)
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error deleting agent integration:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent integration deleted');
   }
 
   // Document Management
   async createAgentDocument(agentId: string, document: DocumentInfo) {
+    console.log('📝 Creating agent document for:', agentId, 'document:', document.name);
+    
     const { data, error } = await supabase
       .from('agent_documents')
       .insert({
@@ -216,21 +302,35 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating agent document:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent document created:', data);
     return data
   }
 
   async deleteAgentDocument(documentId: string) {
+    console.log('🗑️ Deleting agent document:', documentId);
+    
     const { error } = await supabase
       .from('agent_documents')
       .delete()
       .eq('id', documentId)
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error deleting agent document:', error);
+      throw error;
+    }
+    
+    console.log('✅ Agent document deleted');
   }
 
   // Conversation Management
   async createConversation(userId: string, agentId: string) {
+    console.log('📝 Creating conversation for user:', userId, 'agent:', agentId);
+    
     const { data, error } = await supabase
       .from('conversations')
       .insert({
@@ -244,11 +344,18 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating conversation:', error);
+      throw error;
+    }
+    
+    console.log('✅ Conversation created:', data);
     return data
   }
 
   async getConversations(userId: string, agentId?: string) {
+    console.log('🔍 Getting conversations for user:', userId, 'agent:', agentId);
+    
     let query = supabase
       .from('conversations')
       .select('*')
@@ -261,12 +368,20 @@ export class SupabaseService {
     }
 
     const { data, error } = await query
-    if (error) throw error
+    
+    if (error) {
+      console.error('❌ Error getting conversations:', error);
+      throw error;
+    }
+    
+    console.log('✅ Conversations result:', data?.length || 0, 'conversations found');
     return data
   }
 
   // Message Management
   async createMessage(conversationId: string, content: string, sender: 'user' | 'ai', attachments?: string[]) {
+    console.log('📝 Creating message for conversation:', conversationId);
+    
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -279,7 +394,10 @@ export class SupabaseService {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating message:', error);
+      throw error;
+    }
 
     // Create message attachments if provided
     if (attachments && attachments.length > 0) {
@@ -289,15 +407,22 @@ export class SupabaseService {
         attachment_type: 'reference'
       }))
 
-      await supabase
+      const { error: attachmentError } = await supabase
         .from('message_attachments')
         .insert(attachmentData)
+        
+      if (attachmentError) {
+        console.error('❌ Error creating message attachments:', attachmentError);
+      }
     }
 
+    console.log('✅ Message created:', data);
     return data
   }
 
   async getMessages(conversationId: string) {
+    console.log('🔍 Getting messages for conversation:', conversationId);
+    
     const { data, error } = await supabase
       .from('messages')
       .select(`
@@ -319,7 +444,12 @@ export class SupabaseService {
       .eq('conversation_id', conversationId)
       .order('timestamp', { ascending: true })
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error getting messages:', error);
+      throw error;
+    }
+    
+    console.log('✅ Messages result:', data?.length || 0, 'messages found');
     return data
   }
 }
