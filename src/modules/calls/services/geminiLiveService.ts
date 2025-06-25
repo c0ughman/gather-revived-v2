@@ -33,7 +33,7 @@ class GeminiLiveService {
   private onErrorCallback: ((error: Error) => void) | null = null;
   private onStateChangeCallback: ((state: 'idle' | 'listening' | 'processing' | 'responding') => void) | null = null;
 
-  // Audio processing - SIMPLIFIED FOR LOW LATENCY
+  // Audio processing - FIXED BUFFER SIZE
   private audioChunks: Float32Array[] = [];
   private audioQueue: Int16Array[] = [];
   private currentSource: AudioBufferSourceNode | null = null;
@@ -57,7 +57,7 @@ class GeminiLiveService {
     try {
       console.log("🎤 Starting audio initialization...");
       
-      // Initialize AudioContext with ULTRA LOW LATENCY settings
+      // Initialize AudioContext with low latency settings
       this.audioContext = new AudioContext({
         latencyHint: 'interactive',
         sampleRate: 16000
@@ -65,7 +65,7 @@ class GeminiLiveService {
       
       console.log("✅ AudioContext created");
       
-      // Request microphone permissions with MINIMAL latency
+      // Request microphone permissions with minimal latency
       this.audioStream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           sampleRate: 16000,
@@ -130,16 +130,16 @@ class GeminiLiveService {
       console.log(`🔍 Contact integrations:`, contact.integrations);
       console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}`);
 
-      // Create session config with MINIMAL latency settings
+      // Create session config with low latency settings
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: this.createSystemPrompt(contact),
-        // ULTRA-AGGRESSIVE VAD for INSTANT response
+        // Aggressive VAD for faster response
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            prefixPaddingMs: 10, // MINIMAL padding
-            silenceDurationMs: 100 // INSTANT cutoff
+            prefixPaddingMs: 50, // Minimal padding for faster response
+            silenceDurationMs: 200 // Quick cutoff for faster turn-taking
           }
         },
         // Speech configuration
@@ -250,7 +250,7 @@ class GeminiLiveService {
         }
       });
       
-      console.log("✅ Gemini Live session started with ULTRA-LOW LATENCY");
+      console.log("✅ Gemini Live session started with low latency optimizations");
       
     } catch (error) {
       console.error("Failed to start Gemini Live session:", error);
@@ -407,6 +407,23 @@ class GeminiLiveService {
         return;
       }
 
+      // Handle generation complete
+      if (message.serverContent && message.serverContent.generationComplete) {
+        console.log("✅ Generation complete");
+        return;
+      }
+
+      // Handle turn complete
+      if (message.serverContent && message.serverContent.turnComplete) {
+        console.log("✅ Turn complete");
+        if (!this.isPlaying && this.audioQueue.length > 0) {
+          this.playNextAudioChunk();
+        } else if (!this.isPlaying) {
+          this.updateState('listening');
+        }
+        return;
+      }
+
       // Handle model turn with audio/text
       if (message.serverContent && message.serverContent.modelTurn) {
         const modelTurn = message.serverContent.modelTurn;
@@ -424,9 +441,9 @@ class GeminiLiveService {
               }
             }
             
-            // Handle audio response - IMMEDIATE playback for low latency
+            // Handle audio response - queue for sequential playback
             if (part.inlineData && part.inlineData.data) {
-              console.log("🔊 Received audio chunk - playing IMMEDIATELY");
+              console.log("🔊 Received audio chunk - adding to queue");
               this.updateState('responding');
               const audioData = this.base64ToInt16Array(part.inlineData.data);
               this.playAudioImmediately(audioData);
@@ -436,52 +453,104 @@ class GeminiLiveService {
         return;
       }
 
+      // Handle direct audio data (fallback)
+      if (message.data) {
+        console.log("🔊 Received direct audio data - adding to queue");
+        this.updateState('responding');
+        const audioData = this.base64ToInt16Array(message.data);
+        this.playAudioImmediately(audioData);
+      }
+
+      // Handle direct text (fallback)
+      if (message.text) {
+        console.log("📝 Received direct text:", message.text);
+        if (this.onResponseCallback) {
+          this.onResponseCallback({
+            text: message.text,
+            isComplete: false
+          });
+        }
+      }
+
     } catch (error) {
       console.error("Error handling message:", error);
     }
   }
 
   /**
-   * IMMEDIATE audio playback - no queuing for ultra-low latency
+   * Smart audio playback - immediate if nothing playing, otherwise queue
    */
   private playAudioImmediately(audioData: Int16Array): void {
-    if (!this.audioContext) return;
+    // Add to queue for sequential playback
+    this.audioQueue.push(audioData);
+    
+    // Start playing immediately if nothing is currently playing
+    if (!this.isPlaying) {
+      this.playNextAudioChunk();
+    }
+  }
+
+  /**
+   * Play the next audio chunk with minimal latency
+   */
+  private playNextAudioChunk(): void {
+    if (this.audioQueue.length === 0 || this.isPlaying || !this.audioContext) {
+      return;
+    }
 
     try {
+      this.isPlaying = true;
+      const audioData = this.audioQueue.shift()!;
+      
       // Create audio buffer (Native audio outputs at 24kHz)
       const sampleRate = 24000;
       const audioBuffer = this.audioContext.createBuffer(1, audioData.length, sampleRate);
       const channelData = audioBuffer.getChannelData(0);
       
-      // Convert to float32 immediately
+      // Optimized conversion loop
       for (let i = 0; i < audioData.length; i++) {
         channelData[i] = audioData[i] / 32768.0;
       }
       
-      // Create and play audio source IMMEDIATELY
+      // Create and play audio source
       const source = this.audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.audioContext.destination);
       
       source.onended = () => {
         this.isPlaying = false;
-        this.updateState('listening');
+        
+        // Play next chunk immediately if available
+        if (this.audioQueue.length > 0) {
+          this.playNextAudioChunk();
+        } else {
+          // Return to listening state
+          if (this.activeSession) {
+            this.updateState('listening');
+          } else {
+            this.updateState('idle');
+          }
+        }
       };
       
-      // Start IMMEDIATELY - no delays
+      // Start immediately
       source.start(0);
       this.currentSource = source;
-      this.isPlaying = true;
       
     } catch (error) {
-      console.error("Error playing audio:", error);
+      console.error("Error playing audio chunk:", error);
       this.isPlaying = false;
-      this.updateState('listening');
+      // Continue with next chunk if available
+      if (this.audioQueue.length > 0) {
+        setTimeout(() => this.playNextAudioChunk(), 10);
+      } else {
+        this.updateState('listening');
+      }
     }
   }
 
   /**
-   * Start capturing and streaming audio with MINIMAL latency
+   * Start capturing and streaming audio using VALID buffer size
    */
   private startAudioCapture(): void {
     if (!this.audioStream || !this.audioContext || !this.activeSession) {
@@ -489,44 +558,49 @@ class GeminiLiveService {
     }
 
     try {
-      console.log("🎤 Starting ULTRA-LOW LATENCY audio capture");
+      console.log("🎤 Starting audio capture");
       this.isRecording = true;
       this.updateState('listening');
 
+      // Create audio source from microphone
       const source = this.audioContext.createMediaStreamSource(this.audioStream);
       this.audioSource = source;
       
-      // Use SMALLEST buffer size for INSTANT response (128 samples = 8ms at 16kHz)
-      const processor = this.audioContext.createScriptProcessor(128, 1, 1);
+      // Use VALID buffer size - 256 is the minimum valid size (16ms at 16kHz)
+      const processor = this.audioContext.createScriptProcessor(256, 1, 1);
       this.audioProcessor = processor;
       
       processor.onaudioprocess = (event) => {
-        if (!this.isRecording || !this.activeSession) return;
+        if (!this.isRecording || !this.activeSession) {
+          return;
+        }
 
         const inputData = event.inputBuffer.getChannelData(0);
         
-        // INSTANT voice activity detection
+        // Voice activity detection for faster response
         let hasAudio = false;
         for (let i = 0; i < inputData.length; i++) {
-          if (Math.abs(inputData[i]) > 0.001) { // Very low threshold for instant response
+          if (Math.abs(inputData[i]) > 0.005) { // Lower threshold for faster response
             hasAudio = true;
             break;
           }
         }
 
         if (hasAudio) {
+          // Direct copy without extra allocation when possible
           const audioChunk = new Float32Array(inputData);
           this.audioChunks.push(audioChunk);
         }
       };
 
+      // Connect audio processing chain
       source.connect(processor);
       processor.connect(this.audioContext.destination);
 
-      // Send audio chunks every 8ms for INSTANT streaming
+      // Send audio chunks every 16ms for low latency streaming
       this.processingInterval = window.setInterval(() => {
         this.sendAudioChunks();
-      }, 8);
+      }, 16);
 
     } catch (error) {
       console.error("Error starting audio capture:", error);
@@ -536,7 +610,7 @@ class GeminiLiveService {
   }
 
   /**
-   * Send audio chunks IMMEDIATELY with no batching
+   * Send audio chunks with minimal batching delay
    */
   private async sendAudioChunks(): Promise<void> {
     if (!this.activeSession || this.audioChunks.length === 0 || !this.isRecording) {
@@ -544,17 +618,22 @@ class GeminiLiveService {
     }
 
     try {
-      // Send each chunk INDIVIDUALLY for zero latency
+      // Send chunks individually to avoid batching delay
       const chunksToSend = [...this.audioChunks];
-      this.audioChunks = [];
+      this.audioChunks = []; // Clear immediately
       
       for (const chunk of chunksToSend) {
+        // Convert individual chunk directly
         const pcmData = this.fastConvertToPCM16(chunk);
-        if (pcmData.length === 0) continue;
+        
+        if (pcmData.length === 0) {
+          continue;
+        }
 
+        // Fast base64 conversion
         const base64Audio = this.fastPcmToBase64(pcmData);
 
-        // Send IMMEDIATELY
+        // Send immediately without waiting
         this.activeSession.sendRealtimeInput({
           audio: {
             data: base64Audio,
@@ -574,6 +653,7 @@ class GeminiLiveService {
   private fastConvertToPCM16(audioData: Float32Array): Int16Array {
     const pcmData = new Int16Array(audioData.length);
     for (let i = 0; i < audioData.length; i++) {
+      // Clamp and convert with bitwise operation for speed
       const sample = Math.max(-1, Math.min(1, audioData[i]));
       pcmData[i] = (sample * 32767) | 0;
     }
@@ -581,9 +661,10 @@ class GeminiLiveService {
   }
 
   /**
-   * Ultra-fast base64 conversion
+   * Ultra-fast base64 conversion using direct buffer access
    */
   private fastPcmToBase64(pcmData: Int16Array): string {
+    // Direct buffer access - fastest method
     const uint8Array = new Uint8Array(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength);
     return btoa(String.fromCharCode.apply(null, Array.from(uint8Array)));
   }
@@ -619,10 +700,12 @@ class GeminiLiveService {
    * Get appropriate voice for contact
    */
   private getVoiceForContact(contact: AIContact): string {
+    // Use the contact's selected voice if available, otherwise fall back to auto-selection
     if (contact.voice) {
       return contact.voice;
     }
     
+    // Auto-select voice based on name for backward compatibility
     const voices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
     const index = contact.name.charCodeAt(0) % voices.length;
     return voices[index];
@@ -815,9 +898,9 @@ class GeminiLiveService {
   private createSystemPrompt(contact: AIContact): string {
     let systemPrompt = `You are ${contact.name}. ${contact.description}
 
-Key guidelines for ULTRA-LOW LATENCY conversation:
+Key guidelines for LOW LATENCY conversation:
 - Stay in character as ${contact.name}
-- Keep responses VERY brief (1-2 sentences maximum) for real-time conversation
+- Keep responses brief (1-2 sentences maximum) for real-time conversation
 - Respond quickly and naturally - this is real-time voice chat
 - If interrupted, stop immediately and listen
 - Prioritize speed over completeness in responses
@@ -890,16 +973,7 @@ You have access to the following documents. Use this information to provide accu
 
 `;
       contact.documents.forEach(doc => {
-        systemPrompt += `📄 DOCUMENT: ${doc.name}
-📋 Type: ${doc.type}
-📊 Summary: ${doc.summary || 'Document content available'}
-
-📖 CONTENT:
-${doc.extractedText || doc.content || 'Content not available'}
-
----
-
-`;
+        systemPrompt += documentService.formatDocumentForAI(doc) + '\n\n';
       });
       
       systemPrompt += `This is your permanent knowledge base. Reference this information throughout conversations to provide accurate and detailed responses.`;
