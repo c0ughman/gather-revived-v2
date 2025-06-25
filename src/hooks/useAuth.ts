@@ -80,13 +80,7 @@ export function useAuth() {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
-        password,
-        options: {
-          emailRedirectTo: undefined, // Disable email confirmation redirect
-          data: {
-            email_confirm: false // Try to disable email confirmation
-          }
-        }
+        password
       })
 
       console.log('📝 Sign up result:', { 
@@ -95,23 +89,31 @@ export function useAuth() {
         error: error?.message 
       })
 
-      // If sign up was successful but no session (email confirmation required)
-      if (data.user && !data.session && !error) {
-        console.log('📧 Email confirmation may be required, attempting direct sign in...')
+      if (error) {
+        return { data, error }
+      }
+
+      // If sign up was successful and we have a session, we're done
+      if (data.session) {
+        console.log('✅ Sign up successful with immediate session')
+        return { data, error }
+      }
+
+      // If we have a user but no session, email confirmation is likely required
+      if (data.user && !data.session) {
+        console.log('📧 User created but email confirmation may be required')
         
-        // Try to sign in immediately (this works if email confirmation is disabled)
-        const signInResult = await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
+        // Return a custom error to inform the user about email confirmation
+        const confirmationError: AuthError = {
+          name: 'AuthError',
+          message: 'Please check your email and click the confirmation link to complete your registration.',
+          status: 200
+        }
         
-        console.log('📝 Direct sign in after signup:', {
-          user: signInResult.data.user?.email,
-          session: !!signInResult.data.session,
-          error: signInResult.error?.message
-        })
-        
-        return signInResult
+        return { 
+          data: { user: data.user, session: null }, 
+          error: confirmationError 
+        }
       }
 
       return { data, error }
