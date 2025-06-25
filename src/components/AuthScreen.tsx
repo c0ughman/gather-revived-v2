@@ -31,20 +31,42 @@ export default function AuthScreen() {
           return
         }
 
-        const { error } = await signUp(email, password)
+        console.log('Starting sign up process...')
+        const { data, error } = await signUp(email, password)
+        
         if (error) {
+          console.error('Sign up error:', error)
           setError(error.message)
+        } else if (data.user) {
+          console.log('Sign up successful, user created:', data.user.email)
+          setMessage('Account created successfully! Welcome to Gather!')
+          
+          // Clear form
+          setEmail('')
+          setPassword('')
+          setConfirmPassword('')
+          
+          // The useAuth hook will handle the redirect automatically
+          // when the auth state changes
         } else {
-          // No email confirmation needed - user should be logged in automatically
-          setMessage('Account created successfully! You are now logged in.')
+          setError('Sign up failed. Please try again.')
         }
       } else {
-        const { error } = await signIn(email, password)
+        console.log('Starting sign in process...')
+        const { data, error } = await signIn(email, password)
+        
         if (error) {
+          console.error('Sign in error:', error)
           setError(error.message)
+        } else if (data.user) {
+          console.log('Sign in successful:', data.user.email)
+          // The useAuth hook will handle the redirect automatically
+        } else {
+          setError('Sign in failed. Please try again.')
         }
       }
     } catch (err) {
+      console.error('Authentication error:', err)
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -212,6 +234,9 @@ export default function AuthScreen() {
                   setIsSignUp(!isSignUp)
                   setError(null)
                   setMessage(null)
+                  setEmail('')
+                  setPassword('')
+                  setConfirmPassword('')
                 }}
                 className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200"
               >

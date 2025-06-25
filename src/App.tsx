@@ -33,8 +33,10 @@ function App() {
   // Load user data when authenticated
   useEffect(() => {
     if (user) {
+      console.log('User authenticated, loading data for:', user.email);
       loadUserData();
     } else {
+      console.log('No user, clearing data');
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
@@ -47,15 +49,20 @@ function App() {
 
     try {
       setLoading(true);
+      console.log('Loading user data for:', user.id);
       
-      // Ensure user profile exists
+      // Ensure user profile exists (this should already be handled by useAuth)
       let profile = await supabaseService.getUserProfile(user.id);
       if (!profile) {
+        console.log('Creating user profile...');
         profile = await supabaseService.createUserProfile(user.id, user.email?.split('@')[0]);
       }
 
+      console.log('User profile loaded:', profile);
+
       // Load user agents
       const agents = await supabaseService.getUserAgents(user.id);
+      console.log('Loaded agents:', agents);
       
       // Transform database agents to AIContact format
       const transformedContacts: AIContact[] = agents.map(agent => ({
@@ -89,6 +96,7 @@ function App() {
       }));
 
       setContacts(transformedContacts);
+      console.log('Contacts set:', transformedContacts);
       
       // Initialize integrations for loaded contacts
       transformedContacts.forEach(contact => {
@@ -423,7 +431,7 @@ function App() {
   };
 
   // Show loading screen while checking auth
-  if (authLoading || (user && loading)) {
+  if (authLoading) {
     return (
       <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -437,6 +445,18 @@ function App() {
   // Show auth screen if not authenticated
   if (!user) {
     return <AuthScreen />;
+  }
+
+  // Show loading screen while loading user data
+  if (loading) {
+    return (
+      <div className="h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading your agents...</p>
+        </div>
+      </div>
+    );
   }
 
   // Get messages for selected contact
