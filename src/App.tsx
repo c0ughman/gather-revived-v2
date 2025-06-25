@@ -22,13 +22,24 @@ function App() {
   const [contacts, setContacts] = useState<AIContact[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [callState, setCallState] = useState<CallState>({
     isActive: false,
     duration: 0,
     isMuted: false,
     status: 'ended'
   });
+
+  // Update call duration - MOVED TO TOP LEVEL
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (callState.isActive && callState.status === 'connected') {
+      interval = setInterval(() => {
+        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [callState.isActive, callState.status]);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -43,17 +54,6 @@ function App() {
       setLoading(false);
     }
   }, [user]);
-
-  // Update call duration - MOVED TO TOP LEVEL
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (callState.isActive && callState.status === 'connected') {
-      interval = setInterval(() => {
-        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [callState.isActive, callState.status]);
 
   const loadUserData = async () => {
     if (!user) return;
@@ -128,8 +128,12 @@ function App() {
         }
       });
 
+      console.log('✅ User data loaded successfully');
+
     } catch (error) {
-      console.error('Failed to load user data:', error);
+      console.error('❌ Failed to load user data:', error);
+      // Don't leave the user stuck in loading state
+      setContacts([]);
     } finally {
       setLoading(false);
     }
@@ -447,7 +451,7 @@ function App() {
       <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading...</p>
+          <p className="text-white text-lg">Initializing...</p>
         </div>
       </div>
     );
@@ -465,6 +469,7 @@ function App() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white text-lg">Loading your agents...</p>
+          <p className="text-slate-400 text-sm mt-2">Setting up your workspace...</p>
         </div>
       </div>
     );
