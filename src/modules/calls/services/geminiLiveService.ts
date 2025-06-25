@@ -26,14 +26,14 @@ class GeminiLiveService {
   private isRecording: boolean = false;
   private isPlaying: boolean = false;
   private currentContact: AIContact | null = null;
-  private isSessionActive: boolean = false; // Prevent multiple sessions
+  private isSessionActive: boolean = false;
 
   // Callbacks
   private onResponseCallback: ((response: GeminiLiveResponse) => void) | null = null;
   private onErrorCallback: ((error: Error) => void) | null = null;
   private onStateChangeCallback: ((state: 'idle' | 'listening' | 'processing' | 'responding') => void) | null = null;
 
-  // Audio processing
+  // Audio processing - SIMPLIFIED FOR LOW LATENCY
   private audioChunks: Float32Array[] = [];
   private audioQueue: Int16Array[] = [];
   private currentSource: AudioBufferSourceNode | null = null;
@@ -57,7 +57,7 @@ class GeminiLiveService {
     try {
       console.log("🎤 Starting audio initialization...");
       
-      // Initialize AudioContext with optimal low latency settings
+      // Initialize AudioContext with ULTRA LOW LATENCY settings
       this.audioContext = new AudioContext({
         latencyHint: 'interactive',
         sampleRate: 16000
@@ -65,19 +65,19 @@ class GeminiLiveService {
       
       console.log("✅ AudioContext created");
       
-      // Request microphone permissions with minimal latency
+      // Request microphone permissions with MINIMAL latency
       this.audioStream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          latency: 0.01 // 10ms latency
         } 
       });
       
       console.log("✅ Microphone access granted");
-      console.log("🎤 Audio initialized with ultra-low latency");
       return true;
     } catch (error) {
       console.error("❌ Failed to initialize audio:", error);
@@ -97,76 +97,49 @@ class GeminiLiveService {
         throw new Error("Gemini API not initialized - check your API key");
       }
 
-      // Wait for audio to be fully ready with timeout
-      console.log("🔍 Checking audio initialization status...");
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      while ((!this.audioStream || !this.audioContext) && attempts < maxAttempts) {
-        console.log(`⏳ Waiting for audio... attempt ${attempts + 1}/${maxAttempts}`);
-        await new Promise(resolve => setTimeout(resolve, 50));
-        attempts++;
-      }
-
       if (!this.audioStream || !this.audioContext) {
         throw new Error("Audio not initialized - call initialize() first");
       }
-      
-      console.log("✅ Audio is ready, proceeding with session...");
 
       // Prevent multiple concurrent sessions
       if (this.isSessionActive) {
         console.log("Session already active, ending current session first");
         this.endSession();
-        // Minimal cleanup time for fastest restart
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       this.isSessionActive = true;
-      
-      // Store the contact
       this.currentContact = contact;
       this.updateState('idle');
-      
-      // Clear any existing audio queue
       this.audioQueue = [];
-      
-      // Check if contact has API request tool integration
+
+      // Check integrations and documents
       const hasApiTool = contact.integrations?.some(
         integration => integration.integrationId === 'api-request-tool' && integration.config.enabled
       );
-
-      // Check if contact has domain checker tool integration
       const hasDomainTool = contact.integrations?.some(
         integration => integration.integrationId === 'domain-checker-tool' && integration.config.enabled
       );
-
-      // Check if contact has webhook trigger integration
       const hasWebhookTool = contact.integrations?.some(
         integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
       );
-
-      // Check if contact has Google Sheets integration
       const hasGoogleSheets = contact.integrations?.some(
         integration => integration.integrationId === 'google-sheets' && integration.config.enabled
       );
-      
-      console.log(`🔍 Contact integrations:`, contact.integrations);
-      console.log(`🔍 Has API tool: ${hasApiTool}`);
-      console.log(`🔍 Has Domain tool: ${hasDomainTool}`);
-      console.log(`🔍 Has Webhook tool: ${hasWebhookTool}`);
-      console.log(`🔍 Has Google Sheets: ${hasGoogleSheets}`);
 
-      // Create session config following the docs exactly
+      console.log(`🔍 Contact integrations:`, contact.integrations);
+      console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}`);
+
+      // Create session config with MINIMAL latency settings
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: this.createSystemPrompt(contact),
-        // Ultra-aggressive VAD for minimal latency
+        // ULTRA-AGGRESSIVE VAD for INSTANT response
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            prefixPaddingMs: 50, // Minimal padding for fastest response
-            silenceDurationMs: 200 // Quick cutoff for faster turn-taking
+            prefixPaddingMs: 10, // MINIMAL padding
+            silenceDurationMs: 100 // INSTANT cutoff
           }
         },
         // Speech configuration
@@ -189,23 +162,10 @@ class GeminiLiveService {
           parameters: {
             type: "object" as const,
             properties: {
-              url: {
-                type: "string" as const,
-                description: "The URL to make the request to"
-              },
-              method: {
-                type: "string" as const,
-                description: "HTTP method (GET, POST, PUT, DELETE)",
-                enum: ["GET", "POST", "PUT", "DELETE"]
-              },
-              headers: {
-                type: "object" as const,
-                description: "HTTP headers as key-value pairs"
-              },
-              body: {
-                type: "string" as const,
-                description: "Request body for POST/PUT requests"
-              }
+              url: { type: "string" as const, description: "The URL to make the request to" },
+              method: { type: "string" as const, description: "HTTP method (GET, POST, PUT, DELETE)", enum: ["GET", "POST", "PUT", "DELETE"] },
+              headers: { type: "object" as const, description: "HTTP headers as key-value pairs" },
+              body: { type: "string" as const, description: "Request body for POST/PUT requests" }
             },
             required: ["url"]
           }
@@ -219,17 +179,8 @@ class GeminiLiveService {
           parameters: {
             type: "object" as const,
             properties: {
-              domain: {
-                type: "string" as const,
-                description: "Base domain name to check (without TLD)"
-              },
-              variations: {
-                type: "array" as const,
-                items: {
-                  type: "string" as const
-                },
-                description: "Optional domain variations to check. Use {domain} as placeholder. If not provided, uses default variations."
-              }
+              domain: { type: "string" as const, description: "Base domain name to check (without TLD)" },
+              variations: { type: "array" as const, items: { type: "string" as const }, description: "Optional domain variations to check. Use {domain} as placeholder." }
             },
             required: ["domain"]
           }
@@ -239,14 +190,11 @@ class GeminiLiveService {
       if (hasWebhookTool) {
         functionDeclarations.push({
           name: "trigger_webhook",
-          description: "Trigger a webhook based on natural language commands. Use when user asks to activate, trigger, start, launch, or execute something.",
+          description: "Trigger a webhook based on natural language commands",
           parameters: {
             type: "object" as const,
             properties: {
-              action: {
-                type: "string" as const,
-                description: "The action the user wants to perform (e.g., 'activate marketing', 'trigger workflow', 'send notification')"
-              }
+              action: { type: "string" as const, description: "The action the user wants to perform" }
             },
             required: ["action"]
           }
@@ -256,42 +204,16 @@ class GeminiLiveService {
       if (hasGoogleSheets) {
         functionDeclarations.push({
           name: "manage_google_sheets",
-          description: "Read, write, search, and manage Google Sheets data. Use when user asks to view, add, update, search, or modify spreadsheet data. Always provide data as 2D arrays for write/append operations.",
+          description: "Read, write, search, and manage Google Sheets data",
           parameters: {
             type: "object" as const,
             properties: {
-              operation: {
-                type: "string" as const,
-                description: "The operation to perform: 'read' (view data), 'write' (update specific cells), 'append' (add new rows), 'search' (find data), 'info' (get metadata), 'clear' (delete data)",
-                enum: ["read", "write", "append", "search", "info", "clear"]
-              },
-              sheetIndex: {
-                type: "number" as const,
-                description: "Index of the Google Sheets integration to use (0 for first sheet, 1 for second, etc.)",
-                default: 0
-              },
-              range: {
-                type: "string" as const,
-                description: "Cell range for read/write operations (e.g., 'A1:C10', 'B5:D5', 'A:A'). Required for write/clear operations. Optional for read (defaults to all data)."
-              },
-              data: {
-                type: "array" as const,
-                items: {
-                  type: "array" as const,
-                  items: {
-                    type: "string" as const
-                  }
-                },
-                description: "2D array of data for write/append operations. MUST be array of arrays. Examples: [['John', 'Doe', 'john@email.com']] for one row, [['Name', 'Email'], ['John', 'john@email.com'], ['Jane', 'jane@email.com']] for multiple rows with headers."
-              },
-              searchTerm: {
-                type: "string" as const,
-                description: "Search term to find in the spreadsheet (required for search operation)"
-              },
-              sheetName: {
-                type: "string" as const,
-                description: "Optional name of the specific sheet/tab to operate on (defaults to first sheet)"
-              }
+              operation: { type: "string" as const, description: "The operation to perform", enum: ["read", "write", "append", "search", "info", "clear"] },
+              sheetIndex: { type: "number" as const, description: "Index of the Google Sheets integration to use", default: 0 },
+              range: { type: "string" as const, description: "Cell range for operations" },
+              data: { type: "array" as const, items: { type: "array" as const, items: { type: "string" as const } }, description: "2D array of data for write/append operations" },
+              searchTerm: { type: "string" as const, description: "Search term for search operation" },
+              sheetName: { type: "string" as const, description: "Optional sheet/tab name" }
             },
             required: ["operation"]
           }
@@ -301,16 +223,11 @@ class GeminiLiveService {
       if (functionDeclarations.length > 0) {
         config.tools = [{ functionDeclarations }];
         console.log(`🔧 Tools configured: ${functionDeclarations.map(f => f.name).join(', ')}`);
-        console.log('🔧 Full tools config:', JSON.stringify(config.tools, null, 2));
-      } else {
-        console.log('🔧 No tools configured for this contact');
       }
 
-      console.log('🔧 Final session config:', JSON.stringify(config, null, 2));
-
-      // Create Live API session following docs pattern
+      // Create Live API session
       this.activeSession = await this.genAI.live.connect({
-        model: 'gemini-2.0-flash-live-001', // Use stable Live API model with higher quotas
+        model: 'gemini-2.0-flash-live-001',
         config: config,
         callbacks: {
           onopen: () => {
@@ -333,7 +250,7 @@ class GeminiLiveService {
         }
       });
       
-      console.log("✅ Gemini Live session started with ULTRA-LOW LATENCY optimizations");
+      console.log("✅ Gemini Live session started with ULTRA-LOW LATENCY");
       
     } catch (error) {
       console.error("Failed to start Gemini Live session:", error);
@@ -367,20 +284,14 @@ class GeminiLiveService {
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
+                response: { success: true, data: result }
               });
             } catch (error) {
               console.error('❌ API request failed:', error);
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'API request failed'
-                }
+                response: { success: false, error: (error as Error).message || 'API request failed' }
               });
             }
           }
@@ -395,20 +306,14 @@ class GeminiLiveService {
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
+                response: { success: true, data: result }
               });
             } catch (error) {
               console.error('❌ Domain check failed:', error);
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Domain check failed'
-                }
+                response: { success: false, error: (error as Error).message || 'Domain check failed' }
               });
             }
           }
@@ -423,20 +328,14 @@ class GeminiLiveService {
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
+                response: { success: true, data: result }
               });
             } catch (error) {
               console.error('❌ Webhook trigger failed:', error);
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Webhook trigger failed'
-                }
+                response: { success: false, error: (error as Error).message || 'Webhook trigger failed' }
               });
             }
           }
@@ -446,7 +345,6 @@ class GeminiLiveService {
               const { operation, sheetIndex = 0, range, data, searchTerm, sheetName } = fc.args;
               console.log(`📊 Managing Google Sheets: ${operation}`);
               
-              // Get the Google Sheets integration for this contact
               const sheetsIntegrations = this.currentContact?.integrations?.filter(
                 integration => integration.integrationId === 'google-sheets' && integration.config.enabled
               ) || [];
@@ -487,10 +385,7 @@ class GeminiLiveService {
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Google Sheets operation failed'
-                }
+                response: { success: false, error: (error as Error).message || 'Google Sheets operation failed' }
               });
             }
           }
@@ -507,27 +402,8 @@ class GeminiLiveService {
       if (message.serverContent && message.serverContent.interrupted) {
         console.log("🛑 Interruption detected");
         this.stopAudioPlayback();
-        this.audioQueue = []; // Clear queue on interruption
+        this.audioQueue = [];
         this.updateState('listening');
-        return;
-      }
-
-      // Handle generation complete
-      if (message.serverContent && message.serverContent.generationComplete) {
-        console.log("✅ Generation complete");
-        // Don't change state here, let audio finish playing
-        return;
-      }
-
-      // Handle turn complete
-      if (message.serverContent && message.serverContent.turnComplete) {
-        console.log("✅ Turn complete");
-        // Start playing queued audio if not already playing
-        if (!this.isPlaying && this.audioQueue.length > 0) {
-          this.playNextAudioChunk();
-        } else if (!this.isPlaying) {
-          this.updateState('listening');
-        }
         return;
       }
 
@@ -548,9 +424,9 @@ class GeminiLiveService {
               }
             }
             
-            // Handle audio response - queue for sequential playback
+            // Handle audio response - IMMEDIATE playback for low latency
             if (part.inlineData && part.inlineData.data) {
-              console.log("🔊 Received audio chunk - adding to queue");
+              console.log("🔊 Received audio chunk - playing IMMEDIATELY");
               this.updateState('responding');
               const audioData = this.base64ToInt16Array(part.inlineData.data);
               this.playAudioImmediately(audioData);
@@ -560,104 +436,52 @@ class GeminiLiveService {
         return;
       }
 
-      // Handle direct audio data (fallback)
-      if (message.data) {
-        console.log("🔊 Received direct audio data - adding to queue");
-        this.updateState('responding');
-        const audioData = this.base64ToInt16Array(message.data);
-        this.playAudioImmediately(audioData);
-      }
-
-      // Handle direct text (fallback)
-      if (message.text) {
-        console.log("📝 Received direct text:", message.text);
-        if (this.onResponseCallback) {
-          this.onResponseCallback({
-            text: message.text,
-            isComplete: false
-          });
-        }
-      }
-
     } catch (error) {
       console.error("Error handling message:", error);
     }
   }
 
   /**
-   * Smart audio playback - immediate if nothing playing, otherwise queue with minimal delay
+   * IMMEDIATE audio playback - no queuing for ultra-low latency
    */
   private playAudioImmediately(audioData: Int16Array): void {
-    // Add to queue for sequential playback
-    this.audioQueue.push(audioData);
-    
-    // Start playing immediately if nothing is currently playing
-    if (!this.isPlaying) {
-      this.playNextAudioChunk();
-    }
-  }
-
-  /**
-   * Play the next audio chunk with minimal latency
-   */
-  private playNextAudioChunk(): void {
-    if (this.audioQueue.length === 0 || this.isPlaying || !this.audioContext) {
-      return;
-    }
+    if (!this.audioContext) return;
 
     try {
-      this.isPlaying = true;
-      const audioData = this.audioQueue.shift()!;
-      
       // Create audio buffer (Native audio outputs at 24kHz)
       const sampleRate = 24000;
       const audioBuffer = this.audioContext.createBuffer(1, audioData.length, sampleRate);
       const channelData = audioBuffer.getChannelData(0);
       
-      // Optimized conversion loop
+      // Convert to float32 immediately
       for (let i = 0; i < audioData.length; i++) {
         channelData[i] = audioData[i] / 32768.0;
       }
       
-      // Create and play audio source
+      // Create and play audio source IMMEDIATELY
       const source = this.audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.audioContext.destination);
       
       source.onended = () => {
         this.isPlaying = false;
-        
-        // Play next chunk immediately if available (no delay for streaming)
-        if (this.audioQueue.length > 0) {
-          this.playNextAudioChunk();
-        } else {
-          // Return to listening state
-          if (this.activeSession) {
-            this.updateState('listening');
-          } else {
-            this.updateState('idle');
-          }
-        }
+        this.updateState('listening');
       };
       
-      // Start immediately
+      // Start IMMEDIATELY - no delays
       source.start(0);
       this.currentSource = source;
+      this.isPlaying = true;
       
     } catch (error) {
-      console.error("Error playing audio chunk:", error);
+      console.error("Error playing audio:", error);
       this.isPlaying = false;
-      // Continue with next chunk if available
-      if (this.audioQueue.length > 0) {
-        setTimeout(() => this.playNextAudioChunk(), 10);
-      } else {
-        this.updateState('listening');
-      }
+      this.updateState('listening');
     }
   }
 
   /**
-   * Start capturing and streaming audio using the pattern from docs
+   * Start capturing and streaming audio with MINIMAL latency
    */
   private startAudioCapture(): void {
     if (!this.audioStream || !this.audioContext || !this.activeSession) {
@@ -665,49 +489,44 @@ class GeminiLiveService {
     }
 
     try {
-      console.log("🎤 Starting audio capture");
+      console.log("🎤 Starting ULTRA-LOW LATENCY audio capture");
       this.isRecording = true;
       this.updateState('listening');
 
-      // Create audio source from microphone
       const source = this.audioContext.createMediaStreamSource(this.audioStream);
       this.audioSource = source;
       
-      // Use minimal buffer size for ultra-low latency (16ms at 16kHz)
-      const processor = this.audioContext.createScriptProcessor(256, 1, 1);
+      // Use SMALLEST buffer size for INSTANT response (128 samples = 8ms at 16kHz)
+      const processor = this.audioContext.createScriptProcessor(128, 1, 1);
       this.audioProcessor = processor;
       
       processor.onaudioprocess = (event) => {
-        if (!this.isRecording || !this.activeSession) {
-          return;
-        }
+        if (!this.isRecording || !this.activeSession) return;
 
         const inputData = event.inputBuffer.getChannelData(0);
         
-        // Ultra-sensitive voice activity detection for minimal latency
+        // INSTANT voice activity detection
         let hasAudio = false;
         for (let i = 0; i < inputData.length; i++) {
-          if (Math.abs(inputData[i]) > 0.005) { // Lower threshold for faster response
+          if (Math.abs(inputData[i]) > 0.001) { // Very low threshold for instant response
             hasAudio = true;
             break;
           }
         }
 
         if (hasAudio) {
-          // Direct copy without extra allocation when possible
           const audioChunk = new Float32Array(inputData);
           this.audioChunks.push(audioChunk);
         }
       };
 
-      // Connect audio processing chain
       source.connect(processor);
       processor.connect(this.audioContext.destination);
 
-      // Send audio chunks every 16ms for ultra-low latency streaming
+      // Send audio chunks every 8ms for INSTANT streaming
       this.processingInterval = window.setInterval(() => {
         this.sendAudioChunks();
-      }, 16);
+      }, 8);
 
     } catch (error) {
       console.error("Error starting audio capture:", error);
@@ -717,7 +536,7 @@ class GeminiLiveService {
   }
 
   /**
-   * Send individual audio chunks immediately for zero batching latency
+   * Send audio chunks IMMEDIATELY with no batching
    */
   private async sendAudioChunks(): Promise<void> {
     if (!this.activeSession || this.audioChunks.length === 0 || !this.isRecording) {
@@ -725,22 +544,17 @@ class GeminiLiveService {
     }
 
     try {
-      // Send each chunk individually to avoid batching delay
+      // Send each chunk INDIVIDUALLY for zero latency
       const chunksToSend = [...this.audioChunks];
-      this.audioChunks = []; // Clear immediately
+      this.audioChunks = [];
       
       for (const chunk of chunksToSend) {
-        // Convert individual chunk directly
         const pcmData = this.fastConvertToPCM16(chunk);
-        
-        if (pcmData.length === 0) {
-          continue;
-        }
+        if (pcmData.length === 0) continue;
 
-        // Fast base64 conversion
         const base64Audio = this.fastPcmToBase64(pcmData);
 
-        // Send immediately without waiting
+        // Send IMMEDIATELY
         this.activeSession.sendRealtimeInput({
           audio: {
             data: base64Audio,
@@ -755,12 +569,11 @@ class GeminiLiveService {
   }
 
   /**
-   * Ultra-fast Float32 to 16-bit PCM conversion (optimized for minimal latency)
+   * Ultra-fast Float32 to 16-bit PCM conversion
    */
   private fastConvertToPCM16(audioData: Float32Array): Int16Array {
     const pcmData = new Int16Array(audioData.length);
     for (let i = 0; i < audioData.length; i++) {
-      // Clamp and convert with bitwise operation for speed
       const sample = Math.max(-1, Math.min(1, audioData[i]));
       pcmData[i] = (sample * 32767) | 0;
     }
@@ -768,19 +581,11 @@ class GeminiLiveService {
   }
 
   /**
-   * Ultra-fast base64 conversion using direct buffer access
+   * Ultra-fast base64 conversion
    */
   private fastPcmToBase64(pcmData: Int16Array): string {
-    // Direct buffer access - fastest method
     const uint8Array = new Uint8Array(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength);
     return btoa(String.fromCharCode.apply(null, Array.from(uint8Array)));
-  }
-
-  /**
-   * Legacy PCM to base64 (keeping for compatibility)
-   */
-  private pcmToBase64(pcmData: Int16Array): string {
-    return this.fastPcmToBase64(pcmData);
   }
 
   /**
@@ -814,12 +619,10 @@ class GeminiLiveService {
    * Get appropriate voice for contact
    */
   private getVoiceForContact(contact: AIContact): string {
-    // Use the contact's selected voice if available, otherwise fall back to auto-selection
     if (contact.voice) {
       return contact.voice;
     }
     
-    // Auto-select voice based on name for backward compatibility
     const voices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
     const index = contact.name.charCodeAt(0) % voices.length;
     return voices[index];
@@ -830,11 +633,9 @@ class GeminiLiveService {
    */
   private async checkDomainAvailability(baseDomain: string, customVariations?: string[]): Promise<any> {
     try {
-      // Get variations from contact integration settings or use provided ones
       let variations: string[] = customVariations || [];
       
       if (variations.length === 0) {
-        // Get default variations from contact integration settings
         const domainIntegration = this.currentContact?.integrations?.find(
           integration => integration.integrationId === 'domain-checker-tool' && integration.config.enabled
         );
@@ -842,14 +643,7 @@ class GeminiLiveService {
         if (domainIntegration?.config.settings.variations) {
           variations = domainIntegration.config.settings.variations.split('\n').filter((v: string) => v.trim());
         } else {
-          // Fallback default variations
-          variations = [
-            '{domain}.com',
-            '{domain}.net',
-            '{domain}.org',
-            'try{domain}.com',
-            '{domain}app.com'
-          ];
+          variations = ['{domain}.com', '{domain}.net', '{domain}.org', 'try{domain}.com', '{domain}app.com'];
         }
       }
 
@@ -859,87 +653,45 @@ class GeminiLiveService {
         )?.config.settings.maxConcurrent || '5'
       );
 
-      // Generate domain variations
       const domainsToCheck = variations.map(variation => 
         variation.replace('{domain}', baseDomain)
       );
 
       console.log(`🔍 Checking ${domainsToCheck.length} domain variations for "${baseDomain}"`);
 
-      // Check domains in batches
       const results = [];
       for (let i = 0; i < domainsToCheck.length; i += maxConcurrent) {
         const batch = domainsToCheck.slice(i, i + maxConcurrent);
-                 const batchPromises = batch.map(async (domain) => {
-           try {
-             // First try the main RDAP service
-             let response = await fetch(`https://rdap.org/domain/${domain}`, {
-               method: 'GET',
-               headers: {
-                 'Accept': 'application/json'
-               }
-             });
+        const batchPromises = batch.map(async (domain) => {
+          try {
+            const response = await fetch(`https://rdap.org/domain/${domain}`, {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' }
+            });
 
-             let isAvailable = response.status === 404;
-             let statusCode = response.status;
-             let method = 'rdap.org';
-
-             // Special handling for .io domains - they often show as 404 on rdap.org even when taken
-             if (domain.endsWith('.io') && response.status === 404) {
-               try {
-                 // Try WHOIS API as fallback for .io domains
-                 console.log(`🔍 .io domain detected, using fallback check for ${domain}`);
-                 const whoisResponse = await fetch(`https://api.whoapi.com/?domain=${domain}&r=whois&apikey=free`, {
-                   method: 'GET'
-                 });
-                 
-                 if (whoisResponse.ok) {
-                   const whoisData = await whoisResponse.json();
-                   // If whois returns data, domain is likely taken
-                   if (whoisData && whoisData.whois_server) {
-                     isAvailable = false;
-                     statusCode = 200;
-                     method = 'whois fallback';
-                   }
-                 }
-               } catch (whoisError) {
-                 console.warn(`⚠️ WHOIS fallback failed for ${domain}:`, whoisError);
-                 // For .io domains, be more conservative - if RDAP says 404 but we can't verify, mark as uncertain
-                 if (domain.endsWith('.io')) {
-                   method = 'rdap.org (uncertain for .io)';
-                 }
-               }
-             }
-
-             const status = isAvailable ? 'available' : 'taken';
-             
-             console.log(`${isAvailable ? '✅' : '❌'} ${domain}: ${status} (via ${method})`);
-             
-             return {
-               domain,
-               available: isAvailable,
-               status,
-               statusCode,
-               method,
-               checked: true,
-               note: domain.endsWith('.io') && method.includes('rdap.org') ? 'Note: .io domain availability may be uncertain with RDAP' : undefined
-             };
-           } catch (error) {
-             console.error(`❌ Error checking ${domain}:`, error);
-             return {
-               domain,
-               available: false,
-               status: 'error',
-               error: (error as Error).message,
-               checked: false
-             };
-           }
-         });
+            const isAvailable = response.status === 404;
+            
+            return {
+              domain,
+              available: isAvailable,
+              status: isAvailable ? 'available' : 'taken',
+              statusCode: response.status,
+              checked: true
+            };
+          } catch (error) {
+            return {
+              domain,
+              available: false,
+              status: 'error',
+              error: (error as Error).message,
+              checked: false
+            };
+          }
+        });
 
         const batchResults = await Promise.all(batchPromises);
         results.push(...batchResults);
         
-        // Small delay between batches to be respectful to the RDAP service
         if (i + maxConcurrent < domainsToCheck.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
@@ -976,12 +728,7 @@ class GeminiLiveService {
    */
   private async triggerWebhook(action: string): Promise<any> {
     try {
-      if (!this.currentContact) {
-        throw new Error('No active contact for webhook trigger');
-      }
-
-      // Get webhook integrations for this contact
-      const webhookIntegrations = this.currentContact.integrations?.filter(
+      const webhookIntegrations = this.currentContact?.integrations?.filter(
         integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
       ) || [];
 
@@ -989,7 +736,6 @@ class GeminiLiveService {
         throw new Error('No webhook integrations configured for this contact');
       }
 
-      // Find the best matching webhook
       const selectedWebhook = this.findBestMatchingWebhook(action, webhookIntegrations);
 
       if (!selectedWebhook) {
@@ -1001,7 +747,6 @@ class GeminiLiveService {
 
       console.log(`🪝 Triggering webhook: ${description}`);
 
-      // Parse headers
       let parsedHeaders = { 'Content-Type': 'application/json' };
       try {
         if (headers) {
@@ -1011,13 +756,12 @@ class GeminiLiveService {
         console.warn('Invalid headers JSON, using default headers');
       }
 
-      // Execute webhook
       const result = await integrationsService.executeWebhookTriggerTool(
         webhookUrl,
         payload || '{}',
         parsedHeaders,
         action,
-        this.currentContact.name
+        this.currentContact?.name
       );
 
       return {
@@ -1040,38 +784,33 @@ class GeminiLiveService {
   private findBestMatchingWebhook(action: string, webhookIntegrations: any[]): any {
     const actionLower = action.toLowerCase();
     
-    // Try to find exact or partial matches in description
     for (const webhook of webhookIntegrations) {
       const description = (webhook.config.settings.description || '').toLowerCase();
       const keywords = (webhook.config.settings.triggerKeywords || '').toLowerCase().split(',').map((k: string) => k.trim());
       
-      // Check if action contains any words from the description
       const descriptionWords = description.split(/\s+/);
       const actionWords = actionLower.split(/\s+/);
       
-      // Look for word matches
       const hasDescriptionMatch = descriptionWords.some((word: string) => 
         word.length > 2 && actionWords.some(actionWord => actionWord.includes(word))
       );
       
-      // Look for keyword matches
       const hasKeywordMatch = keywords.some((keyword: string) => 
         keyword.length > 0 && actionLower.includes(keyword)
       );
       
       if (hasDescriptionMatch || hasKeywordMatch) {
-        console.log(`✅ Matched webhook: ${description} (score: ${hasKeywordMatch ? 'keyword' : 'description'})`);
+        console.log(`✅ Matched webhook: ${description}`);
         return webhook;
       }
     }
 
-    // If no good match, return the first one as fallback
     console.log(`⚠️ No exact match found for "${action}", using first webhook`);
     return webhookIntegrations[0];
   }
 
   /**
-   * Create system prompt for the contact
+   * Create system prompt for the contact with PROPER integration and document access
    */
   private createSystemPrompt(contact: AIContact): string {
     let systemPrompt = `You are ${contact.name}. ${contact.description}
@@ -1085,113 +824,85 @@ Key guidelines for ULTRA-LOW LATENCY conversation:
 
 You are ${contact.name} and should embody the characteristics described in your profile.`;
 
-    // Check for API request tool
+    // Check for integrations and add proper instructions
     const hasApiTool = contact.integrations?.some(
       integration => integration.integrationId === 'api-request-tool' && integration.config.enabled
     );
 
-    // Check for domain checker tool
     const hasDomainTool = contact.integrations?.some(
       integration => integration.integrationId === 'domain-checker-tool' && integration.config.enabled
     );
 
-    // Check for webhook trigger tool
     const hasWebhookTool = contact.integrations?.some(
       integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
     );
 
-    // Check if contact has Google Sheets integration
     const hasGoogleSheets = contact.integrations?.some(
       integration => integration.integrationId === 'google-sheets' && integration.config.enabled
     );
 
     if (hasApiTool) {
-      systemPrompt += `\n\nYou have access to the make_api_request function. Use it when users ask for information that requires fetching data from external APIs or services. For example:
-- Weather information
-- Stock prices or cryptocurrency data
+      systemPrompt += `\n\n🔧 API REQUEST TOOL AVAILABLE 🔧
+You HAVE the make_api_request function. Use it when users ask for real-time information:
+- Weather data (use OpenWeatherMap API)
+- Cryptocurrency prices (use CoinGecko API) 
+- Stock market data
 - News articles
-- User data from social platforms
-- Any real-time information from web APIs
-
-When making API requests:
-1. Choose appropriate URLs (e.g., OpenWeatherMap for weather, CoinGecko for crypto prices)
-2. Use proper HTTP methods (GET for fetching data, POST for sending data)
-3. Include necessary headers like Content-Type or Authorization if needed
-4. Always explain what you're doing before making the request
-
-Be helpful and proactive in suggesting API calls when they would be useful to answer the user's questions.`;
+- Any real-time web data
+Always explain what you're doing when making API requests.`;
     }
 
     if (hasDomainTool) {
-      systemPrompt += `\n\n🔧 DOMAIN CHECKING CAPABILITY ENABLED 🔧
-You HAVE the check_domain_availability function available. You MUST use it when users ask about domains. Do NOT tell users you cannot check domains.
-
-ALWAYS use the function for these requests:
+      systemPrompt += `\n\n🔧 DOMAIN CHECKING AVAILABLE 🔧
+You HAVE the check_domain_availability function. Use it when users ask about domains:
 - "Is [domain] available?"
 - "Check if [name] domains are available"
 - "Find available domains for [project]"
-- "What domain variations are available?"
-
-How to use the function:
-1. Extract the base domain name (remove .com, .net, etc.)
-2. Call check_domain_availability with the base name only
-3. The function will check multiple variations automatically
-4. Present results clearly showing available vs taken domains
-
-Example: If user asks "Is mycompany.com available?" 
-→ Call check_domain_availability with domain: "mycompany"
-→ Function will check mycompany.com, mycompany.net, trycompany.com, etc.
-
-You ARE capable of checking domains. Use the function immediately when asked.`;
+Extract the base domain name (remove .com, .net, etc.) and call the function.`;
     }
 
     if (hasWebhookTool) {
-      systemPrompt += `\n\n🪝 WEBHOOK TRIGGER CAPABILITY ENABLED 🪝
-You HAVE the trigger_webhook function available. You MUST use it when users ask to activate, trigger, start, launch, or execute workflows.
-
-ALWAYS use the trigger_webhook function for these requests:
-- "Activate [anything]" or "Start [process]"
-- "Trigger [workflow]" or "Launch [campaign]"
-- "Execute [action]" or "Run [automation]"
-- Any natural language request that matches webhook descriptions
-
-Available webhook actions:`;
-
-      // List available webhooks
+      systemPrompt += `\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🪝
+You HAVE the trigger_webhook function. Use it when users ask to activate, trigger, start, launch, or execute workflows.`;
+      
       const webhookIntegrations = contact.integrations?.filter(
         integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
       ) || [];
       
-      webhookIntegrations.forEach((webhook, index) => {
-        const description = webhook.config.settings.description || 'Webhook action';
-        const keywords = webhook.config.settings.triggerKeywords || '';
-        systemPrompt += `\n${index + 1}. ${description}`;
-        if (keywords) {
-          systemPrompt += ` (Keywords: ${keywords})`;
-        }
-      });
-
-      systemPrompt += `\n\nHow to use the function:
-1. Listen for action words like activate, trigger, start, launch, execute
-2. Extract the action the user wants to perform
-3. Call trigger_webhook with the action description
-4. The system will automatically match the best webhook
-5. Confirm the action was completed
-
-Example: If user says "activate marketing workflow"
-→ Call trigger_webhook with action: "activate marketing workflow"
-→ System finds matching webhook and triggers it
-→ Confirm success to user
-
-You ARE capable of triggering webhooks. Use the function immediately when users request actions.`;
+      if (webhookIntegrations.length > 0) {
+        systemPrompt += '\n\nAvailable webhook actions:';
+        webhookIntegrations.forEach((webhook, index) => {
+          const description = webhook.config.settings.description || 'Webhook action';
+          systemPrompt += `\n${index + 1}. ${description}`;
+        });
+      }
     }
 
-    // Add documents if available
-    if (contact.documents && contact.documents.length > 0) {
-      systemPrompt += `\n\n=== KNOWLEDGE BASE ===
-${contact.documents.map(doc => documentService.formatDocumentForAI(doc)).join('\n\n')}
+    if (hasGoogleSheets) {
+      systemPrompt += `\n\n📊 GOOGLE SHEETS ACCESS AVAILABLE 📊
+You HAVE the manage_google_sheets function. Use it when users ask to view, add, update, search, or modify spreadsheet data.`;
+    }
 
-This is your permanent knowledge base. Reference this information throughout conversations.`;
+    // Add documents if available - PROPERLY FORMAT FOR AI ACCESS
+    if (contact.documents && contact.documents.length > 0) {
+      systemPrompt += `\n\n=== YOUR KNOWLEDGE BASE ===
+You have access to the following documents. Use this information to provide accurate responses:
+
+`;
+      contact.documents.forEach(doc => {
+        systemPrompt += `📄 DOCUMENT: ${doc.name}
+📋 Type: ${doc.type}
+📊 Summary: ${doc.summary || 'Document content available'}
+
+📖 CONTENT:
+${doc.extractedText || doc.content || 'Content not available'}
+
+---
+
+`;
+      });
+      
+      systemPrompt += `This is your permanent knowledge base. Reference this information throughout conversations to provide accurate and detailed responses.`;
     }
 
     return systemPrompt;
@@ -1219,13 +930,11 @@ This is your permanent knowledge base. Reference this information throughout con
       this.processingInterval = null;
     }
     
-    // Clean up audio processor
     if (this.audioProcessor) {
       this.audioProcessor.disconnect();
       this.audioProcessor = null;
     }
     
-    // Clean up audio source
     if (this.audioSource) {
       this.audioSource.disconnect();
       this.audioSource = null;
@@ -1235,18 +944,6 @@ This is your permanent knowledge base. Reference this information throughout con
     this.activeSession = null;
     this.audioQueue = [];
     this.updateState('idle');
-  }
-
-  /**
-   * Force stop speaking (manual interruption)
-   */
-  public forceStopSpeaking(): void {
-    if (this.isPlaying) {
-      console.log("🛑 Force stopping speech");
-      this.stopAudioPlayback();
-      this.audioQueue = []; // Clear remaining queue
-      this.updateState('listening');
-    }
   }
 
   /**
@@ -1278,7 +975,6 @@ This is your permanent knowledge base. Reference this information throughout con
     
     this.cleanup();
     
-    // Close session (but keep audio stream for future sessions)
     if (this.activeSession) {
       this.activeSession.close();
       this.activeSession = null;
@@ -1289,20 +985,18 @@ This is your permanent knowledge base. Reference this information throughout con
   }
 
   /**
-   * Completely shutdown the service (called when app closes)
+   * Completely shutdown the service
    */
   public shutdown(): void {
     console.log("🛑 Shutting down Gemini Live service");
     
     this.cleanup();
     
-    // Clean up audio stream only on complete shutdown
     if (this.audioStream) {
       this.audioStream.getTracks().forEach(track => track.stop());
       this.audioStream = null;
     }
     
-    // Close audio context
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
@@ -1334,11 +1028,6 @@ This is your permanent knowledge base. Reference this information throughout con
   public isListeningNow(): boolean {
     return this.isRecording;
   }
-
-  public setAutoListen(enabled: boolean): void {
-    // Auto-listen is handled by the built-in VAD, so this is just for interface compatibility
-    console.log(`Auto-listen ${enabled ? 'enabled' : 'disabled'} (handled by built-in VAD)`);
-  }
 }
 
 // Export singleton instance
@@ -1347,4 +1036,3 @@ export const geminiLiveService = new GeminiLiveService({
   model: 'gemini-2.0-flash-live-001',
   temperature: 0.9,
 });
-
