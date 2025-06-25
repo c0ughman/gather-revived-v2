@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="credentialless" />
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
+    <title>AI Messaging Interface - Gather</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Prevent service worker navigation errors
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+      
+      // Enhanced global error handler for DOM manipulation errors
+      window.addEventListener('error', function(event) {
+        if (event.error && (
+          event.error.message.includes('removeChild') ||
+          event.error.message.includes('Cannot navigate to URL') ||
+          event.error.message.includes('service worker') ||
+          event.error.message.includes('Node') ||
+          event.error.message.includes('not a child')
+        )) {
+          console.warn('DOM/Service Worker error handled:', event.error.message);
+          event.preventDefault();
+          return false;
+        }
+      });
+
+      // Handle unhandled promise rejections
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason?.message?.includes('Cannot navigate to URL') ||
+            event.reason?.message?.includes('service worker') ||
+            event.reason?.message?.includes('removeChild')) {
+          console.warn('Promise rejection handled:', event.reason);
+          event.preventDefault();
+          return false;
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
