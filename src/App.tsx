@@ -22,7 +22,6 @@ function App() {
   const [contacts, setContacts] = useState<AIContact[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
-  const [loading, setLoading] = useState(false);
   const [callState, setCallState] = useState<CallState>({
     isActive: false,
     duration: 0,
@@ -30,7 +29,7 @@ function App() {
     status: 'ended'
   });
 
-  // Update call duration - MOVED TO TOP LEVEL
+  // Update call duration
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (callState.isActive && callState.status === 'connected') {
@@ -44,74 +43,22 @@ function App() {
   // Load user data when authenticated
   useEffect(() => {
     if (user) {
-      console.log('🔄 User authenticated, loading data for:', user.email);
       loadUserData();
     } else {
-      console.log('❌ No user, clearing data');
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
-      setLoading(false);
     }
   }, [user]);
 
   const loadUserData = async () => {
-    if (!user) {
-      console.log('❌ No user provided to loadUserData');
-      return;
-    }
+    if (!user) return;
 
     try {
-      setLoading(true);
-      console.log('🔄 Starting to load user data for:', user.id);
-      
-      // First, ensure user profile exists
-      try {
-        console.log('👤 Checking/creating user profile...');
-        await supabaseService.ensureUserProfile(user.id, {
-          display_name: user.email?.split('@')[0] || 'User',
-          avatar_url: null,
-          timezone: 'UTC',
-          preferences: {},
-          subscription_tier: 'free',
-          usage_stats: {}
-        });
-        console.log('✅ User profile ensured');
-      } catch (profileError) {
-        console.error('❌ Error ensuring user profile:', profileError);
-        // Continue anyway, as this might not be critical for loading agents
-      }
-
-      // Load user agents with improved error handling
-      console.log('🤖 Loading user agents...');
-      let agents = [];
-      
-      try {
-        // Increase timeout and add better error handling
-        agents = await Promise.race([
-          supabaseService.getUserAgents(user.id),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Agents loading timeout after 30 seconds')), 30000)
-          )
-        ]) || [];
-        console.log('🤖 Loaded agents:', agents.length, 'agents');
-      } catch (agentsError) {
-        console.error('❌ Error loading agents:', agentsError);
-        
-        // Try a simplified query as fallback
-        try {
-          console.log('🔄 Attempting simplified agents query...');
-          agents = await supabaseService.getUserAgentsSimple(user.id);
-          console.log('✅ Simplified query successful, loaded:', agents.length, 'agents');
-        } catch (fallbackError) {
-          console.error('❌ Fallback query also failed:', fallbackError);
-          // Continue with empty agents array but don't fail completely
-          agents = [];
-        }
-      }
+      const agents = await supabaseService.getUserAgents(user.id);
       
       // Transform database agents to AIContact format
-      const transformedContacts: AIContact[] = (agents || []).map(agent => ({
+      const transformedContacts: AIContact[] = agents.map(agent => ({
         id: agent.id,
         name: agent.name,
         initials: agent.initials,
@@ -141,11 +88,9 @@ function App() {
         }))
       }));
 
-      console.log('🔄 Setting contacts:', transformedContacts.length, 'contacts');
       setContacts(transformedContacts);
       
-      // Initialize integrations for loaded contacts
-      console.log('🔧 Initializing integrations...');
+      // Initialize integrations
       transformedContacts.forEach(contact => {
         if (contact.integrations) {
           contact.integrations.forEach(integrationInstance => {
@@ -156,7 +101,7 @@ function App() {
                 integration, 
                 integrationInstance.config, 
                 (contactId, data) => {
-                  console.log(`📈 Integration data updated for contact ${contactId} (${integration.name}):`, data.summary || 'Data received');
+                  console.log(`Integration data updated for contact ${contactId}`);
                 }
               );
             }
@@ -164,20 +109,13 @@ function App() {
         }
       });
 
-      console.log('✅ User data loaded successfully');
-
     } catch (error) {
-      console.error('❌ Failed to load user data:', error);
-      // Don't leave the user stuck in loading state
+      console.error('Failed to load user data:', error);
       setContacts([]);
-    } finally {
-      console.log('🏁 Finishing loadUserData, setting loading to false');
-      setLoading(false);
     }
   };
 
   const handleChatClick = async (contact: AIContact) => {
-    console.log(`💬 Starting chat with ${contact.name}`);
     setSelectedContact(contact);
     setCurrentScreen('chat');
 
@@ -189,13 +127,11 @@ function App() {
             integration.category !== 'action' &&
             integrationInstance.config.enabled && 
             (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
-          console.log(`🔄 Executing integration ${integration.name} on chat start...`);
           try {
             const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
             integrationsService.storeIntegrationData(contact.id, integration.id, data);
-            console.log(`✅ Chat-start execution successful for ${integration.name}:`, data.summary || 'Data received');
           } catch (error) {
-            console.error(`❌ Failed to execute integration ${integration.name}:`, error.message);
+            console.error(`Failed to execute integration ${integration.name}:`, error);
           }
         }
       }
@@ -203,8 +139,6 @@ function App() {
   };
 
   const handleNewChatClick = async (contact: AIContact) => {
-    console.log(`🆕 Starting new chat with ${contact.name}`);
-    
     // Clear messages for this contact to start fresh
     setMessages(prev => prev.filter(msg => msg.contactId !== contact.id));
     
@@ -227,13 +161,11 @@ function App() {
             integration.category !== 'action' &&
             integrationInstance.config.enabled && 
             (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
-          console.log(`🔄 Executing integration ${integration.name} on new chat start...`);
           try {
             const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
             integrationsService.storeIntegrationData(contact.id, integration.id, data);
-            console.log(`✅ New chat execution successful for ${integration.name}:`, data.summary || 'Data received');
           } catch (error) {
-            console.error(`❌ Failed to execute integration ${integration.name}:`, error.message);
+            console.error(`Failed to execute integration ${integration.name}:`, error);
           }
         }
       }
@@ -242,9 +174,7 @@ function App() {
 
   const handleCallClick = (contact: AIContact) => {
     if (callState.isActive && callState.status !== 'ended') {
-      console.log(`🔄 Ending current call to start new call with ${contact.name}`);
       handleEndCall();
-      
       setTimeout(() => {
         startNewCall(contact);
       }, 200);
@@ -254,7 +184,6 @@ function App() {
   };
 
   const startNewCall = (contact: AIContact) => {
-    console.log(`📞 Starting fresh call with ${contact.name}`);
     setSelectedContact(contact);
     setCallState({
       isActive: true,
@@ -283,11 +212,6 @@ function App() {
   const handleSendMessage = async (content: string, attachedDocuments?: DocumentInfo[]) => {
     if (!selectedContact || !user) return;
 
-    console.log(`📤 Sending message to ${selectedContact.name}: "${content}"`);
-    if (attachedDocuments?.length) {
-      console.log(`📎 With ${attachedDocuments.length} attached documents`);
-    }
-
     const existingConversationDocs = conversationDocuments[selectedContact.id] || [];
     
     if (attachedDocuments && attachedDocuments.length > 0) {
@@ -303,8 +227,6 @@ function App() {
         ...prev,
         [selectedContact.id]: updatedConversationDocs
       }));
-      
-      console.log(`📎 Added ${attachedDocuments.length} new documents to conversation. Total: ${updatedConversationDocs.length}`);
     }
 
     const userMessage: Message = {
@@ -328,8 +250,6 @@ function App() {
           )]
         : allConversationDocs;
       
-      console.log(`🤖 Generating AI response with ${finalConversationDocs.length} conversation documents available`);
-      
       const aiResponseContent = await geminiService.generateResponse(
         selectedContact, 
         content, 
@@ -346,10 +266,9 @@ function App() {
           contactId: selectedContact.id
         };
         setMessages(prev => [...prev, aiResponse]);
-        console.log(`🤖 AI response added: "${aiResponseContent}"`);
       }, 1000 + Math.random() * 1000);
     } catch (error) {
-      console.error('❌ Error generating AI response:', error);
+      console.error('Error generating AI response:', error);
       
       setTimeout(() => {
         const aiResponse: Message = {
@@ -382,17 +301,10 @@ function App() {
   };
 
   const handleSaveContact = async (updatedContact: AIContact) => {
-    if (!user) {
-      console.error('❌ No user available for saving contact');
-      return;
-    }
+    if (!user) return;
 
-    console.log(`💾 Saving contact: ${updatedContact.name}`);
-    
     try {
       if (updatedContact.id.startsWith('new-')) {
-        console.log('🆕 Creating new agent...');
-        
         // Create new agent in Supabase
         const newAgent = await supabaseService.createUserAgent(user.id, {
           name: updatedContact.name,
@@ -401,11 +313,8 @@ function App() {
           color: updatedContact.color,
           voice: updatedContact.voice,
           avatar: updatedContact.avatar,
-          status: updatedContact.status || 'online',
-          lastSeen: 'now'
+          status: updatedContact.status || 'online'
         });
-
-        console.log('✅ Agent created in database:', newAgent.id);
 
         // Create the transformed contact with the real ID
         const transformedContact: AIContact = {
@@ -415,8 +324,6 @@ function App() {
 
         // Save integrations if any
         if (updatedContact.integrations && updatedContact.integrations.length > 0) {
-          console.log(`🔧 Saving ${updatedContact.integrations.length} integrations...`);
-          
           const savedIntegrations = [];
           for (const integration of updatedContact.integrations) {
             try {
@@ -428,9 +335,8 @@ function App() {
                 config: integration.config,
                 status: savedIntegration.status
               });
-              console.log(`✅ Integration saved: ${integration.name}`);
             } catch (integrationError) {
-              console.error(`❌ Failed to save integration ${integration.name}:`, integrationError);
+              console.error(`Failed to save integration ${integration.name}:`, integrationError);
             }
           }
           
@@ -439,8 +345,6 @@ function App() {
 
         // Save documents if any
         if (updatedContact.documents && updatedContact.documents.length > 0) {
-          console.log(`📄 Saving ${updatedContact.documents.length} documents...`);
-          
           const savedDocuments = [];
           for (const document of updatedContact.documents) {
             try {
@@ -456,9 +360,8 @@ function App() {
                 extractedText: document.extractedText,
                 metadata: document.metadata
               });
-              console.log(`✅ Document saved: ${document.name}`);
             } catch (documentError) {
-              console.error(`❌ Failed to save document ${document.name}:`, documentError);
+              console.error(`Failed to save document ${document.name}:`, documentError);
             }
           }
           
@@ -468,12 +371,8 @@ function App() {
         // Add to local state
         setContacts(prev => [...prev, transformedContact]);
         setSelectedContact(transformedContact);
-        
-        console.log('✅ New agent created and added to contacts');
 
       } else {
-        console.log('📝 Updating existing agent...');
-        
         // Update existing agent
         await supabaseService.updateUserAgent(updatedContact.id, {
           name: updatedContact.name,
@@ -487,17 +386,14 @@ function App() {
 
         // Handle integrations updates
         if (updatedContact.integrations) {
-          console.log(`🔧 Updating integrations for existing agent...`);
-          
           // For simplicity, we'll delete all existing integrations and recreate them
-          // In a production app, you'd want to do a proper diff and update
           const existingContact = contacts.find(c => c.id === updatedContact.id);
           if (existingContact?.integrations) {
             for (const integration of existingContact.integrations) {
               try {
                 await supabaseService.deleteAgentIntegration(integration.id);
               } catch (error) {
-                console.error(`❌ Failed to delete integration ${integration.id}:`, error);
+                console.error(`Failed to delete integration ${integration.id}:`, error);
               }
             }
           }
@@ -515,7 +411,7 @@ function App() {
                 status: savedIntegration.status
               });
             } catch (error) {
-              console.error(`❌ Failed to save integration ${integration.name}:`, error);
+              console.error(`Failed to save integration ${integration.name}:`, error);
             }
           }
           
@@ -524,17 +420,14 @@ function App() {
 
         // Handle documents updates
         if (updatedContact.documents) {
-          console.log(`📄 Updating documents for existing agent...`);
-          
           // For simplicity, we'll delete all existing documents and recreate them
-          // In a production app, you'd want to do a proper diff and update
           const existingContact = contacts.find(c => c.id === updatedContact.id);
           if (existingContact?.documents) {
             for (const document of existingContact.documents) {
               try {
                 await supabaseService.deleteAgentDocument(document.id);
               } catch (error) {
-                console.error(`❌ Failed to delete document ${document.id}:`, error);
+                console.error(`Failed to delete document ${document.id}:`, error);
               }
             }
           }
@@ -556,7 +449,7 @@ function App() {
                 metadata: document.metadata
               });
             } catch (error) {
-              console.error(`❌ Failed to save document ${document.name}:`, error);
+              console.error(`Failed to save document ${document.name}:`, error);
             }
           }
           
@@ -570,14 +463,10 @@ function App() {
           )
         );
         setSelectedContact(updatedContact);
-        
-        console.log('✅ Existing agent updated');
       }
 
       // Restart integrations with new configuration
       if (updatedContact.integrations) {
-        console.log(`🔄 Restarting integrations for ${updatedContact.name}`);
-        
         updatedContact.integrations.forEach(integrationInstance => {
           const integration = getIntegrationById(integrationInstance.integrationId);
           if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
@@ -586,27 +475,23 @@ function App() {
               integration, 
               integrationInstance.config, 
               (contactId, data) => {
-                console.log(`📈 Integration data updated for contact ${contactId} (${integration.name}):`, data.summary || 'Data received');
+                console.log(`Integration data updated for contact ${contactId}`);
               }
             );
           }
         });
       } else {
-        console.log(`🛑 Stopping all integrations for ${updatedContact.name}`);
         integrationsService.stopAllExecution();
       }
-
-      console.log('✅ Contact saved successfully');
       
     } catch (error) {
-      console.error('❌ Failed to save contact:', error);
+      console.error('Failed to save contact:', error);
       alert(`Failed to save agent: ${error.message || error}`);
     }
   };
 
   const handleBack = () => {
     if (currentScreen === 'call') {
-      console.log("👈 Back from call - ending call");
       handleEndCall();
     } else if (currentScreen === 'settings') {
       if (selectedContact) {
@@ -646,27 +531,11 @@ function App() {
 
   // Show loading screen while checking auth
   if (authLoading) {
-    console.log('🔄 Auth loading...');
     return (
       <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Initializing...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading screen while loading user data
-  if (loading) {
-    console.log('🔄 User data loading...');
-    return (
-      <div className="h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading your agents...</p>
-          <p className="text-slate-400 text-sm mt-2">Setting up your workspace...</p>
-          <p className="text-slate-500 text-xs mt-4">If this takes too long, please refresh the page</p>
+          <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
     );
@@ -674,11 +543,8 @@ function App() {
 
   // Show auth screen if not authenticated
   if (!user) {
-    console.log('❌ No user, showing auth screen');
     return <AuthScreen />;
   }
-
-  console.log('✅ Rendering main app for user:', user.email);
 
   // Get messages for selected contact
   const contactMessages = selectedContact 
