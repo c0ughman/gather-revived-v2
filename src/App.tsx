@@ -72,39 +72,6 @@ function App() {
       }, 10000); // 10 second timeout
 
       try {
-        // Test basic Supabase connection first
-        console.log('🔍 Testing Supabase connection...');
-        
-        // Ensure user profile exists (this should already be handled by useAuth)
-        console.log('👤 Checking user profile...');
-        let profile;
-        
-        try {
-          // Add timeout to this specific call
-          const profilePromise = supabaseService.getUserProfile(user.id);
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Profile check timeout')), 5000)
-          );
-          
-          profile = await Promise.race([profilePromise, timeoutPromise]);
-          console.log('👤 Profile check result:', profile ? 'Found' : 'Not found');
-        } catch (profileError) {
-          console.error('❌ Error checking profile:', profileError);
-          
-          // If profile check fails, try to create one
-          if (profileError.message === 'Profile check timeout' || profileError.code === 'PGRST116') {
-            try {
-              console.log('👤 Attempting to create profile...');
-              profile = await supabaseService.createUserProfile(user.id, user.email?.split('@')[0]);
-              console.log('✅ Profile created successfully');
-            } catch (createError) {
-              console.error('❌ Error creating profile:', createError);
-              // Continue without profile - don't block the app
-              profile = null;
-            }
-          }
-        }
-
         // Load user agents with timeout
         console.log('🤖 Loading user agents...');
         let agents = [];
@@ -112,7 +79,7 @@ function App() {
         try {
           const agentsPromise = supabaseService.getUserAgents(user.id);
           const agentsTimeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Agents loading timeout')), 5000)
+            setTimeout(() => reject(new Error('Agents loading timeout')), 8000)
           );
           
           agents = await Promise.race([agentsPromise, agentsTimeoutPromise]) || [];
