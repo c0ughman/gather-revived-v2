@@ -65,107 +65,110 @@ function App() {
       setLoading(true);
       console.log('🔄 Starting to load user data for:', user.id);
       
-      // Set a timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Loading timeout reached, forcing completion');
-        setLoading(false);
-      }, 15000); // Increased to 15 seconds
-
+      // First, ensure user profile exists
       try {
-        // Load user agents with improved timeout handling
-        console.log('🤖 Loading user agents...');
-        let agents = [];
-        
-        try {
-          const agentsPromise = supabaseService.getUserAgents(user.id);
-          const agentsTimeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Agents loading timeout')), 12000) // Increased to 12 seconds
-          );
-          
-          agents = await Promise.race([agentsPromise, agentsTimeoutPromise]) || [];
-          console.log('🤖 Loaded agents:', agents.length, 'agents');
-        } catch (agentsError) {
-          console.error('❌ Error loading agents:', agentsError);
-          // Try one more time with a direct call
-          try {
-            console.log('🔄 Retrying agents load with direct call...');
-            agents = await supabaseService.getUserAgents(user.id);
-            console.log('✅ Retry successful, loaded:', agents.length, 'agents');
-          } catch (retryError) {
-            console.error('❌ Retry failed:', retryError);
-            // Continue with empty agents array
-            agents = [];
-          }
-        }
-        
-        // Transform database agents to AIContact format
-        const transformedContacts: AIContact[] = (agents || []).map(agent => ({
-          id: agent.id,
-          name: agent.name,
-          initials: agent.initials,
-          color: agent.color,
-          description: agent.description,
-          status: agent.status as 'online' | 'busy' | 'offline',
-          lastSeen: agent.last_seen || 'now',
-          voice: agent.voice,
-          avatar: agent.avatar_url,
-          integrations: agent.agent_integrations?.map((integration: any) => ({
-            id: integration.id,
-            integrationId: integration.template_id,
-            name: integration.name,
-            config: integration.config,
-            status: integration.status
-          })),
-          documents: agent.agent_documents?.map((doc: any) => ({
-            id: doc.id,
-            name: doc.name,
-            type: doc.file_type,
-            size: doc.file_size,
-            uploadedAt: new Date(doc.uploaded_at),
-            content: doc.content || '',
-            summary: doc.summary,
-            extractedText: doc.extracted_text,
-            metadata: doc.metadata
-          }))
-        }));
-
-        console.log('🔄 Setting contacts:', transformedContacts.length, 'contacts');
-        setContacts(transformedContacts);
-        
-        // Initialize integrations for loaded contacts
-        console.log('🔧 Initializing integrations...');
-        transformedContacts.forEach(contact => {
-          if (contact.integrations) {
-            contact.integrations.forEach(integrationInstance => {
-              const integration = getIntegrationById(integrationInstance.integrationId);
-              if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-                integrationsService.startPeriodicExecution(
-                  contact.id, 
-                  integration, 
-                  integrationInstance.config, 
-                  (contactId, data) => {
-                    console.log(`📈 Integration data updated for contact ${contactId} (${integration.name}):`, data.summary || 'Data received');
-                  }
-                );
-              }
-            });
-          }
+        console.log('👤 Checking/creating user profile...');
+        await supabaseService.ensureUserProfile(user.id, {
+          display_name: user.email?.split('@')[0] || 'User',
+          avatar_url: null,
+          timezone: 'UTC',
+          preferences: {},
+          subscription_tier: 'free',
+          usage_stats: {}
         });
-
-        console.log('✅ User data loaded successfully');
-        
-        // Clear the timeout since we completed successfully
-        clearTimeout(timeoutId);
-
-      } catch (error) {
-        console.error('❌ Failed to load user data:', error);
-        // Don't leave the user stuck in loading state
-        setContacts([]);
-        clearTimeout(timeoutId);
+        console.log('✅ User profile ensured');
+      } catch (profileError) {
+        console.error('❌ Error ensuring user profile:', profileError);
+        // Continue anyway, as this might not be critical for loading agents
       }
 
+      // Load user agents with improved error handling
+      console.log('🤖 Loading user agents...');
+      let agents = [];
+      
+      try {
+        // Increase timeout and add better error handling
+        agents = await Promise.race([
+          supabaseService.getUserAgents(user.id),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Agents loading timeout after 30 seconds')), 30000)
+          )
+        ]) || [];
+        console.log('🤖 Loaded agents:', agents.length, 'agents');
+      } catch (agentsError) {
+        console.error('❌ Error loading agents:', agentsError);
+        
+        // Try a simplified query as fallback
+        try {
+          console.log('🔄 Attempting simplified agents query...');
+          agents = await supabaseService.getUserAgentsSimple(user.id);
+          console.log('✅ Simplified query successful, loaded:', agents.length, 'agents');
+        } catch (fallbackError) {
+          console.error('❌ Fallback query also failed:', fallbackError);
+          // Continue with empty agents array but don't fail completely
+          agents = [];
+        }
+      }
+      
+      // Transform database agents to AIContact format
+      const transformedContacts: AIContact[] = (agents || []).map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        initials: agent.initials,
+        color: agent.color,
+        description: agent.description,
+        status: agent.status as 'online' | 'busy' | 'offline',
+        lastSeen: agent.last_seen || 'now',
+        voice: agent.voice,
+        avatar: agent.avatar_url,
+        integrations: agent.agent_integrations?.map((integration: any) => ({
+          id: integration.id,
+          integrationId: integration.template_id,
+          name: integration.name,
+          config: integration.config,
+          status: integration.status
+        })),
+        documents: agent.agent_documents?.map((doc: any) => ({
+          id: doc.id,
+          name: doc.name,
+          type: doc.file_type,
+          size: doc.file_size,
+          uploadedAt: new Date(doc.uploaded_at),
+          content: doc.content || '',
+          summary: doc.summary,
+          extractedText: doc.extracted_text,
+          metadata: doc.metadata
+        }))
+      }));
+
+      console.log('🔄 Setting contacts:', transformedContacts.length, 'contacts');
+      setContacts(transformedContacts);
+      
+      // Initialize integrations for loaded contacts
+      console.log('🔧 Initializing integrations...');
+      transformedContacts.forEach(contact => {
+        if (contact.integrations) {
+          contact.integrations.forEach(integrationInstance => {
+            const integration = getIntegrationById(integrationInstance.integrationId);
+            if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
+              integrationsService.startPeriodicExecution(
+                contact.id, 
+                integration, 
+                integrationInstance.config, 
+                (contactId, data) => {
+                  console.log(`📈 Integration data updated for contact ${contactId} (${integration.name}):`, data.summary || 'Data received');
+                }
+              );
+            }
+          });
+        }
+      });
+
+      console.log('✅ User data loaded successfully');
+
     } catch (error) {
-      console.error('❌ Outer error in loadUserData:', error);
+      console.error('❌ Failed to load user data:', error);
+      // Don't leave the user stuck in loading state
       setContacts([]);
     } finally {
       console.log('🏁 Finishing loadUserData, setting loading to false');
