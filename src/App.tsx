@@ -44,6 +44,17 @@ function App() {
     }
   }, [user]);
 
+  // Update call duration - MOVED TO TOP LEVEL
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (callState.isActive && callState.status === 'connected') {
+      interval = setInterval(() => {
+        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [callState.isActive, callState.status]);
+
   const loadUserData = async () => {
     if (!user) return;
 
@@ -468,17 +479,6 @@ function App() {
   const contactConversationDocuments = selectedContact 
     ? conversationDocuments[selectedContact.id] || []
     : [];
-
-  // Update call duration
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (callState.isActive && callState.status === 'connected') {
-      interval = setInterval(() => {
-        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [callState.isActive, callState.status]);
 
   const renderMainContent = () => {
     switch (currentScreen) {
