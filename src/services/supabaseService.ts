@@ -54,6 +54,28 @@ export class SupabaseService {
     }
   }
 
+  async ensureUserProfile(userId: string, profileData: any) {
+    console.log('🔍 Ensuring user profile exists for:', userId);
+    
+    try {
+      // First try to get existing profile
+      const existingProfile = await this.getUserProfile(userId);
+      
+      if (existingProfile) {
+        console.log('✅ User profile already exists');
+        return existingProfile;
+      }
+      
+      // If no profile exists, create one
+      console.log('📝 Creating new user profile...');
+      return await this.createUserProfile(userId, profileData.display_name);
+      
+    } catch (error) {
+      console.error('❌ Exception in ensureUserProfile:', error);
+      throw error;
+    }
+  }
+
   async updateUserProfile(userId: string, updates: any) {
     console.log('📝 Updating user profile for:', userId, 'with:', updates);
     
@@ -122,6 +144,29 @@ export class SupabaseService {
       return data || []
     } catch (error) {
       console.error('❌ Exception in getUserAgents:', error);
+      throw error;
+    }
+  }
+
+  async getUserAgentsSimple(userId: string) {
+    console.log('🤖 Getting user agents (simple) for:', userId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_agents')
+        .select('*')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: true })
+
+      if (error) {
+        console.error('❌ Error getting user agents (simple):', error);
+        throw error;
+      }
+      
+      console.log('✅ User agents (simple) result:', data?.length || 0, 'agents found');
+      return data || []
+    } catch (error) {
+      console.error('❌ Exception in getUserAgentsSimple:', error);
       throw error;
     }
   }
