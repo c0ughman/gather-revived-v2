@@ -35,7 +35,8 @@ export default function AuthScreen() {
         if (error) {
           setError(error.message)
         } else {
-          setMessage('Check your email for a confirmation link!')
+          // No email confirmation needed - user should be logged in automatically
+          setMessage('Account created successfully! You are now logged in.')
         }
       } else {
         const { error } = await signIn(email, password)
