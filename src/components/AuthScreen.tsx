@@ -31,14 +31,14 @@ export default function AuthScreen() {
           return
         }
 
-        console.log('Starting sign up process...')
+        console.log('🚀 Starting sign up process...')
         const { data, error } = await signUp(email, password)
         
         if (error) {
-          console.error('Sign up error:', error)
+          console.error('❌ Sign up error:', error)
           setError(error.message)
-        } else if (data.user) {
-          console.log('Sign up successful, user created:', data.user.email)
+        } else if (data.user && data.session) {
+          console.log('✅ Sign up successful with session:', data.user.email)
           setMessage('Account created successfully! Welcome to Gather!')
           
           // Clear form
@@ -46,27 +46,29 @@ export default function AuthScreen() {
           setPassword('')
           setConfirmPassword('')
           
-          // The useAuth hook will handle the redirect automatically
-          // when the auth state changes
+          // User will be automatically redirected by the auth state change
+        } else if (data.user && !data.session) {
+          console.log('⚠️ Sign up successful but no session - may need email confirmation')
+          setMessage('Account created! Please check your email for confirmation, or try signing in.')
         } else {
           setError('Sign up failed. Please try again.')
         }
       } else {
-        console.log('Starting sign in process...')
+        console.log('🚀 Starting sign in process...')
         const { data, error } = await signIn(email, password)
         
         if (error) {
-          console.error('Sign in error:', error)
+          console.error('❌ Sign in error:', error)
           setError(error.message)
-        } else if (data.user) {
-          console.log('Sign in successful:', data.user.email)
-          // The useAuth hook will handle the redirect automatically
+        } else if (data.user && data.session) {
+          console.log('✅ Sign in successful:', data.user.email)
+          // User will be automatically redirected by the auth state change
         } else {
           setError('Sign in failed. Please try again.')
         }
       }
     } catch (err) {
-      console.error('Authentication error:', err)
+      console.error('❌ Authentication error:', err)
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
