@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Users, Search, Home } from 'lucide-react';
+import { MessageCircle, Phone, Users, Search, Home, Plus, LogOut } from 'lucide-react';
 import { AIContact } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 interface ContactSidebarProps {
   contacts: AIContact[];
@@ -8,12 +9,20 @@ interface ContactSidebarProps {
   onCallClick: (contact: AIContact) => void;
   onSettingsClick: (contact?: AIContact) => void;
   onHomeClick: () => void;
-
+  onCreateAgent: () => void;
 }
 
-export default function ContactSidebar({ contacts, onChatClick, onCallClick, onSettingsClick, onHomeClick }: ContactSidebarProps) {
+export default function ContactSidebar({ 
+  contacts, 
+  onChatClick, 
+  onCallClick, 
+  onSettingsClick, 
+  onHomeClick,
+  onCreateAgent 
+}: ContactSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const { user, signOut } = useAuth();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -24,20 +33,16 @@ export default function ContactSidebar({ contacts, onChatClick, onCallClick, onS
     }
   };
 
-  // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
-    // Convert hex to RGB
     const hex = color.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
     
-    // Create complementary color by shifting hue and make it lighter
-    const compR = Math.round(255 - r * 0.3); // Softer complement
+    const compR = Math.round(255 - r * 0.3);
     const compG = Math.round(255 - g * 0.3);
     const compB = Math.round(255 - b * 0.3);
     
-    // Make complementary color lighter than the main color
     const lightCompR = Math.round(compR + (255 - compR) * 0.8);
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
@@ -51,6 +56,14 @@ export default function ContactSidebar({ contacts, onChatClick, onCallClick, onS
 
   const filters = ['All', 'Online', 'Favorites', 'Groups'];
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
     <div className="h-full bg-slate-800 flex flex-col font-inter">
       {/* Header */}
@@ -60,16 +73,18 @@ export default function ContactSidebar({ contacts, onChatClick, onCallClick, onS
             className="flex items-center space-x-3 cursor-pointer"
             onClick={onHomeClick}
           >
-            {/* Logo - commented out */}
-            {/* <img
-              src="/media/gather-logo-dark.png"
-              alt="Gather Logo"
-              className="w-12 h-12 object-contain"
-            /> */}
             <div>
               <h1 className="text-xl font-bold text-white">Gather</h1>
+              <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
             </div>
           </div>
+          <button
+            onClick={handleSignOut}
+            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            title="Sign Out"
+          >
+            <LogOut className="w-4 h-4 text-slate-400" />
+          </button>
         </div>
 
         {/* Search Bar */}
@@ -114,68 +129,91 @@ export default function ContactSidebar({ contacts, onChatClick, onCallClick, onS
           <span className="text-slate-300 font-inter">Home</span>
         </button>
 
+        <button 
+          onClick={onCreateAgent}
+          className="flex items-center space-x-3 w-full text-left hover:bg-slate-700 p-2 rounded-lg transition-colors duration-200"
+        >
+          <Plus className="w-5 h-5 text-slate-400" />
+          <span className="text-slate-300 font-inter">Create Agent</span>
+        </button>
       </div>
 
       {/* Contact List */}
       <div className="flex-1 overflow-y-auto">
-        <div className="space-y-1">
-          {filteredContacts.map((contact) => (
-            <div
-              key={contact.id}
-              className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
-              onClick={() => onChatClick(contact)}
+        {filteredContacts.length === 0 ? (
+          <div className="p-4 text-center">
+            <div className="text-slate-500 mb-4">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No agents yet</p>
+              <p className="text-xs">Create your first AI agent to get started</p>
+            </div>
+            <button
+              onClick={onCreateAgent}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors duration-200"
             >
-              <div className="flex items-center space-x-3">
-                {/* Avatar */}
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden">
-                    {contact.avatar ? (
-                      <img
-                        src={contact.avatar}
-                        alt={contact.name}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                                         ) : (
-                       <div
-                         className="w-full h-full rounded-lg"
-                         style={{ background: createAgentGradient(contact.color) }}
-                       />
-                     )}
+              Create Agent
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {filteredContacts.map((contact) => (
+              <div
+                key={contact.id}
+                className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
+                onClick={() => onChatClick(contact)}
+              >
+                <div className="flex items-center space-x-3">
+                  {/* Avatar */}
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden">
+                      {contact.avatar ? (
+                        <img
+                          src={contact.avatar}
+                          alt={contact.name}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-lg"
+                          style={{ background: createAgentGradient(contact.color) }}
+                        />
+                      )}
+                    </div>
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-800 ${getStatusColor(contact.status)}`}></div>
                   </div>
-                  <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-800 ${getStatusColor(contact.status)}`}></div>
-                </div>
 
-                {/* Contact Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
-                    <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
+                  {/* Contact Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
+                      <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
+                    </div>
+                    <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
+                      {contact.description.length > 40 
+                        ? `${contact.description.substring(0, 40)}...` 
+                        : contact.description
+                      }
+                    </p>
                   </div>
-                  <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
-                    {contact.description.length > 40 
-                      ? `${contact.description.substring(0, 40)}...` 
-                      : contact.description
-                    }
-                  </p>
-                </div>
 
-                {/* Action Buttons - Show on Hover */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCallClick(contact);
-                    }}
-                    className="p-1.5 rounded-full bg-slate-600 hover:bg-slate-500 transition-colors duration-200"
-                    title="Start Call"
-                  >
-                    <Phone className="w-4 h-4 text-white" />
-                  </button>
+                  {/* Action Buttons - Show on Hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCallClick(contact);
+                      }}
+                      className="p-1.5 rounded-full bg-slate-600 hover:bg-slate-500 transition-colors duration-200"
+                      title="Start Call"
+                    >
+                      <Phone className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Footer */}

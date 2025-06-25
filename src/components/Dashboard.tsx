@@ -3,7 +3,7 @@ import {
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
   Search, TrendingUp, Bell, Globe, Rss, Newspaper,
   Mic, MessageCircle, Sliders, Grid3x3, Filter, Star, Clock, 
-  BarChart3, Bookmark, CheckCircle2
+  BarChart3, Bookmark, CheckCircle2, Plus
 } from 'lucide-react';
 import { AIContact } from '../types';
 import { sourceIntegrations, actionIntegrations } from '../data/integrations';
@@ -14,6 +14,7 @@ interface DashboardProps {
   onCallClick: (contact: AIContact) => void;
   onSettingsClick: (contact?: AIContact) => void;
   onNewChatClick: (contact: AIContact) => void;
+  onCreateAgent: () => void;
 }
 
 export default function Dashboard({ 
@@ -21,7 +22,8 @@ export default function Dashboard({
   onChatClick, 
   onCallClick, 
   onSettingsClick,
-  onNewChatClick 
+  onNewChatClick,
+  onCreateAgent 
 }: DashboardProps) {
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [integrationSearchQuery, setIntegrationSearchQuery] = useState('');
@@ -80,22 +82,17 @@ export default function Dashboard({
     return <IconComponent className="w-5 h-5" />;
   };
 
-
-
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
-    // Convert hex to RGB
     const hex = color.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
     
-    // Create complementary color by shifting hue and make it lighter
-    const compR = Math.round(255 - r * 0.3); // Softer complement
+    const compR = Math.round(255 - r * 0.3);
     const compG = Math.round(255 - g * 0.3);
     const compB = Math.round(255 - b * 0.3);
     
-    // Make complementary color lighter than the main color
     const lightCompR = Math.round(compR + (255 - compR) * 0.8);
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
@@ -115,20 +112,14 @@ export default function Dashboard({
             {/* Greeting */}
             <div className="mb-8">
               <div className="flex items-center space-x-4 mb-4">
-                {/* Logo - commented out */}
-                {/* <img
-                  src="/media/gather-logo-dark.png"
-                  alt="Gather Logo"
-                  className="w-24 h-24 object-contain"
-                /> */}
                 <div>
                   <h1 className="text-4xl font-bold text-white">Good morning, Emmanuel</h1>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
-          </div>
-          </div>
-        </div>
+                </div>
+              </div>
+            </div>
 
-        {/* Stats Grid */}
+            {/* Stats Grid */}
             <div className="grid grid-cols-4 gap-4 mb-8">
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50">
                 <div className="flex items-center space-x-3">
@@ -181,164 +172,195 @@ export default function Dashboard({
 
       <div className="px-8 pb-8">
         <div className="max-w-6xl mx-auto space-y-12">
-          {/* Frequently Used Agents */}
+          {/* Getting Started or Frequently Used Agents */}
           <section>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Frequently Used</h2>
+              <h2 className="text-2xl font-bold text-white">
+                {contacts.length === 0 ? 'Get Started' : 'Frequently Used'}
+              </h2>
+              {contacts.length > 0 && (
+                <button
+                  onClick={onCreateAgent}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Agent</span>
+                </button>
+              )}
             </div>
             
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-              {frequentAgents.map((agent) => (
-                <div key={agent.id} className="group relative">
-                  <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
-                    <div className="flex flex-col items-center text-center space-y-4">
-                                             <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
-                         {agent.avatar ? (
-                           <img
-                             src={agent.avatar}
-                             alt={agent.name}
-                             className="w-full h-full object-cover rounded-2xl"
-                           />
-                         ) : (
-                           <div 
-                             className="w-full h-full rounded-2xl"
-                             style={{ background: createAgentGradient(agent.color) }}
-                           />
-                         )}
+            {contacts.length === 0 ? (
+              <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700 text-center">
+                <div className="w-24 h-24 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                  <Bot className="w-12 h-12 text-white" />
                 </div>
-                <div>
-                        <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
-                        <p className="text-slate-400 text-sm line-clamp-2">{agent.description}</p>
-                      </div>
-                      <div className="flex space-x-2 w-full">
-                        <button 
-                          onClick={() => onChatClick(agent)}
-                          className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
-                        >
-                          <MessageCircle className="w-4 h-4 mx-auto" />
-                        </button>
-                        <button 
-                          onClick={() => onCallClick(agent)}
-                          className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
-                        >
-                          <Mic className="w-4 h-4 mx-auto" />
-                        </button>
-                        <button 
-                          onClick={() => onSettingsClick(agent)}
-                          className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
-                        >
-                          <Sliders className="w-4 h-4 mx-auto" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-
-
-          {/* Recent Activity */}
-          <section>
-            <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentAgents.slice(0, 6).map((agent) => (
-                <div key={`recent-${agent.id}`} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
-                  <div className="flex items-center space-x-3">
-                                         <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-                       {agent.avatar ? (
-                         <img
-                           src={agent.avatar}
-                           alt={agent.name}
-                           className="w-full h-full object-cover rounded-lg"
-                         />
-                       ) : (
-                         <div 
-                           className="w-full h-full rounded-lg"
-                           style={{ background: createAgentGradient(agent.color) }}
-                         />
-                       )}
-                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-white truncate">{agent.name}</h4>
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
-                        <span className="text-slate-400 text-sm">{agent.lastSeen}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Agents Library - positioned 3/4 down the screen */}
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Agents Library</h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search agents..."
-                  value={agentSearchQuery}
-                  onChange={(e) => setAgentSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
-                />
+                <h3 className="text-2xl font-bold text-white mb-4">Create Your First AI Agent</h3>
+                <p className="text-slate-400 text-lg mb-6 max-w-md mx-auto">
+                  Start by creating a personalized AI assistant. Choose from our templates or build your own from scratch.
+                </p>
+                <button
+                  onClick={onCreateAgent}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105"
+                >
+                  Create Your First Agent
+                </button>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAgents.map((agent) => (
-                <div key={`library-${agent.id}`} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
-                  <div className="flex items-start space-x-4">
-                                         <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
-                       {agent.avatar ? (
-                         <img
-                           src={agent.avatar}
-                           alt={agent.name}
-                           className="w-full h-full object-cover rounded-xl"
-                         />
-                       ) : (
-                         <div 
-                           className="w-full h-full rounded-xl"
-                           style={{ background: createAgentGradient(agent.color) }}
-                         />
-                       )}
-                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="font-semibold text-white">{agent.name}</h3>
-                        <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
-                      </div>
-                      <p className="text-slate-400 text-sm mb-4 line-clamp-2">{agent.description}</p>
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          onClick={() => onChatClick(agent)}
-                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => onCallClick(agent)}
-                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
-                        >
-                          <Mic className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => onSettingsClick(agent)}
-                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
-                        >
-                          <Sliders className="w-4 h-4" />
-                        </button>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                {frequentAgents.map((agent) => (
+                  <div key={agent.id} className="group relative">
+                    <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
+                      <div className="flex flex-col items-center text-center space-y-4">
+                        <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
+                          {agent.avatar ? (
+                            <img
+                              src={agent.avatar}
+                              alt={agent.name}
+                              className="w-full h-full object-cover rounded-2xl"
+                            />
+                          ) : (
+                            <div 
+                              className="w-full h-full rounded-2xl"
+                              style={{ background: createAgentGradient(agent.color) }}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
+                          <p className="text-slate-400 text-sm line-clamp-2">{agent.description}</p>
+                        </div>
+                        <div className="flex space-x-2 w-full">
+                          <button 
+                            onClick={() => onChatClick(agent)}
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                          >
+                            <MessageCircle className="w-4 h-4 mx-auto" />
+                          </button>
+                          <button 
+                            onClick={() => onCallClick(agent)}
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Mic className="w-4 h-4 mx-auto" />
+                          </button>
+                          <button 
+                            onClick={() => onSettingsClick(agent)}
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Sliders className="w-4 h-4 mx-auto" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
+
+          {/* Recent Activity - Only show if there are contacts */}
+          {contacts.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentAgents.slice(0, 6).map((agent) => (
+                  <div key={`recent-${agent.id}`} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                        {agent.avatar ? (
+                          <img
+                            src={agent.avatar}
+                            alt={agent.name}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-full rounded-lg"
+                            style={{ background: createAgentGradient(agent.color) }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-white truncate">{agent.name}</h4>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
+                          <span className="text-slate-400 text-sm">{agent.lastSeen}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Agents Library */}
+          {contacts.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Agents Library</h2>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search agents..."
+                    value={agentSearchQuery}
+                    onChange={(e) => setAgentSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAgents.map((agent) => (
+                  <div key={`library-${agent.id}`} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
+                    <div className="flex items-start space-x-4">
+                      <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {agent.avatar ? (
+                          <img
+                            src={agent.avatar}
+                            alt={agent.name}
+                            className="w-full h-full object-cover rounded-xl"
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-full rounded-xl"
+                            style={{ background: createAgentGradient(agent.color) }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="font-semibold text-white">{agent.name}</h3>
+                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-4 line-clamp-2">{agent.description}</p>
+                        <div className="flex items-center space-x-2">
+                          <button 
+                            onClick={() => onChatClick(agent)}
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => onCallClick(agent)}
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Mic className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => onSettingsClick(agent)}
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Sliders className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Integrations Library */}
           <section>
@@ -353,8 +375,8 @@ export default function Dashboard({
                   onChange={(e) => setIntegrationSearchQuery(e.target.value)}
                   className="pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
                 />
+              </div>
             </div>
-          </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredIntegrations.map((integration) => (
@@ -382,10 +404,8 @@ export default function Dashboard({
               ))}
             </div>
           </section>
-            </div>
-          </div>
-
-
+        </div>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.5.1",
     "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.39.0",
     "jsrsasign": "^11.1.0",
     "lucide-react": "^0.344.0",
     "mammoth": "^1.6.0",
