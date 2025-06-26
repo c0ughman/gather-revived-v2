@@ -14,6 +14,108 @@ interface ChatScreenProps {
   onCallClick: (contact: AIContact) => void;
 }
 
+// Simple markdown parser for basic formatting
+const parseMarkdown = (text: string) => {
+  // Split text into parts while preserving markdown
+  const parts = [];
+  let currentIndex = 0;
+  
+  // Regex patterns for markdown
+  const patterns = [
+    { regex: /\*\*(.*?)\*\*/g, component: 'strong' },
+    { regex: /\*(.*?)\*/g, component: 'em' },
+    { regex: /`(.*?)`/g, component: 'code' },
+    { regex: /^### (.*$)/gm, component: 'h3' },
+    { regex: /^## (.*$)/gm, component: 'h2' },
+    { regex: /^# (.*$)/gm, component: 'h1' },
+  ];
+  
+  // Find all matches
+  const matches = [];
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        content: match[1] || match[0],
+        component: pattern.component,
+        fullMatch: match[0]
+      });
+    }
+  });
+  
+  // Sort matches by position
+  matches.sort((a, b) => a.start - b.start);
+  
+  // Build JSX elements
+  const elements = [];
+  let lastIndex = 0;
+  
+  matches.forEach((match, index) => {
+    // Add text before this match
+    if (match.start > lastIndex) {
+      const beforeText = text.slice(lastIndex, match.start);
+      if (beforeText) {
+        elements.push(<span key={`text-${index}-before`}>{beforeText}</span>);
+      }
+    }
+    
+    // Add the formatted element
+    const key = `${match.component}-${index}`;
+    switch (match.component) {
+      case 'strong':
+        elements.push(<strong key={key} className="font-semibold">{match.content}</strong>);
+        break;
+      case 'em':
+        elements.push(<em key={key} className="italic">{match.content}</em>);
+        break;
+      case 'code':
+        elements.push(
+          <code key={key} className="bg-black bg-opacity-20 px-1.5 py-0.5 rounded text-sm font-mono">
+            {match.content}
+          </code>
+        );
+        break;
+      case 'h1':
+        elements.push(
+          <h1 key={key} className="text-xl font-bold mt-4 mb-2 first:mt-0">
+            {match.content}
+          </h1>
+        );
+        break;
+      case 'h2':
+        elements.push(
+          <h2 key={key} className="text-lg font-semibold mt-3 mb-2 first:mt-0">
+            {match.content}
+          </h2>
+        );
+        break;
+      case 'h3':
+        elements.push(
+          <h3 key={key} className="text-base font-medium mt-2 mb-1 first:mt-0">
+            {match.content}
+          </h3>
+        );
+        break;
+      default:
+        elements.push(<span key={key}>{match.content}</span>);
+    }
+    
+    lastIndex = match.end;
+  });
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    const remainingText = text.slice(lastIndex);
+    if (remainingText) {
+      elements.push(<span key="text-end">{remainingText}</span>);
+    }
+  }
+  
+  return elements.length > 0 ? elements : [text];
+};
+
 export default function ChatScreen({ 
   contact, 
   messages, 
@@ -85,14 +187,6 @@ export default function ChatScreen({
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  };
-
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
     // Convert hex to RGB
@@ -114,6 +208,21 @@ export default function ChatScreen({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  // Create message gradient for AI based on contact color
+  const createMessageGradient = (color: string) => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Create a lighter version for gradient
+    const lightR = Math.min(255, r + 40);
+    const lightG = Math.min(255, g + 40);
+    const lightB = Math.min(255, b + 40);
+    
+    return `linear-gradient(135deg, rgb(${lightR}, ${lightG}, ${lightB}) 0%, rgb(${r}, ${g}, ${b}) 100%)`;
+  };
+
   // Count total documents available to this AI
   const permanentDocuments = contact.documents?.length || 0;
   const totalConversationDocuments = conversationDocuments.length;
@@ -122,32 +231,32 @@ export default function ChatScreen({
   return (
     <div className="h-full bg-slate-900 flex flex-col font-inter">
       {/* Header - Fixed at top with higher z-index */}
-      <div className="relative z-20 bg-slate-800 border-b border-slate-700 p-4 flex items-center space-x-4">
+      <div className="relative z-20 bg-slate-800/95 backdrop-blur-xl border-b border-slate-700/50 p-4 flex items-center space-x-4">
         <button
           onClick={onBack}
-          className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+          className="p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
         >
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
         
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-                {contact.avatar ? (
-                  <img
-                    src={contact.avatar}
-                    alt={contact.name}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                ) : (
-                  <div 
-                    className="w-full h-full rounded-lg"
-                    style={{ background: createAgentGradient(contact.color) }}
-                  />
-                )}
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+          {contact.avatar ? (
+            <img
+              src={contact.avatar}
+              alt={contact.name}
+              className="w-full h-full object-cover rounded-lg"
+            />
+          ) : (
+            <div 
+              className="w-full h-full rounded-lg"
+              style={{ background: createAgentGradient(contact.color) }}
+            />
+          )}
         </div>
         
         <div className="flex-1 min-w-0">
-          <h2 className="text-white font-semibold truncate">{contact.name}</h2>
-          <p className="text-slate-400 text-sm truncate">
+          <h2 className="text-white font-semibold truncate leading-tight">{contact.name}</h2>
+          <p className="text-slate-400 text-sm truncate leading-relaxed">
             {isTyping ? (
               <span className="flex items-center space-x-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -188,7 +297,7 @@ export default function ChatScreen({
         <div className="flex items-center space-x-2">
           <button
             onClick={() => onSettingsClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
             title="Settings"
           >
             <Settings className="w-5 h-5 text-slate-400" />
@@ -196,7 +305,7 @@ export default function ChatScreen({
           
           <button
             onClick={() => onNewChatClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
             title="Start new conversation"
           >
             <MessageSquarePlus className="w-5 h-5 text-slate-400" />
@@ -204,7 +313,7 @@ export default function ChatScreen({
           
           <button
             onClick={() => onCallClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
             title="Start call"
           >
             <Phone className="w-5 h-5 text-slate-400" />
@@ -217,21 +326,21 @@ export default function ChatScreen({
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
-                          <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
-              {contact.avatar ? (
-                <img
-                  src={contact.avatar}
-                  alt={contact.name}
-                  className="w-full h-full object-cover rounded-xl"
-                />
-              ) : (
-                <div 
-                  className="w-full h-full rounded-xl"
-                  style={{ background: createAgentGradient(contact.color) }}
-                />
-              )}
+              <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
+                {contact.avatar ? (
+                  <img
+                    src={contact.avatar}
+                    alt={contact.name}
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                ) : (
+                  <div 
+                    className="w-full h-full rounded-xl"
+                    style={{ background: createAgentGradient(contact.color) }}
+                  />
+                )}
               </div>
-              <h3 className="text-white text-2xl font-semibold mb-3">{contact.name}</h3>
+              <h3 className="text-white text-2xl font-semibold mb-3 leading-tight">{contact.name}</h3>
               <p className="text-slate-400 text-base max-w-md mx-auto leading-relaxed mb-6">
                 {contact.description.length > 120 
                   ? `${contact.description.substring(0, 120)}...` 
@@ -240,12 +349,12 @@ export default function ChatScreen({
               </p>
               <div className="space-y-2">
                 {permanentDocuments > 0 && (
-                  <p className="text-blue-400 text-sm">
+                  <p className="text-blue-400 text-sm leading-relaxed">
                     📚 This AI has {permanentDocuments} document{permanentDocuments > 1 ? 's' : ''} in its permanent knowledge base
                   </p>
                 )}
                 {totalConversationDocuments > 0 && (
-                  <p className="text-green-400 text-sm">
+                  <p className="text-green-400 text-sm leading-relaxed">
                     💬 This conversation has {totalConversationDocuments} shared document{totalConversationDocuments > 1 ? 's' : ''} available
                   </p>
                 )}
@@ -253,52 +362,56 @@ export default function ChatScreen({
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             {messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                  className={`max-w-xs lg:max-w-md px-5 py-4 rounded-2xl shadow-lg ${
                     message.sender === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-white'
-                  } shadow-lg`}
+                      ? 'text-white'
+                      : 'text-white'
+                  }`}
+                  style={{
+                    background: message.sender === 'user'
+                      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                      : createMessageGradient(contact.color)
+                  }}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {parseMarkdown(message.content)}
+                  </div>
                   
                   {/* Show attached documents (only newly attached in this message) */}
                   {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-opacity-20 border-white">
-                      <p className="text-xs opacity-75 mb-1">📎 New documents shared:</p>
+                    <div className="mt-3 pt-3 border-t border-opacity-20 border-white">
+                      <p className="text-xs opacity-75 mb-2 leading-relaxed">📎 New documents shared:</p>
                       {message.attachments.map((doc) => (
-                        <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1">
+                        <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1 leading-relaxed">
                           📄 {doc.name} ({Math.round(doc.size / 1024)}KB)
                         </div>
                       ))}
                     </div>
                   )}
-                  
-                  <p className={`text-xs mt-1 ${
-                    message.sender === 'user' ? 'text-blue-100' : 'text-slate-400'
-                  }`}>
-                    {formatTime(message.timestamp)}
-                  </p>
                 </div>
               </div>
             ))}
 
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-slate-700 text-white px-4 py-2 rounded-2xl max-w-xs shadow-lg">
+                <div 
+                  className="text-white px-5 py-4 rounded-2xl max-w-xs shadow-lg"
+                  style={{ background: createMessageGradient(contact.color) }}
+                >
                   <div className="flex items-center space-x-2">
                     <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-white bg-opacity-60 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-white bg-opacity-60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-white bg-opacity-60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-white text-opacity-80 leading-relaxed">
                       AI analyzing{totalConversationDocuments > 0 ? ` ${totalConversationDocuments + permanentDocuments} docs` : ''}...
                     </span>
                   </div>
@@ -313,27 +426,27 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="relative z-10 p-4 bg-slate-900">
+        <div className="relative z-10 p-4 bg-slate-900/95 backdrop-blur-xl">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-medium">Upload Conversation Documents</h3>
+            <h3 className="text-white font-medium leading-tight">Upload Conversation Documents</h3>
             <button
               onClick={() => {
                 setShowDocumentUpload(false);
                 setUploadError(null);
               }}
-              className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              className="p-1 rounded-full hover:bg-slate-700/50 transition-all duration-200"
             >
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
           
-          <p className="text-slate-400 text-sm mb-4">
+          <p className="text-slate-400 text-sm mb-4 leading-relaxed">
             These documents will be available throughout this conversation. For permanent knowledge, use Settings.
           </p>
           
           {uploadError && (
-            <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
-              <p className="text-red-300 text-sm">{uploadError}</p>
+            <div className="mb-4 p-3 bg-red-900/50 border border-red-700/50 rounded-lg backdrop-blur-sm">
+              <p className="text-red-300 text-sm leading-relaxed">{uploadError}</p>
             </div>
           )}
           
@@ -350,17 +463,17 @@ export default function ChatScreen({
         </div>
       )}
 
-      {/* Input Area - Fixed at bottom */}
+      {/* Input Area - Fixed at bottom with glass morphism */}
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
-          <div className="relative flex items-center bg-slate-700 rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg">
+          <div className="relative flex items-center bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-600/30 focus-within:border-blue-500/50 transition-all duration-200 shadow-2xl">
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
-              className={`ml-4 p-2 rounded-full transition-colors duration-200 ${
+              className={`ml-4 p-2 rounded-full transition-all duration-200 ${
                 showDocumentUpload || pendingDocuments.length > 0
-                  ? 'text-blue-400 hover:text-blue-300'
-                  : 'text-slate-400 hover:text-slate-300'
+                  ? 'text-blue-400 hover:text-blue-300 bg-blue-500/10'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/30'
               }`}
               title="Upload conversation documents"
             >
@@ -380,14 +493,14 @@ export default function ChatScreen({
               onKeyPress={handleKeyPress}
               placeholder={`Message ${contact.name}...`}
               disabled={isTyping}
-              className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
+              className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400 leading-relaxed"
             />
             
             {/* Send Button - Inside input */}
             <button
               onClick={handleSend}
               disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping}
-              className="mr-4 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
+              className="mr-4 p-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-slate-600 disabled:to-slate-600 text-white rounded-full transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl disabled:shadow-none"
             >
               {isTyping ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -399,19 +512,19 @@ export default function ChatScreen({
           
           {/* Status indicators below input */}
           {(pendingDocuments.length > 0 || totalConversationDocuments > 0 || permanentDocuments > 0) && (
-            <div className="mt-2 flex items-center justify-center space-x-4 text-xs">
+            <div className="mt-3 flex items-center justify-center space-x-4 text-xs">
               {pendingDocuments.length > 0 && (
-                <span className="text-yellow-400">
+                <span className="text-yellow-400 leading-relaxed">
                   📎 {pendingDocuments.length} new document{pendingDocuments.length > 1 ? 's' : ''} ready to send
                 </span>
               )}
               {totalConversationDocuments > 0 && (
-                <span className="text-green-400">
+                <span className="text-green-400 leading-relaxed">
                   💬 {totalConversationDocuments} conversation document{totalConversationDocuments > 1 ? 's' : ''} available
                 </span>
               )}
               {permanentDocuments > 0 && (
-                <span className="text-blue-400">
+                <span className="text-blue-400 leading-relaxed">
                   📚 {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
                 </span>
               )}
@@ -423,19 +536,19 @@ export default function ChatScreen({
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
-          <div className="bg-slate-800 bg-opacity-90 backdrop-blur-sm rounded-lg border border-slate-700 p-4">
+          <div className="bg-slate-800/60 backdrop-blur-xl rounded-lg border border-slate-700/50 p-4 shadow-xl">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
+              <h4 className="text-white text-sm font-medium leading-tight">Conversation Documents ({totalConversationDocuments})</h4>
               <button
                 onClick={() => setShowDocumentUpload(true)}
-                className="text-xs text-blue-400 hover:text-blue-300"
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors duration-200"
               >
                 Add more
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {conversationDocuments.slice(0, 5).map((doc) => (
-                <div key={doc.id} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
+                <div key={doc.id} className="text-xs bg-slate-700/50 text-slate-300 px-2 py-1 rounded backdrop-blur-sm">
                   📄 {doc.name}
                 </div>
               ))}
