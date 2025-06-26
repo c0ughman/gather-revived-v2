@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIContact, Message, DocumentInfo } from '../types';
-import { IntegrationsService } from './integrationsService';
+import { integrationsService } from './integrationsService';
 import { getIntegrationById } from '../data/integrations';
 import { documentService } from './documentService';
 
@@ -159,7 +159,7 @@ ${contact.name}:`;
               const { url, method = 'GET', headers = {}, body } = args;
               console.log(`🌐 Making API request: ${method} ${url}`);
               
-              const result = await IntegrationsService.executeApiRequest(url, method, headers, body);
+              const result = await integrationsService.executeApiRequest(url, method, headers, body);
               
               functionResponses.push({
                 name: call.name,
@@ -261,7 +261,7 @@ ${contact.name}:`;
               const sheetIntegration = sheetsIntegrations[sheetIndex];
               const sheetConfig = sheetIntegration.config.settings;
               
-              const result = await IntegrationsService.executeGoogleSheetsToolOperation(
+              const result = await integrationsService.executeGoogleSheetsToolOperation(
                 operation,
                 sheetConfig.sheetUrl,
                 sheetConfig.accessLevel || 'read-only',
@@ -452,7 +452,7 @@ ${contact.name}:`;
         console.warn('Invalid headers JSON, using default headers');
       }
 
-      const result = await IntegrationsService.executeWebhookTriggerTool(
+      const result = await integrationsService.executeWebhookTriggerTool(
         webhookUrl,
         payload || '{}',
         parsedHeaders,
@@ -590,7 +590,7 @@ ${contact.name}:`;
       const integrationDef = getIntegrationById(integration.integrationId);
       if (!integrationDef) return;
 
-      const data = IntegrationsService.getIntegrationData(contact.id, integration.integrationId);
+      const data = integrationsService.getIntegrationData(contact.id, integration.integrationId);
       if (data) {
         hasData = true;
         context += `\n${integrationDef.name}:\n`;

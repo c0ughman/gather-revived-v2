@@ -11,7 +11,7 @@ import SettingsScreen from './components/SettingsScreen';
 import { AIContact, Message, Screen, CallState, DocumentInfo } from './types';
 import { supabaseService } from './services/supabaseService';
 import { geminiService } from './services/geminiService';
-import { IntegrationsService } from './services/integrationsService';
+import { integrationsService } from './services/integrationsService';
 import { getIntegrationById } from './data/integrations';
 import { geminiLiveService } from './modules/calls/services/geminiLiveService';
 
@@ -96,7 +96,7 @@ function App() {
           contact.integrations.forEach(integrationInstance => {
             const integration = getIntegrationById(integrationInstance.integrationId);
             if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-              IntegrationsService.startPeriodicExecution(
+              integrationsService.startPeriodicExecution(
                 contact.id, 
                 integration, 
                 integrationInstance.config, 
@@ -128,8 +128,8 @@ function App() {
             integrationInstance.config.enabled && 
             (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
           try {
-            const data = await IntegrationsService.executeIntegration(integration, integrationInstance.config);
-            IntegrationsService.storeIntegrationData(contact.id, integration.id, data);
+            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
+            integrationsService.storeIntegrationData(contact.id, integration.id, data);
           } catch (error) {
             console.error(`Failed to execute integration ${integration.name}:`, error);
           }
@@ -162,8 +162,8 @@ function App() {
             integrationInstance.config.enabled && 
             (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
           try {
-            const data = await IntegrationsService.executeIntegration(integration, integrationInstance.config);
-            IntegrationsService.storeIntegrationData(contact.id, integration.id, data);
+            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
+            integrationsService.storeIntegrationData(contact.id, integration.id, data);
           } catch (error) {
             console.error(`Failed to execute integration ${integration.name}:`, error);
           }
@@ -470,7 +470,7 @@ function App() {
         updatedContact.integrations.forEach(integrationInstance => {
           const integration = getIntegrationById(integrationInstance.integrationId);
           if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-            IntegrationsService.startPeriodicExecution(
+            integrationsService.startPeriodicExecution(
               updatedContact.id, 
               integration, 
               integrationInstance.config, 
@@ -481,7 +481,7 @@ function App() {
           }
         });
       } else {
-        IntegrationsService.stopAllExecution();
+        integrationsService.stopAllExecution();
       }
       
     } catch (error) {
