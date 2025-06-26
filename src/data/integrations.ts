@@ -205,6 +205,68 @@ export const sourceIntegrations: Integration[] = [
       'Foreign exchange rates'
     ],
     tags: ['finance', 'crypto', 'stocks', 'trading', 'markets', 'prices']
+  },
+  // NEW: Notion OAuth Source Integration
+  {
+    id: 'notion-oauth-source',
+    name: 'Notion (OAuth)',
+    description: 'Connect to your Notion workspace to read pages, databases, and content automatically',
+    category: 'source',
+    icon: 'FileText',
+    color: '#000000',
+    requiresApiKey: false,
+    requiresOAuth: true,
+    oauthProvider: 'notion',
+    fields: [
+      {
+        id: 'clientId',
+        name: 'Notion Client ID',
+        type: 'text',
+        required: true,
+        placeholder: 'Your Notion integration client ID',
+        description: 'Client ID from your Notion integration settings'
+      },
+      {
+        id: 'clientSecret',
+        name: 'Notion Client Secret',
+        type: 'text',
+        required: true,
+        placeholder: 'Your Notion integration client secret',
+        description: 'Client secret from your Notion integration settings'
+      },
+      {
+        id: 'dataType',
+        name: 'Data to Fetch',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'pages', label: 'Pages' },
+          { value: 'databases', label: 'Databases' },
+          { value: 'both', label: 'Pages and Databases' }
+        ],
+        defaultValue: 'both',
+        description: 'What type of Notion content to fetch'
+      },
+      {
+        id: 'includeContent',
+        name: 'Include Page Content',
+        type: 'select',
+        required: false,
+        options: [
+          { value: 'true', label: 'Yes - Include full content' },
+          { value: 'false', label: 'No - Metadata only' }
+        ],
+        defaultValue: 'true',
+        description: 'Whether to fetch full page content or just metadata'
+      }
+    ],
+    examples: [
+      'Sync your Notion pages for AI reference',
+      'Monitor database changes automatically',
+      'Access your knowledge base content',
+      'Track project updates from Notion'
+    ],
+    tags: ['notion', 'oauth', 'pages', 'databases', 'knowledge', 'sync']
   }
 ];
 
@@ -328,7 +390,7 @@ export const actionIntegrations: Integration[] = [
         type: 'textarea',
         required: false,
         placeholder: '{\n  "trigger_source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_message": "{{user_message}}",\n  "contact_name": "{{contact_name}}"\n}',
-        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors).'
+        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors). JSON data to send to Zapier. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.'
       },
       {
         id: 'confirmationMessage',
@@ -398,7 +460,7 @@ export const actionIntegrations: Integration[] = [
         type: 'textarea',
         required: false,
         placeholder: '{\n  "source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_input": "{{user_message}}",\n  "contact": "{{contact_name}}",\n  "workflow_trigger": "voice_command"\n}',
-        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors).'
+        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors). JSON data to send to n8n. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.'
       },
       {
         id: 'confirmationMessage',
@@ -583,6 +645,58 @@ export const actionIntegrations: Integration[] = [
       'Export data from rows 5-15'
     ],
     tags: ['spreadsheet', 'data', 'google', 'sheets', 'database', 'crm', 'crud', 'automation']
+  },
+  // NEW: Notion OAuth Action Integration
+  {
+    id: 'notion-oauth-action',
+    name: 'Notion Actions (OAuth)',
+    description: 'Create pages, update databases, and manage your Notion workspace with natural language commands',
+    category: 'action',
+    icon: 'FileText',
+    color: '#000000',
+    requiresApiKey: false,
+    requiresOAuth: true,
+    oauthProvider: 'notion',
+    fields: [
+      {
+        id: 'clientId',
+        name: 'Notion Client ID',
+        type: 'text',
+        required: true,
+        placeholder: 'Your Notion integration client ID',
+        description: 'Client ID from your Notion integration settings'
+      },
+      {
+        id: 'clientSecret',
+        name: 'Notion Client Secret',
+        type: 'text',
+        required: true,
+        placeholder: 'Your Notion integration client secret',
+        description: 'Client secret from your Notion integration settings'
+      },
+      {
+        id: 'allowedActions',
+        name: 'Allowed Actions',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'read', label: 'Read Only - View pages and databases' },
+          { value: 'write', label: 'Write - Create and update content' },
+          { value: 'full', label: 'Full Access - Read, write, and manage' }
+        ],
+        defaultValue: 'write',
+        description: 'What actions the AI can perform in your Notion workspace'
+      }
+    ],
+    examples: [
+      'Create a new page in my project database',
+      'Update the status of a task to completed',
+      'Add a new entry to my reading list',
+      'Search for pages containing specific keywords',
+      'Create a meeting notes page with agenda',
+      'Update database properties and values'
+    ],
+    tags: ['notion', 'oauth', 'create', 'update', 'pages', 'databases', 'action']
   }
 ];
 
@@ -595,4 +709,8 @@ export function getIntegrationById(id: string): Integration | undefined {
 
 export function getIntegrationsByCategory(category: 'source' | 'action'): Integration[] {
   return allIntegrations.filter(integration => integration.category === category);
+}
+
+export function getOAuthIntegrations(): Integration[] {
+  return allIntegrations.filter(integration => integration.requiresOAuth);
 }

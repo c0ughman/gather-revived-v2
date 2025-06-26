@@ -6,6 +6,8 @@ export interface Integration {
   icon: string;
   color: string;
   requiresApiKey: boolean;
+  requiresOAuth?: boolean;
+  oauthProvider?: string;
   fields: IntegrationField[];
   examples: string[];
   tags: string[];
@@ -29,6 +31,9 @@ export interface IntegrationConfig {
   trigger: 'periodic' | 'chat-start' | 'both' | 'manual';
   intervalMinutes?: number;
   description: string;
+  // OAuth specific fields
+  oauthTokenId?: string;
+  oauthConnected?: boolean;
 }
 
 export interface IntegrationInstance {
@@ -38,6 +43,6 @@ export interface IntegrationInstance {
   config: IntegrationConfig;
   lastFetched?: Date;
   lastData?: any;
-  status: 'active' | 'inactive' | 'error';
+  status: 'active' | 'inactive' | 'error' | 'oauth_required';
   errorMessage?: string;
-}</parameter>
+}
