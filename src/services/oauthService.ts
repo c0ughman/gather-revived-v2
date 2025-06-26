@@ -41,19 +41,33 @@ export interface StoredOAuthToken extends OAuthToken {
 
 class OAuthService {
   /**
+   * Get the correct redirect URI for the current environment
+   */
+  private getRedirectUri(provider: string): string {
+    // In WebContainer, use the current origin
+    const currentOrigin = window.location.origin;
+    return `${currentOrigin}/oauth/callback/${provider}`;
+  }
+
+  /**
    * Generate the authorization URL for OAuth flow
    */
   generateAuthUrl(config: OAuthConfig, state?: string): string {
+    // Use dynamic redirect URI
+    const redirectUri = this.getRedirectUri(config.provider);
+    
     const params = new URLSearchParams({
       client_id: config.clientId,
-      redirect_uri: config.redirectUri,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: config.scope,
       ...(state && { state }),
       ...config.extraAuthParams
     });
 
-    return `${config.authUrl}?${params.toString()}`;
+    const authUrl = `${config.authUrl}?${params.toString()}`;
+    console.log('🔗 Generated OAuth URL:', authUrl);
+    return authUrl;
   }
 
   /**
@@ -63,10 +77,13 @@ class OAuthService {
     try {
       console.log(`🔐 Exchanging OAuth code for ${config.provider} token`);
 
+      // Use dynamic redirect URI
+      const redirectUri = this.getRedirectUri(config.provider);
+
       const body: Record<string, string> = {
         grant_type: 'authorization_code',
         code,
-        redirect_uri: config.redirectUri
+        redirect_uri: redirectUri
       };
 
       // Add client credentials based on auth method
@@ -78,13 +95,15 @@ class OAuthService {
 
       if (config.authMethod === 'basic') {
         // HTTP Basic Auth (Notion, GitHub, etc.)
-        const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+        const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
         headers['Authorization'] = `Basic ${credentials}`;
       } else {
         // Include in body (Google, Slack, etc.)
         body.client_id = config.clientId;
         body.client_secret = config.clientSecret;
       }
+
+      console.log('📤 Making token exchange request to:', config.tokenUrl);
 
       const response = await fetch(config.tokenUrl, {
         method: 'POST',
@@ -94,6 +113,7 @@ class OAuthService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('❌ Token exchange failed:', response.status, response.statusText, errorText);
         throw new Error(`Token exchange failed: ${response.status} ${response.statusText}. ${errorText}`);
       }
 
@@ -263,7 +283,7 @@ class OAuthService {
     };
 
     if (config.authMethod === 'basic') {
-      const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+      const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
       headers['Authorization'] = `Basic ${credentials}`;
     } else {
       body.client_id = config.clientId;
