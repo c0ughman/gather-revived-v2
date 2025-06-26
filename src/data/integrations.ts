@@ -514,6 +514,3 @@ export const integrationTemplates: IntegrationTemplate[] = [
     is_featured: false
   }
 ];
-
-export const sourceIntegrations = integrationTemplates.filter(i => i.category === 'source');
-export const actionIntegrations = integrationTemplates.filter(i => i.category === 'action');
