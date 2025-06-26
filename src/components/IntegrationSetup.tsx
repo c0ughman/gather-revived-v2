@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Save, X, Play, AlertCircle, CheckCircle, Globe, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database } from 'lucide-react';
+import { Save, X, Play, AlertCircle, CheckCircle, Globe, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database, FileText } from 'lucide-react';
 import { Integration, IntegrationConfig, IntegrationField } from '../types/integrations';
 import { integrationsService } from '../services/integrationsService';
+import OAuthConnect from './OAuthConnect';
+import { useAuth } from '../hooks/useAuth';
 
 interface IntegrationSetupProps {
   integration: Integration;
@@ -19,7 +21,8 @@ const iconMap = {
   TrendingUp,
   Calendar,
   Building2,
-  Database
+  Database,
+  FileText
 };
 
 const triggerOptions = [
@@ -41,13 +44,16 @@ const intervalOptions = [
 ];
 
 export default function IntegrationSetup({ integration, existingConfig, onSave, onCancel, className = '' }: IntegrationSetupProps) {
+  const { user } = useAuth();
   const [config, setConfig] = useState<IntegrationConfig>({
     integrationId: integration.id,
     enabled: existingConfig?.enabled ?? true,
     settings: existingConfig?.settings ?? {},
     trigger: existingConfig?.trigger ?? 'chat-start',
     intervalMinutes: existingConfig?.intervalMinutes ?? 30,
-    description: existingConfig?.description ?? ''
+    description: existingConfig?.description ?? '',
+    oauthTokenId: existingConfig?.oauthTokenId,
+    oauthConnected: existingConfig?.oauthConnected ?? false
   });
 
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
@@ -69,11 +75,37 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
     setConfig(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleOAuthSuccess = (tokenId: string) => {
+    console.log('OAuth connection successful, token ID:', tokenId);
+    setConfig(prev => ({
+      ...prev,
+      oauthTokenId: tokenId,
+      oauthConnected: true
+    }));
+  };
+
+  const handleOAuthError = (error: string) => {
+    console.error('OAuth connection failed:', error);
+    setTestResult({
+      success: false,
+      message: `OAuth connection failed: ${error}`
+    });
+  };
+
   const handleTest = async () => {
     setIsTesting(true);
     setTestResult(null);
 
     try {
+      // For OAuth integrations, check if connected first
+      if (integration.requiresOAuth && !config.oauthConnected) {
+        setTestResult({
+          success: false,
+          message: 'Please connect your account first using the OAuth button above.'
+        });
+        return;
+      }
+
       const result = await integrationsService.executeIntegration(integration, config);
       setTestResult({
         success: true,
@@ -91,6 +123,15 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
   };
 
   const handleSave = () => {
+    // For OAuth integrations, ensure connection is established
+    if (integration.requiresOAuth && !config.oauthConnected) {
+      setTestResult({
+        success: false,
+        message: 'Please connect your account first using the OAuth button.'
+      });
+      return;
+    }
+
     onSave(config);
   };
 
@@ -173,6 +214,26 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
 
       {/* Configuration Form */}
       <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+        {/* OAuth Connection - Show first if required */}
+        {integration.requiresOAuth && (
+          <div>
+            <label className="block text-xs font-medium text-white mb-2">
+              Account Connection
+              <span className="text-red-400 ml-1">*</span>
+            </label>
+            <OAuthConnect
+              provider={integration.oauthProvider || integration.id}
+              clientId={config.settings.clientId || ''}
+              clientSecret={config.settings.clientSecret || ''}
+              onSuccess={handleOAuthSuccess}
+              onError={handleOAuthError}
+            />
+            <p className="text-slate-400 text-xs mt-1">
+              Connect your {integration.name} account to enable this integration
+            </p>
+          </div>
+        )}
+
         {/* Integration Fields */}
         {integration.fields.map(field => (
           <div key={field.id}>
@@ -187,33 +248,35 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           </div>
         ))}
 
-        {/* Trigger Configuration */}
-        <div>
-          <label className="block text-xs font-medium text-white mb-2">
-            Execution Trigger
-          </label>
-          <div className="space-y-2">
-            {triggerOptions.map(option => (
-              <label key={option.value} className="flex items-start space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="trigger"
-                  value={option.value}
-                  checked={config.trigger === option.value}
-                  onChange={(e) => handleConfigChange('trigger', e.target.value)}
-                  className="mt-0.5 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500"
-                />
-                <div>
-                  <div className="text-white font-medium text-sm">{option.label}</div>
-                  <div className="text-slate-400 text-xs">{option.description}</div>
-                </div>
-              </label>
-            ))}
+        {/* Trigger Configuration - Only for source integrations */}
+        {integration.category === 'source' && (
+          <div>
+            <label className="block text-xs font-medium text-white mb-2">
+              Execution Trigger
+            </label>
+            <div className="space-y-2">
+              {triggerOptions.map(option => (
+                <label key={option.value} className="flex items-start space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="trigger"
+                    value={option.value}
+                    checked={config.trigger === option.value}
+                    onChange={(e) => handleConfigChange('trigger', e.target.value)}
+                    className="mt-0.5 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <div className="text-white font-medium text-sm">{option.label}</div>
+                    <div className="text-slate-400 text-xs">{option.description}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Interval Configuration */}
-        {(config.trigger === 'periodic' || config.trigger === 'both') && (
+        {/* Interval Configuration - Only for periodic triggers */}
+        {integration.category === 'source' && (config.trigger === 'periodic' || config.trigger === 'both') && (
           <div>
             <label className="block text-xs font-medium text-white mb-2">
               Execution Interval
@@ -281,7 +344,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
         <div className="flex items-center justify-between pt-3 border-t border-slate-700">
           <button
             onClick={handleTest}
-            disabled={isTesting}
+            disabled={isTesting || (integration.requiresOAuth && !config.oauthConnected)}
             className="flex items-center space-x-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 text-sm"
           >
             <Play className="w-3 h-3" />

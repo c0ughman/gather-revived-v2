@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import AuthScreen from './components/AuthScreen';
 import ContactSidebar from './components/ContactSidebar';
@@ -7,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import ChatScreen from './modules/chat/ChatScreen';
 import CallScreen from './modules/calls/CallScreen';
 import SettingsScreen from './components/SettingsScreen';
+import OAuthCallback from './components/OAuthCallback';
 
 import { AIContact, Message, Screen, CallState, DocumentInfo } from './types';
 import { supabaseService } from './services/supabaseService';
@@ -15,7 +17,7 @@ import { integrationsService } from './services/integrationsService';
 import { getIntegrationById } from './data/integrations';
 import { geminiLiveService } from './modules/calls/services/geminiLiveService';
 
-function App() {
+function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
@@ -671,6 +673,17 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 }
 

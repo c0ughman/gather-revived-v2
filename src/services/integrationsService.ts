@@ -1,5 +1,7 @@
 import { Integration, IntegrationConfig } from '../types/integrations';
 import { KJUR } from 'jsrsasign';
+import { notionService } from './notionService';
+import { oauthService } from './oauthService';
 
 interface IntegrationData {
   summary: string;
@@ -38,11 +40,96 @@ class IntegrationsService {
           return await this.executeWebhookTrigger(config);
         case 'google-sheets':
           return await this.executeGoogleSheets(config);
+        case 'notion-oauth-source':
+          return await this.executeNotionOAuthSource(config);
+        case 'notion-oauth-action':
+          return await this.executeNotionOAuthAction(config);
         default:
           throw new Error(`Unknown integration: ${integration.id}`);
       }
     } catch (error) {
       console.error(`❌ Integration execution failed for ${integration.name}:`, error);
+      throw error;
+    }
+  }
+
+  // NEW: Notion OAuth Source Integration
+  private async executeNotionOAuthSource(config: IntegrationConfig): Promise<IntegrationData> {
+    const { dataType, includeContent, clientId, clientSecret } = config.settings;
+    
+    if (!config.oauthTokenId) {
+      throw new Error('Notion OAuth not connected. Please connect your Notion account first.');
+    }
+
+    // Get user ID from OAuth token (we'll need to modify this to get from current user)
+    const userId = 'current-user-id'; // This should come from the current user context
+    
+    try {
+      let summary = '';
+      let data: any = {};
+
+      if (dataType === 'pages' || dataType === 'both') {
+        const pages = await notionService.getPages(userId, clientId, clientSecret);
+        data.pages = pages;
+        summary += `${pages.length} pages`;
+
+        // Get content if requested
+        if (includeContent === 'true') {
+          for (const page of pages.slice(0, 5)) { // Limit to first 5 for performance
+            try {
+              page.content = await notionService.getPageContent(userId, clientId, clientSecret, page.id);
+            } catch (error) {
+              console.warn(`Failed to get content for page ${page.id}:`, error);
+            }
+          }
+        }
+      }
+
+      if (dataType === 'databases' || dataType === 'both') {
+        const databases = await notionService.getDatabases(userId, clientId, clientSecret);
+        data.databases = databases;
+        if (summary) summary += ', ';
+        summary += `${databases.length} databases`;
+      }
+
+      return {
+        summary: `Notion sync completed: ${summary}`,
+        timestamp: new Date(),
+        source: 'Notion OAuth',
+        data
+      };
+    } catch (error) {
+      console.error('❌ Notion OAuth source execution failed:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Notion OAuth Action Integration (for testing)
+  private async executeNotionOAuthAction(config: IntegrationConfig): Promise<IntegrationData> {
+    const { allowedActions, clientId, clientSecret } = config.settings;
+    
+    if (!config.oauthTokenId) {
+      throw new Error('Notion OAuth not connected. Please connect your Notion account first.');
+    }
+
+    const userId = 'current-user-id'; // This should come from the current user context
+    
+    try {
+      // Test connection by fetching pages
+      const pages = await notionService.getPages(userId, clientId, clientSecret);
+      
+      return {
+        summary: `Notion action integration ready: ${allowedActions} access to ${pages.length} pages`,
+        timestamp: new Date(),
+        source: 'Notion OAuth Actions',
+        data: {
+          allowedActions,
+          availablePages: pages.length,
+          connectionStatus: 'active'
+        }
+      };
+    } catch (error) {
+      console.error('❌ Notion OAuth action execution failed:', error);
       throw error;
     }
   }
