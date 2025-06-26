@@ -376,7 +376,7 @@ export default function ChatScreen({
                   }`}
                   style={{
                     background: message.sender === 'user'
-                      ? ''
+                      ? 'gray'
                       : createMessageGradient(contact.color)
                   }}
                 >
