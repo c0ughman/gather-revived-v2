@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { oauthService, OAuthConfig } from '../services/oauthService';
-import { getOAuthConfig } from '../data/oauthConfigs';
 import { useAuth } from '../hooks/useAuth';
 
 interface OAuthConnectProps {
@@ -22,26 +20,18 @@ export default function OAuthConnect({
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if already connected
+  // Check if already connected (simulate for now)
   useEffect(() => {
     if (user) {
-      checkConnection();
-    }
-  }, [user, provider]);
-
-  const checkConnection = async () => {
-    if (!user) return;
-    
-    try {
-      const token = await oauthService.getToken(user.id, provider);
-      if (token) {
+      // For now, we'll check localStorage for a simple connection status
+      const connectionKey = `oauth_connected_${provider}_${user.id}`;
+      const isAlreadyConnected = localStorage.getItem(connectionKey) === 'true';
+      if (isAlreadyConnected) {
         setIsConnected(true);
-        onSuccess(token.id);
+        onSuccess('mock-token-id'); // Simulate token ID
       }
-    } catch (error) {
-      console.error('Error checking OAuth connection:', error);
     }
-  };
+  }, [user, provider, onSuccess]);
 
   const handleConnect = async () => {
     if (!user) {
@@ -68,9 +58,6 @@ export default function OAuthConnect({
       const redirectUri = `${window.location.origin}/oauth/callback/${provider}`;
       console.log('🔗 Using redirect URI:', redirectUri);
       
-      // Get OAuth config with environment credentials
-      const config: OAuthConfig = getOAuthConfig(provider, clientId, clientSecret, redirectUri);
-      
       // Generate auth URL with state
       const state = btoa(JSON.stringify({ 
         userId: user.id, 
@@ -80,11 +67,17 @@ export default function OAuthConnect({
       
       console.log('🔗 Generated state for OAuth:', { userId: user.id, provider });
       
-      const authUrl = oauthService.generateAuthUrl(config, state);
+      // Create OAuth URL for Notion
+      const authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&response_type=code&owner=user&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
       
-      // Store config in session for callback
+      // Store config in session for callback (simplified)
       const configKey = `oauth_config_${provider}`;
-      sessionStorage.setItem(configKey, JSON.stringify(config));
+      sessionStorage.setItem(configKey, JSON.stringify({
+        provider,
+        clientId,
+        clientSecret,
+        redirectUri
+      }));
       console.log('💾 Stored OAuth config in session storage with key:', configKey);
       
       // Redirect to OAuth provider
@@ -103,7 +96,9 @@ export default function OAuthConnect({
     if (!user) return;
 
     try {
-      await oauthService.revokeToken(user.id, provider);
+      // Remove connection status from localStorage
+      const connectionKey = `oauth_connected_${provider}_${user.id}`;
+      localStorage.removeItem(connectionKey);
       setIsConnected(false);
       setError(null);
     } catch (error) {
@@ -135,6 +130,44 @@ export default function OAuthConnect({
     };
     return colors[provider] || '#6b7280';
   };
+
+  // Listen for successful OAuth completion
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `oauth_connected_${provider}_${user?.id}` && e.newValue === 'true') {
+        setIsConnected(true);
+        setIsConnecting(false);
+        onSuccess('mock-token-id');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [provider, user?.id, onSuccess]);
+
+  // Listen for navigation back from OAuth
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user && isConnecting) {
+        // Check if OAuth was completed
+        const connectionKey = `oauth_connected_${provider}_${user.id}`;
+        const isNowConnected = localStorage.getItem(connectionKey) === 'true';
+        if (isNowConnected) {
+          setIsConnected(true);
+          setIsConnecting(false);
+          onSuccess('mock-token-id');
+        } else {
+          // If we're back but not connected, stop the connecting state
+          setTimeout(() => {
+            setIsConnecting(false);
+          }, 2000);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, isConnecting, provider, onSuccess]);
 
   if (isConnected) {
     return (

@@ -30,6 +30,7 @@ function AppContent() {
     isMuted: false,
     status: 'ended'
   });
+  const [oauthMessage, setOauthMessage] = useState<string | null>(null);
 
   // Update call duration
   useEffect(() => {
@@ -51,6 +52,30 @@ function AppContent() {
       setMessages([]);
       setConversationDocuments({});
     }
+  }, [user]);
+
+  // Handle OAuth success/error messages
+  useEffect(() => {
+    const handleLocationState = () => {
+      const state = window.history.state?.usr;
+      if (state?.oauthSuccess) {
+        setOauthMessage(`✅ ${state.provider} connected successfully!`);
+        // Mark as connected in localStorage for the OAuth component
+        if (user) {
+          localStorage.setItem(`oauth_connected_${state.provider}_${user.id}`, 'true');
+        }
+        // Clear the state
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(() => setOauthMessage(null), 5000);
+      } else if (state?.oauthError) {
+        setOauthMessage(`❌ OAuth error: ${state.error}`);
+        // Clear the state
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(() => setOauthMessage(null), 8000);
+      }
+    };
+
+    handleLocationState();
   }, [user]);
 
   const loadUserData = async () => {
@@ -646,6 +671,19 @@ function AppContent() {
 
   return (
     <div className="h-screen bg-slate-900 flex font-inter overflow-hidden">
+      {/* OAuth Success/Error Message */}
+      {oauthMessage && (
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className={`p-4 rounded-lg border ${
+            oauthMessage.includes('✅') 
+              ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
+              : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
+          } backdrop-blur-sm`}>
+            <p className="text-sm font-medium">{oauthMessage}</p>
+          </div>
+        </div>
+      )}
+
       {/* Left Sidebar - Contacts - 25% */}
       <div className="w-1/4 border-r border-slate-700">
         <ContactSidebar
