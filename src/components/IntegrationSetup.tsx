@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Save, X, Play, AlertCircle, CheckCircle, Globe, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database } from 'lucide-react';
 import { Integration, IntegrationConfig, IntegrationField } from '../types/integrations';
-import { integrationsService } from '../services/integrationsService';
+import { IntegrationsService } from '../services/integrationsService';
 
 interface IntegrationSetupProps {
   integration: Integration;
