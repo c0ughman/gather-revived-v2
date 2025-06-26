@@ -290,8 +290,150 @@ export const actionIntegrations: Integration[] = [
     tags: ['domain', 'availability', 'rdap', 'registration', 'dns', 'tool']
   },
   {
+    id: 'zapier-webhook',
+    name: 'Zapier Webhook',
+    description: 'Connect to Zapier webhooks to trigger Zaps and automate workflows across 5000+ apps',
+    category: 'action',
+    icon: 'Zap',
+    color: '#ff4a00',
+    requiresApiKey: false,
+    fields: [
+      {
+        id: 'webhookUrl',
+        name: 'Zapier Webhook URL',
+        type: 'url',
+        required: true,
+        placeholder: 'https://hooks.zapier.com/hooks/catch/123456/abcdef',
+        description: 'The webhook URL from your Zapier trigger'
+      },
+      {
+        id: 'zapName',
+        name: 'Zap Name',
+        type: 'text',
+        required: true,
+        placeholder: 'My Automation Zap',
+        description: 'A friendly name to identify this Zap'
+      },
+      {
+        id: 'description',
+        name: 'What does this Zap do?',
+        type: 'textarea',
+        required: true,
+        placeholder: 'Send Slack notifications when new leads are generated\nAdd customers to email marketing campaigns\nCreate tasks in project management tools',
+        description: 'Describe what this Zap does in natural language. The AI will use this to understand when to trigger it.'
+      },
+      {
+        id: 'payload',
+        name: 'Data to Send (JSON)',
+        type: 'textarea',
+        required: false,
+        placeholder: '{\n  "trigger_source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_message": "{{user_message}}",\n  "contact_name": "{{contact_name}}"\n}',
+        description: 'JSON data to send to Zapier. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.',
+        defaultValue: '{\n  "trigger_source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_message": "{{user_message}}"\n}'
+      },
+      {
+        id: 'confirmationMessage',
+        name: 'Success Message',
+        type: 'text',
+        required: false,
+        placeholder: 'Zap triggered successfully! Your automation is now running.',
+        description: 'Message to show when the Zap is triggered successfully',
+        defaultValue: 'Zap triggered successfully!'
+      },
+      {
+        id: 'triggerKeywords',
+        name: 'Trigger Keywords (Optional)',
+        type: 'text',
+        required: false,
+        placeholder: 'activate, trigger, start, launch, execute',
+        description: 'Comma-separated keywords that can trigger this Zap (optional - AI will use description)',
+        defaultValue: ''
+      }
+    ],
+    examples: [
+      'Send Slack notifications when triggered by AI',
+      'Add new leads to CRM systems automatically',
+      'Create calendar events from voice commands',
+      'Update spreadsheets with AI-generated data',
+      'Trigger email campaigns based on conversations',
+      'Post to social media when specific events occur'
+    ],
+    tags: ['zapier', 'automation', 'webhook', 'integration', 'workflow', 'zap']
+  },
+  {
+    id: 'n8n-webhook',
+    name: 'n8n Workflow',
+    description: 'Connect to n8n workflows to automate complex processes. Trigger workflows and fetch data from your n8n instance.',
+    category: 'action',
+    icon: 'Workflow',
+    color: '#ea4b71',
+    requiresApiKey: false,
+    fields: [
+      {
+        id: 'webhookUrl',
+        name: 'n8n Webhook URL',
+        type: 'url',
+        required: true,
+        placeholder: 'https://your-n8n.com/webhook/your-workflow-id',
+        description: 'The webhook URL from your n8n workflow'
+      },
+      {
+        id: 'workflowName',
+        name: 'Workflow Name',
+        type: 'text',
+        required: true,
+        placeholder: 'My Automation Workflow',
+        description: 'A friendly name to identify this n8n workflow'
+      },
+      {
+        id: 'description',
+        name: 'What does this workflow do?',
+        type: 'textarea',
+        required: true,
+        placeholder: 'Process customer data and sync with multiple systems\nGenerate reports and send via email\nMonitor APIs and send alerts when issues occur',
+        description: 'Describe what this n8n workflow does in natural language. The AI will use this to understand when to trigger it.'
+      },
+      {
+        id: 'payload',
+        name: 'Data to Send (JSON)',
+        type: 'textarea',
+        required: false,
+        placeholder: '{\n  "source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_input": "{{user_message}}",\n  "contact": "{{contact_name}}",\n  "workflow_trigger": "voice_command"\n}',
+        description: 'JSON data to send to n8n. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.',
+        defaultValue: '{\n  "source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_input": "{{user_message}}"\n}'
+      },
+      {
+        id: 'confirmationMessage',
+        name: 'Success Message',
+        type: 'text',
+        required: false,
+        placeholder: 'n8n workflow started successfully! Your automation is now processing.',
+        description: 'Message to show when the workflow is triggered successfully',
+        defaultValue: 'n8n workflow triggered successfully!'
+      },
+      {
+        id: 'triggerKeywords',
+        name: 'Trigger Keywords (Optional)',
+        type: 'text',
+        required: false,
+        placeholder: 'process, analyze, generate, sync, monitor',
+        description: 'Comma-separated keywords that can trigger this workflow (optional - AI will use description)',
+        defaultValue: ''
+      }
+    ],
+    examples: [
+      'Process and analyze customer data automatically',
+      'Generate comprehensive reports from multiple data sources',
+      'Sync data between different business systems',
+      'Monitor APIs and send alerts for issues',
+      'Transform and clean data for analysis',
+      'Automate complex multi-step business processes'
+    ],
+    tags: ['n8n', 'workflow', 'automation', 'webhook', 'integration', 'processing']
+  },
+  {
     id: 'webhook-trigger',
-    name: 'Webhook Trigger',
+    name: 'Custom Webhook',
     description: 'Trigger custom webhooks with natural language commands and customizable payloads',
     category: 'action',
     icon: 'Send',
@@ -303,7 +445,7 @@ export const actionIntegrations: Integration[] = [
         name: 'Webhook URL',
         type: 'url',
         required: true,
-        placeholder: 'https://hooks.zapier.com/hooks/catch/...',
+        placeholder: 'https://your-service.com/webhook/endpoint',
         description: 'The webhook URL to send POST requests to'
       },
       {
@@ -358,9 +500,9 @@ export const actionIntegrations: Integration[] = [
       'Send notifications to external systems',
       'Start data synchronization processes',
       'Launch email campaigns or notifications',
-      'Trigger Zapier automations with natural language'
+      'Trigger custom business logic and processes'
     ],
-    tags: ['webhook', 'automation', 'trigger', 'zapier', 'integration', 'workflow', 'action']
+    tags: ['webhook', 'automation', 'trigger', 'custom', 'integration', 'workflow', 'action']
   },
   {
     id: 'google-sheets',

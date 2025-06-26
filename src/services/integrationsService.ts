@@ -30,6 +30,10 @@ class IntegrationsService {
           throw new Error('API Request Tool is only available through function calling');
         case 'domain-checker-tool':
           return await this.executeDomainChecker(config);
+        case 'zapier-webhook':
+          return await this.executeZapierWebhook(config);
+        case 'n8n-webhook':
+          return await this.executeN8NWebhook(config);
         case 'webhook-trigger':
           return await this.executeWebhookTrigger(config);
         case 'google-sheets':
@@ -335,6 +339,134 @@ class IntegrationsService {
     };
   }
 
+  // NEW: Zapier Webhook Integration
+  private async executeZapierWebhook(config: IntegrationConfig): Promise<IntegrationData> {
+    const { webhookUrl, zapName, description, payload, confirmationMessage } = config.settings;
+    
+    console.log(`⚡ Triggering Zapier Zap: ${zapName}`);
+    
+    // Parse and process payload template
+    let processedPayload = payload || '{"trigger_source": "ai_assistant"}';
+    try {
+      // Replace template variables for test
+      processedPayload = processedPayload
+        .replace(/\{\{timestamp\}\}/g, new Date().toISOString())
+        .replace(/\{\{user_message\}\}/g, 'Test Zapier trigger')
+        .replace(/\{\{contact_name\}\}/g, 'Test Contact');
+    } catch (e) {
+      console.warn('Error processing payload template');
+    }
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: processedPayload
+      });
+
+      if (!response.ok) {
+        throw new Error(`Zapier webhook failed: ${response.status} ${response.statusText}`);
+      }
+
+      return {
+        summary: `Zapier Zap "${zapName}" triggered successfully: ${description}`,
+        timestamp: new Date(),
+        source: 'Zapier Webhook',
+        data: {
+          zapName,
+          webhookUrl,
+          description,
+          status: response.status,
+          statusText: response.statusText,
+          payload: processedPayload,
+          confirmationMessage: confirmationMessage || 'Zapier Zap triggered successfully!',
+          success: true,
+          platform: 'Zapier'
+        }
+      };
+    } catch (error) {
+      return {
+        summary: `Zapier Zap "${zapName}" trigger failed: ${description}`,
+        timestamp: new Date(),
+        source: 'Zapier Webhook',
+        data: {
+          zapName,
+          webhookUrl,
+          description,
+          error: (error as Error).message,
+          success: false,
+          platform: 'Zapier'
+        }
+      };
+    }
+  }
+
+  // NEW: n8n Webhook Integration
+  private async executeN8NWebhook(config: IntegrationConfig): Promise<IntegrationData> {
+    const { webhookUrl, workflowName, description, payload, confirmationMessage } = config.settings;
+    
+    console.log(`🔄 Triggering n8n workflow: ${workflowName}`);
+    
+    // Parse and process payload template
+    let processedPayload = payload || '{"source": "ai_assistant"}';
+    try {
+      // Replace template variables for test
+      processedPayload = processedPayload
+        .replace(/\{\{timestamp\}\}/g, new Date().toISOString())
+        .replace(/\{\{user_message\}\}/g, 'Test n8n trigger')
+        .replace(/\{\{contact_name\}\}/g, 'Test Contact');
+    } catch (e) {
+      console.warn('Error processing payload template');
+    }
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: processedPayload
+      });
+
+      if (!response.ok) {
+        throw new Error(`n8n webhook failed: ${response.status} ${response.statusText}`);
+      }
+
+      return {
+        summary: `n8n workflow "${workflowName}" triggered successfully: ${description}`,
+        timestamp: new Date(),
+        source: 'n8n Webhook',
+        data: {
+          workflowName,
+          webhookUrl,
+          description,
+          status: response.status,
+          statusText: response.statusText,
+          payload: processedPayload,
+          confirmationMessage: confirmationMessage || 'n8n workflow triggered successfully!',
+          success: true,
+          platform: 'n8n'
+        }
+      };
+    } catch (error) {
+      return {
+        summary: `n8n workflow "${workflowName}" trigger failed: ${description}`,
+        timestamp: new Date(),
+        source: 'n8n Webhook',
+        data: {
+          workflowName,
+          webhookUrl,
+          description,
+          error: (error as Error).message,
+          success: false,
+          platform: 'n8n'
+        }
+      };
+    }
+  }
+
   private async executeWebhookTrigger(config: IntegrationConfig): Promise<IntegrationData> {
     // This is a test execution - in real use, this is called via function calling
     const { webhookUrl, description, payload, headers, confirmationMessage } = config.settings;
@@ -377,7 +509,7 @@ class IntegrationsService {
       return {
         summary: `Webhook triggered successfully: ${description}`,
         timestamp: new Date(),
-        source: 'Webhook Trigger',
+        source: 'Custom Webhook',
         data: {
           webhookUrl,
           description,
@@ -392,7 +524,7 @@ class IntegrationsService {
       return {
         summary: `Webhook trigger failed: ${description}`,
         timestamp: new Date(),
-        source: 'Webhook Trigger',
+        source: 'Custom Webhook',
         data: {
           webhookUrl,
           description,
