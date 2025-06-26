@@ -6,8 +6,6 @@ import { useAuth } from '../hooks/useAuth';
 
 interface OAuthConnectProps {
   provider: string;
-  clientId: string;
-  clientSecret: string;
   onSuccess: (tokenId: string) => void;
   onError: (error: string) => void;
   className?: string;
@@ -15,8 +13,6 @@ interface OAuthConnectProps {
 
 export default function OAuthConnect({ 
   provider, 
-  clientId, 
-  clientSecret, 
   onSuccess, 
   onError, 
   className = '' 
@@ -53,8 +49,12 @@ export default function OAuthConnect({
       return;
     }
 
+    // Get client credentials from environment variables
+    const clientId = import.meta.env.VITE_NOTION_CLIENT_ID;
+    const clientSecret = import.meta.env.VITE_NOTION_CLIENT_SECRET;
+
     if (!clientId || !clientSecret) {
-      onError('Client ID and Client Secret are required for OAuth connection');
+      onError('Notion OAuth credentials not configured. Please add VITE_NOTION_CLIENT_ID and VITE_NOTION_CLIENT_SECRET to your environment variables.');
       return;
     }
 
@@ -68,7 +68,7 @@ export default function OAuthConnect({
       const redirectUri = `${window.location.origin}/oauth/callback/${provider}`;
       console.log('🔗 Using redirect URI:', redirectUri);
       
-      // Get OAuth config with dynamic redirect URI
+      // Get OAuth config with environment credentials
       const config: OAuthConfig = getOAuthConfig(provider, clientId, clientSecret, redirectUri);
       
       // Generate auth URL with state
@@ -188,16 +188,9 @@ export default function OAuthConnect({
         </div>
       )}
 
-      {!clientId || !clientSecret ? (
-        <div className="mb-3 flex items-center space-x-2 p-2 bg-yellow-900 bg-opacity-50 border border-yellow-700 rounded text-yellow-300 text-xs">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>Client ID and Client Secret are required for OAuth connection</span>
-        </div>
-      ) : null}
-
       <button
         onClick={handleConnect}
-        disabled={isConnecting || !clientId || !clientSecret}
+        disabled={isConnecting}
         className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 text-sm"
       >
         {isConnecting ? (

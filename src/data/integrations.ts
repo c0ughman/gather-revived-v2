@@ -206,7 +206,7 @@ export const sourceIntegrations: Integration[] = [
     ],
     tags: ['finance', 'crypto', 'stocks', 'trading', 'markets', 'prices']
   },
-  // NEW: Notion OAuth Source Integration
+  // UPDATED: Notion OAuth Source Integration - No client fields needed
   {
     id: 'notion-oauth-source',
     name: 'Notion (OAuth)',
@@ -218,22 +218,6 @@ export const sourceIntegrations: Integration[] = [
     requiresOAuth: true,
     oauthProvider: 'notion',
     fields: [
-      {
-        id: 'clientId',
-        name: 'Notion Client ID',
-        type: 'text',
-        required: true,
-        placeholder: 'Your Notion integration client ID',
-        description: 'Client ID from your Notion integration settings'
-      },
-      {
-        id: 'clientSecret',
-        name: 'Notion Client Secret',
-        type: 'text',
-        required: true,
-        placeholder: 'Your Notion integration client secret',
-        description: 'Client secret from your Notion integration settings'
-      },
       {
         id: 'dataType',
         name: 'Data to Fetch',
@@ -646,7 +630,7 @@ export const actionIntegrations: Integration[] = [
     ],
     tags: ['spreadsheet', 'data', 'google', 'sheets', 'database', 'crm', 'crud', 'automation']
   },
-  // NEW: Notion OAuth Action Integration
+  // UPDATED: Notion OAuth Action Integration - No client fields needed
   {
     id: 'notion-oauth-action',
     name: 'Notion Actions (OAuth)',
@@ -658,22 +642,6 @@ export const actionIntegrations: Integration[] = [
     requiresOAuth: true,
     oauthProvider: 'notion',
     fields: [
-      {
-        id: 'clientId',
-        name: 'Notion Client ID',
-        type: 'text',
-        required: true,
-        placeholder: 'Your Notion integration client ID',
-        description: 'Client ID from your Notion integration settings'
-      },
-      {
-        id: 'clientSecret',
-        name: 'Notion Client Secret',
-        type: 'text',
-        required: true,
-        placeholder: 'Your Notion integration client secret',
-        description: 'Client secret from your Notion integration settings'
-      },
       {
         id: 'allowedActions',
         name: 'Allowed Actions',

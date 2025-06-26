@@ -223,8 +223,6 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             </label>
             <OAuthConnect
               provider={integration.oauthProvider || integration.id}
-              clientId={config.settings.clientId || ''}
-              clientSecret={config.settings.clientSecret || ''}
               onSuccess={handleOAuthSuccess}
               onError={handleOAuthError}
             />
