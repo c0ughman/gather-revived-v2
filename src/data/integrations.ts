@@ -324,11 +324,11 @@ export const actionIntegrations: Integration[] = [
       },
       {
         id: 'payload',
-        name: 'Data to Send (JSON) (Optional)',
+        name: 'Data to Send (Optional)',
         type: 'textarea',
         required: false,
         placeholder: '{\n  "trigger_source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_message": "{{user_message}}",\n  "contact_name": "{{contact_name}}"\n}',
-        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors). JSON data to send to Zapier. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.'
+        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors).'
       },
       {
         id: 'confirmationMessage',
@@ -394,11 +394,11 @@ export const actionIntegrations: Integration[] = [
       },
       {
         id: 'payload',
-        name: 'Data to Send (JSON) (Optional)',
+        name: 'Data to Send (Optional)',
         type: 'textarea',
         required: false,
         placeholder: '{\n  "source": "ai_assistant",\n  "timestamp": "{{timestamp}}",\n  "user_input": "{{user_message}}",\n  "contact": "{{contact_name}}",\n  "workflow_trigger": "voice_command"\n}',
-        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors). JSON data to send to n8n. Use {{timestamp}}, {{user_message}}, {{contact_name}} as dynamic variables.'
+        description: 'Leave it blank for the Agent to create the data structure itself (could lead to errors).'
       },
       {
         id: 'confirmationMessage',
