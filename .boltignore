@@ -1,5 +1,5 @@
 # Ignore everything by default
-*
+#*
 
 # But don't ignore UI-related files and directories
 !index.html
