@@ -33,6 +33,31 @@ export default function OAuthConnect({
     }
   }, [user, provider, onSuccess]);
 
+  // Listen for OAuth completion from callback
+  useEffect(() => {
+    const handleOAuthComplete = (event: CustomEvent) => {
+      if (event.detail.provider === provider && event.detail.success) {
+        console.log('🎉 OAuth completed for provider:', provider);
+        setIsConnected(true);
+        setIsConnecting(false);
+        
+        // Store connection status
+        if (user) {
+          const connectionKey = `oauth_connected_${provider}_${user.id}`;
+          localStorage.setItem(connectionKey, 'true');
+        }
+        
+        onSuccess('mock-token-id');
+      } else if (event.detail.provider === provider && !event.detail.success) {
+        setIsConnecting(false);
+        onError(event.detail.error || 'OAuth failed');
+      }
+    };
+
+    window.addEventListener('oauth-complete', handleOAuthComplete as EventListener);
+    return () => window.removeEventListener('oauth-complete', handleOAuthComplete as EventListener);
+  }, [provider, user, onSuccess, onError]);
+
   const handleConnect = async () => {
     if (!user) {
       onError('User not authenticated');
@@ -62,7 +87,8 @@ export default function OAuthConnect({
       const state = btoa(JSON.stringify({ 
         userId: user.id, 
         provider,
-        timestamp: Date.now() 
+        timestamp: Date.now(),
+        returnTo: window.location.pathname // Store where to return after OAuth
       }));
       
       console.log('🔗 Generated state for OAuth:', { userId: user.id, provider });
@@ -130,44 +156,6 @@ export default function OAuthConnect({
     };
     return colors[provider] || '#6b7280';
   };
-
-  // Listen for successful OAuth completion
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `oauth_connected_${provider}_${user?.id}` && e.newValue === 'true') {
-        setIsConnected(true);
-        setIsConnecting(false);
-        onSuccess('mock-token-id');
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [provider, user?.id, onSuccess]);
-
-  // Listen for navigation back from OAuth
-  useEffect(() => {
-    const handleFocus = () => {
-      if (user && isConnecting) {
-        // Check if OAuth was completed
-        const connectionKey = `oauth_connected_${provider}_${user.id}`;
-        const isNowConnected = localStorage.getItem(connectionKey) === 'true';
-        if (isNowConnected) {
-          setIsConnected(true);
-          setIsConnecting(false);
-          onSuccess('mock-token-id');
-        } else {
-          // If we're back but not connected, stop the connecting state
-          setTimeout(() => {
-            setIsConnecting(false);
-          }, 2000);
-        }
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, isConnecting, provider, onSuccess]);
 
   if (isConnected) {
     return (

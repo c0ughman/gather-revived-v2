@@ -58,6 +58,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
 
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const IconComponent = iconMap[integration.icon as keyof typeof iconMap] || Database;
 
@@ -69,10 +70,12 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
         [fieldId]: value
       }
     }));
+    setHasUnsavedChanges(true);
   };
 
   const handleConfigChange = (field: keyof IntegrationConfig, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
+    setHasUnsavedChanges(true);
   };
 
   const handleOAuthSuccess = (tokenId: string) => {
@@ -82,6 +85,11 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
       oauthTokenId: tokenId,
       oauthConnected: true
     }));
+    setHasUnsavedChanges(true);
+    setTestResult({
+      success: true,
+      message: 'OAuth connection successful! Integration is now ready to use.'
+    });
   };
 
   const handleOAuthError = (error: string) => {
@@ -123,16 +131,10 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
   };
 
   const handleSave = () => {
-    // For OAuth integrations, ensure connection is established
-    if (integration.requiresOAuth && !config.oauthConnected) {
-      setTestResult({
-        success: false,
-        message: 'Please connect your account first using the OAuth button.'
-      });
-      return;
-    }
-
+    // Save the integration regardless of OAuth status
+    // OAuth can be connected later
     onSave(config);
+    setHasUnsavedChanges(false);
   };
 
   const renderField = (field: IntegrationField) => {
@@ -219,7 +221,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           <div>
             <label className="block text-xs font-medium text-white mb-2">
               Account Connection
-              <span className="text-red-400 ml-1">*</span>
+              {!config.oauthConnected && <span className="text-yellow-400 ml-1">(Optional - can connect later)</span>}
             </label>
             <OAuthConnect
               provider={integration.oauthProvider || integration.id}
@@ -227,7 +229,10 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
               onError={handleOAuthError}
             />
             <p className="text-slate-400 text-xs mt-1">
-              Connect your {integration.name} account to enable this integration
+              {config.oauthConnected 
+                ? `✅ Connected to ${integration.name}. Integration is ready to use.`
+                : `You can save this integration now and connect to ${integration.name} later.`
+              }
             </p>
           </div>
         )}
@@ -342,7 +347,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
         <div className="flex items-center justify-between pt-3 border-t border-slate-700">
           <button
             onClick={handleTest}
-            disabled={isTesting || (integration.requiresOAuth && !config.oauthConnected)}
+            disabled={isTesting}
             className="flex items-center space-x-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 text-sm"
           >
             <Play className="w-3 h-3" />
@@ -358,10 +363,14 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             </button>
             <button
               onClick={handleSave}
-              className="flex items-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 text-sm"
+              className={`flex items-center space-x-2 px-3 py-2 text-white rounded-lg transition-colors duration-200 text-sm ${
+                hasUnsavedChanges 
+                  ? 'bg-blue-600 hover:bg-blue-700' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
             >
               <Save className="w-3 h-3" />
-              <span>Save</span>
+              <span>{hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
             </button>
           </div>
         </div>

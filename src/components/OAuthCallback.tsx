@@ -74,6 +74,11 @@ export default function OAuthCallback() {
       setMessage('OAuth authorization successful! Integration connected.');
       console.log('✅ OAuth flow completed successfully');
 
+      // Store connection status in localStorage
+      const connectionKey = `oauth_connected_${provider}_${user.id}`;
+      localStorage.setItem(connectionKey, 'true');
+      console.log('💾 Stored connection status in localStorage');
+
       // Clean up session storage
       const configKey = `oauth_config_${provider}`;
       sessionStorage.removeItem(configKey);
@@ -82,9 +87,20 @@ export default function OAuthCallback() {
       setStatus('success');
       setMessage(`Successfully connected to ${provider}!`);
 
+      // Dispatch custom event to notify the OAuth component
+      const oauthCompleteEvent = new CustomEvent('oauth-complete', {
+        detail: {
+          provider,
+          success: true,
+          userId: user.id
+        }
+      });
+      window.dispatchEvent(oauthCompleteEvent);
+
       // Redirect back to main app after a delay
       setTimeout(() => {
-        navigate('/', { 
+        const returnTo = stateData.returnTo || '/';
+        navigate(returnTo, { 
           replace: true,
           state: { 
             oauthSuccess: true, 
@@ -98,6 +114,19 @@ export default function OAuthCallback() {
       console.error('❌ OAuth callback error:', error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'OAuth connection failed');
+
+      // Dispatch error event
+      const provider = window.location.pathname.split('/').pop();
+      if (provider) {
+        const oauthErrorEvent = new CustomEvent('oauth-complete', {
+          detail: {
+            provider,
+            success: false,
+            error: error instanceof Error ? error.message : 'OAuth connection failed'
+          }
+        });
+        window.dispatchEvent(oauthErrorEvent);
+      }
 
       // Redirect back to main app after a delay
       setTimeout(() => {
