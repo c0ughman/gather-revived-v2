@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Filter, Globe, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, ExternalLink, Zap, Database } from 'lucide-react';
 import { Integration } from '../types/integrations';
-import { allIntegrations } from '../data/integrations';
+import { integrationTemplates } from '../data/integrations';
 
 interface IntegrationsLibraryProps {
   onSelectIntegration?: (integration: Integration) => void;
@@ -26,7 +26,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'source' | 'action'>('all');
   const [selectedTag, setSelectedTag] = useState<string>('');
 
-  const filteredIntegrations = allIntegrations.filter(integration => {
+  const filteredIntegrations = integrationTemplates.filter(integration => {
     const matchesSearch = integration.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          integration.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          integration.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -37,7 +37,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
     return matchesSearch && matchesCategory && matchesTag;
   });
 
-  const allTags = Array.from(new Set(allIntegrations.flatMap(integration => integration.tags))).sort();
+  const allTags = Array.from(new Set(integrationTemplates.flatMap(integration => integration.tags))).sort();
 
   const handleIntegrationClick = (integration: Integration) => {
     if (onSelectIntegration) {
@@ -166,7 +166,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                           }`}>
                             {integration.category === 'source' ? 'Source' : 'Action'}
                           </span>
-                          {!integration.requiresApiKey && (
+                          {!integration.requires_api_key && (
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900 text-blue-300">
                               No API Key
                             </span>
@@ -208,7 +208,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                       {integration.examples.slice(0, 2).map((example, index) => (
                         <li key={index} className="flex items-center space-x-1">
                           <span className="w-1 h-1 bg-slate-500 rounded-full flex-shrink-0"></span>
-                          <span className="truncate">{example}</span>
+                          <span className="truncate">{example.title}</span>
                         </li>
                       ))}
                     </ul>
@@ -217,7 +217,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                   {/* Action Indicator */}
                   <div className="mt-2 pt-2 border-t border-slate-600 flex items-center justify-between">
                     <span className="text-xs text-slate-400">
-                      {integration.fields.length} field{integration.fields.length !== 1 ? 's' : ''}
+                      {integration.setup_fields.length} field{integration.setup_fields.length !== 1 ? 's' : ''}
                     </span>
                     <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-blue-400 transition-colors duration-200" />
                   </div>
