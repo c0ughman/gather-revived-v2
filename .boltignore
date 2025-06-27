@@ -1,0 +1,216 @@
+# ==============================================================================
+# GATHER CODEBASE SELECTIVE INCLUSION CONFIGURATION
+# ==============================================================================
+# Uncomment sections to EXCLUDE them from AI context
+# Comment sections to INCLUDE them in AI context
+# 
+# ESTIMATED TOKENS BY MODULE:
+# Core: ~3,740 tokens
+# Voice: ~13,250 tokens  
+# File Management: ~13,075 tokens
+# Integrations: ~22,750 tokens
+# UI: ~26,650 tokens
+# Chat: ~4,500 tokens
+# Auth: ~3,000 tokens
+# OAuth: ~5,575 tokens
+# Database: ~1,700 tokens
+# TOTAL: ~94,240 tokens
+# ==============================================================================
+
+# ==============================================================================
+# ALWAYS EXCLUDED - Configuration & Build Files
+# ==============================================================================
+.env*
+.git/
+node_modules/
+dist/
+build/
+*.log
+package-lock.json
+tsconfig*.json
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+eslint.config.js
+*.md
+
+# ==============================================================================
+# CORE APPLICATION (~3,740 tokens)
+# ==============================================================================
+# Uncomment to exclude core app logic
+# src/main.tsx
+# src/index.css
+# src/core/
+
+# Main App Component (2,940 tokens)
+# src/core/app/App.tsx
+
+# Core Configuration & Types (800 tokens)
+# src/core/config/
+# src/core/types/
+# src/core/hooks/
+# src/core/data/
+# src/core/utils/
+# src/core/index.ts
+
+# ==============================================================================
+# VOICE MODULE (~13,250 tokens) - AI Voice Conversations
+# ==============================================================================
+# Uncomment to exclude voice functionality
+# src/modules/voice/
+
+# Gemini Live Service (12,250 tokens) - Large file!
+# src/modules/voice/services/geminiLiveService.ts
+
+# Voice Components (1,000 tokens)
+# src/modules/voice/components/
+# src/modules/voice/types/
+# src/modules/voice/index.ts
+
+# ==============================================================================
+# FILE MANAGEMENT MODULE (~13,075 tokens) - Document Processing
+# ==============================================================================
+# Uncomment to exclude file management
+# src/modules/fileManagement/
+
+# Large Services
+# src/modules/fileManagement/services/geminiService.ts         # 7,250 tokens
+# src/modules/fileManagement/services/documentService.ts      # 4,500 tokens
+# src/modules/fileManagement/services/documentContextService.ts # 1,325 tokens
+
+# File Management Support
+# src/modules/fileManagement/types/
+# src/modules/fileManagement/index.ts
+
+# ==============================================================================
+# INTEGRATIONS MODULE (~22,750 tokens) - Largest Module!
+# ==============================================================================
+# Uncomment to exclude all integrations
+# src/modules/integrations/
+
+# Core Integration Service (15,250 tokens) - Very large file!
+# src/modules/integrations/core/integrationsService.ts
+
+# Notion Integration (7,500 tokens)
+# src/modules/integrations/notion/notionService.ts           # 4,250 tokens
+# src/modules/integrations/notion/notionDataFormatter.ts    # 3,250 tokens
+
+# Integration Configuration
+# src/modules/integrations/data/
+# src/modules/integrations/types/
+# src/modules/integrations/index.ts
+
+# ==============================================================================
+# UI MODULE (~26,650 tokens) - Largest Visual Module
+# ==============================================================================
+# Uncomment to exclude UI components
+# src/modules/ui/
+
+# Large UI Components
+# src/modules/ui/components/SettingsScreen.tsx      # 6,750 tokens
+# src/modules/ui/components/Dashboard.tsx           # 5,000 tokens  
+# src/modules/ui/components/SettingsSidebar.tsx     # 4,750 tokens
+# src/modules/ui/components/IntegrationSetup.tsx    # 3,500 tokens
+
+# Medium UI Components
+# src/modules/ui/components/IntegrationsLibrary.tsx # 2,500 tokens
+# src/modules/ui/components/ContactSidebar.tsx      # 2,150 tokens
+# src/modules/ui/components/DocumentUpload.tsx      # 2,000 tokens
+
+# UI Module Index
+# src/modules/ui/index.ts
+
+# ==============================================================================
+# CHAT MODULE (~4,500 tokens) - Chat Interface
+# ==============================================================================
+# Uncomment to exclude chat functionality
+# src/modules/chat/
+
+# Chat Components
+# src/modules/chat/components/ChatScreen.tsx        # 4,500 tokens
+# src/modules/chat/types/
+# src/modules/chat/index.ts
+
+# ==============================================================================
+# AUTH MODULE (~3,000 tokens) - Authentication
+# ==============================================================================
+# Uncomment to exclude authentication
+# src/modules/auth/
+
+# Auth Components & Logic
+# src/modules/auth/components/AuthScreen.tsx        # 2,500 tokens
+# src/modules/auth/hooks/useAuth.ts                 # 500 tokens
+# src/modules/auth/types/
+# src/modules/auth/index.ts
+
+# ==============================================================================
+# OAUTH MODULE (~5,575 tokens) - OAuth Integration
+# ==============================================================================
+# Uncomment to exclude OAuth functionality
+# src/modules/oauth/
+
+# OAuth Components
+# src/modules/oauth/components/OAuthCallback.tsx    # 2,500 tokens
+# src/modules/oauth/components/OAuthConnect.tsx     # 2,075 tokens
+
+# OAuth Services & Config
+# src/modules/oauth/services/oauthService.ts        # 1,000 tokens
+# src/modules/oauth/data/
+# src/modules/oauth/types/
+# src/modules/oauth/index.ts
+
+# ==============================================================================
+# DATABASE MODULE (~1,700 tokens) - Supabase Integration
+# ==============================================================================
+# Uncomment to exclude database functionality
+# src/modules/database/
+
+# Database Services
+# src/modules/database/services/supabaseService.ts  # 1,700 tokens
+# src/modules/database/lib/
+# src/modules/database/types/
+# src/modules/database/index.ts
+
+# ==============================================================================
+# SUPABASE BACKEND (~3,000 tokens estimated)
+# ==============================================================================
+# Uncomment to exclude Supabase functions & migrations
+# supabase/
+
+# Supabase Functions
+# supabase/functions/
+# supabase/migrations/
+
+# ==============================================================================
+# DOCUMENTATION & GUIDES (~10,000 tokens estimated)
+# ==============================================================================
+# Always excluded by default
+*.md
+*_GUIDE.md
+*_SETUP.md
+*_READY.md
+
+# ==============================================================================
+# EXAMPLE USAGE SCENARIOS:
+# ==============================================================================
+#
+# 1. INCLUDE ONLY CORE + CHAT (for chat bot development):
+#    Uncomment all sections except core/ and chat/
+#    Total: ~8,240 tokens
+#
+# 2. INCLUDE ONLY VOICE SYSTEM (for voice AI development):
+#    Uncomment all except core/ and voice/
+#    Total: ~16,990 tokens
+#
+# 3. EXCLUDE LARGE FILES (keep under 30k tokens):
+#    Uncomment: integrationsService.ts, geminiLiveService.ts, geminiService.ts
+#    Total: ~59,240 tokens  
+#
+# 4. UI DEVELOPMENT ONLY:
+#    Uncomment all except core/ and ui/
+#    Total: ~30,390 tokens
+#
+# 5. BACKEND/INTEGRATIONS FOCUS:
+#    Uncomment all except core/, database/, integrations/
+#    Total: ~27,190 tokens
+# ==============================================================================

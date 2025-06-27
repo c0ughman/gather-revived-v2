@@ -1,7 +1,7 @@
 import { GoogleGenAI, Modality } from '@google/genai';
-import { AIContact, Message } from '../../../types';
-import { integrationsService } from '../../../services/integrationsService';
-import { documentService } from '../../../services/documentService';
+import { AIContact } from '../../../core/types/types';
+import { integrationsService } from '../../integrations';
+import { documentService, documentContextService } from '../../fileManagement';
 
 // Configuration for Gemini Live API
 interface GeminiLiveConfig {
@@ -164,7 +164,7 @@ class GeminiLiveService {
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
         responseModalities: [Modality.AUDIO],
-        systemInstruction: this.createSystemPrompt(contact),
+        systemInstruction: await this.createSystemPrompt(contact),
         // ULTRA-AGGRESSIVE VAD for minimal latency
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -371,7 +371,7 @@ class GeminiLiveService {
 
       // Create Live API session following docs pattern
       this.activeSession = await this.genAI.live.connect({
-        model: '2.0-flash-live-001', // Use stable Live API model with higher quotas
+        model: 'gemini-2.0-flash-live-001', // Use stable Live API model with higher quotas
         config: config,
         callbacks: {
           onopen: () => {
@@ -1179,10 +1179,12 @@ class GeminiLiveService {
   /**
    * Create system prompt for the contact
    */
-  private createSystemPrompt(contact: AIContact): string {
-    const integrationContext = this.buildIntegrationContext(contact);
+  private async createSystemPrompt(contact: AIContact): Promise<string> {
+    // Get fresh document context from Supabase
+    const documentContext = await documentContextService.getAgentDocumentContext(contact);
     
-         let systemPrompt = `You are ${contact.name}. ${contact.description}`;
+    // Start with the formatted document context (includes contact description)
+    let systemPrompt = documentContext.formattedContext;
     
     // Add integration-specific instructions
     if (contact.integrations && contact.integrations.length > 0) {
@@ -1229,6 +1231,8 @@ class GeminiLiveService {
       }
     }
     
+    // Add integration context
+    const integrationContext = this.buildIntegrationContext(contact);
     if (integrationContext) {
       systemPrompt += '\n\n' + integrationContext;
     }
