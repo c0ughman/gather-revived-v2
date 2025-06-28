@@ -13,7 +13,7 @@ import AuthScreen from '../../modules/auth/components/AuthScreen';
 import ChatScreen from '../../modules/chat/components/ChatScreen';
 import CallScreen from '../../modules/voice/components/CallScreen';
 import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
-import { Dashboard, ContactSidebar, SettingsScreen } from '../../modules/ui';
+import { Dashboard, ContactSidebar, SettingsScreen, SettingsSidebar } from '../../modules/ui';
 
 // Import sample data
 import { sampleContacts } from '../data/contacts';
@@ -32,6 +32,7 @@ function AppContent() {
   // Chat state
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatConversationDocuments, setChatConversationDocuments] = useState<DocumentInfo[]>([]);
+  const [showChatSettings, setShowChatSettings] = useState(false);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -109,6 +110,7 @@ function AppContent() {
     // Reset chat state for new conversation
     setChatMessages([]);
     setChatConversationDocuments([]);
+    setShowChatSettings(false);
     setCurrentView('chat');
   };
 
@@ -120,7 +122,12 @@ function AppContent() {
   const handleSettingsClick = (contact?: AIContact) => {
     if (contact) {
       setSelectedContact(contact);
-      setCurrentView('settings');
+      if (currentView === 'chat') {
+        // Toggle settings sidebar in chat view
+        setShowChatSettings(!showChatSettings);
+      } else {
+        setCurrentView('settings');
+      }
     }
   };
 
@@ -129,6 +136,7 @@ function AppContent() {
     setSelectedContact(null);
     setChatMessages([]);
     setChatConversationDocuments([]);
+    setShowChatSettings(false);
   };
 
   const handleCreateAgent = () => {
@@ -176,8 +184,15 @@ function AppContent() {
       }
       
       setShowSuccessNotice(true);
-      setCurrentView('dashboard');
-      setSelectedContact(null);
+      
+      // If we're in chat view and updating the current contact, stay in chat
+      if (currentView === 'chat' && selectedContact?.id === contact.id) {
+        setSelectedContact(contact);
+        setShowChatSettings(false);
+      } else {
+        setCurrentView('dashboard');
+        setSelectedContact(null);
+      }
     } catch (error) {
       console.error('Error saving contact:', error);
       alert('Failed to save agent. Please try again.');
@@ -305,6 +320,14 @@ function AppContent() {
                 onCallClick={handleCallClick}
               />
             </div>
+            {showChatSettings && (
+              <div className="w-80 flex-shrink-0">
+                <SettingsSidebar
+                  contact={selectedContact}
+                  onSave={handleSaveContact}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <Navigate to="/dashboard" replace />
