@@ -14,9 +14,6 @@ import CallScreen from '../../modules/voice/components/CallScreen';
 import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 import { Dashboard, ContactSidebar, SettingsScreen } from '../../modules/ui';
 
-// Import sample data
-import { sampleContacts } from '../data/contacts';
-
 type AppView = 'landing' | 'pricing' | 'auth' | 'dashboard' | 'chat' | 'call' | 'settings';
 
 function AppContent() {
@@ -53,8 +50,8 @@ function AppContent() {
       const connectionOk = await supabaseService.testConnection();
       if (!connectionOk) {
         console.error('Database connection failed');
-        // Fall back to sample data for development
-        setContacts(sampleContacts);
+        // Show empty state instead of falling back to sample data
+        setContacts([]);
         setCurrentView('dashboard');
         return;
       }
@@ -77,8 +74,8 @@ function AppContent() {
       setCurrentView('dashboard');
     } catch (error) {
       console.error('Error loading user data:', error);
-      // Fall back to sample data for development
-      setContacts(sampleContacts);
+      // Show empty state instead of falling back to sample data
+      setContacts([]);
       setCurrentView('dashboard');
     } finally {
       setLoading(false);
