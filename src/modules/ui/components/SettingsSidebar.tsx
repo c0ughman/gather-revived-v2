@@ -282,10 +282,10 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
       {/* Settings Content - Scrollable */}
       <div className="flex-1 overflow-y-auto bg-glass-panel glass-effect">
         {/* Basic Info Section */}
-        <div className="border-b border-slate-700 bg-slate-800">
+        <div className="border-b border-slate-700">
           <button
             onClick={() => toggleSection('basic')}
-            className="w-full p-4 flex items-center justify-between hover:bg-glass-panel/80 transition-colors duration-200 bg-glass-panel glass-effect"
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
           >
             <div className="flex items-center space-x-3">
               <User className="w-4 h-4 text-slate-400" />
@@ -299,7 +299,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.basic && (
-            <div className="px-4 pb-4 space-y-4 bg-glass-panel glass-effect">
+            <div className="px-4 pb-4 space-y-4">
               {/* Name */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-2">Name</label>
@@ -348,10 +348,10 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
         </div>
 
         {/* Integrations Section */}
-        <div className="border-b border-slate-700 bg-slate-800">
+        <div className="border-b border-slate-700">
           <button
             onClick={() => toggleSection('integrations')}
-            className="w-full p-4 flex items-center justify-between hover:bg-slate-750 transition-colors duration-200 bg-slate-800"
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
           >
             <div className="flex items-center space-x-3">
               <Database className="w-4 h-4 text-slate-400" />
@@ -368,10 +368,10 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.integrations && (
-            <div className="px-4 pb-4 space-y-3 bg-glass-panel glass-effect">
+            <div className="px-4 pb-4 space-y-3">
               <button
                 onClick={() => setShowIntegrationsLibrary(true)}
-                className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-glass-panel/80 transition-colors duration-200 text-sm"
+                className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-white/5 transition-colors duration-200 text-sm"
               >
                 <Plus className="w-4 h-4 text-slate-400" />
                 <span className="text-slate-400">Add Integration</span>
@@ -382,7 +382,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                 if (!integrationDef) return null;
 
                 return (
-                  <div key={integration.id} className="bg-glass-panel glass-effect rounded-lg p-3">
+                  <div key={integration.id} className="bg-white/5 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2 min-w-0 flex-1">
                         <div
@@ -420,10 +420,10 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
         </div>
 
         {/* Documents Section */}
-        <div className="bg-glass-panel glass-effect">
+        <div>
           <button
             onClick={() => toggleSection('documents')}
-            className="w-full p-4 flex items-center justify-between hover:bg-slate-750 transition-colors duration-200 bg-slate-800"
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
           >
             <div className="flex items-center space-x-3">
               <FileText className="w-4 h-4 text-slate-400" />
@@ -440,7 +440,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.documents && (
-            <div className="px-4 pb-4 space-y-3 bg-glass-panel glass-effect">
+            <div className="px-4 pb-4 space-y-3">
               {uploadError && (
                 <div className="p-2 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-300 text-xs">
                   {uploadError}
