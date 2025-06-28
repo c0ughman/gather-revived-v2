@@ -196,7 +196,8 @@ function AppContent() {
       id: `msg_${Date.now()}`,
       content,
       sender: 'user',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
+      contactId: selectedContact.id,
       attachments: documents
     };
 
@@ -214,7 +215,8 @@ function AppContent() {
         id: `msg_${Date.now() + 1}`,
         content: `Thank you for your message! I'm ${selectedContact.name}, and I'm here to help you. ${documents && documents.length > 0 ? `I've received ${documents.length} document${documents.length > 1 ? 's' : ''} and will analyze them to provide better assistance.` : ''}`,
         sender: 'ai',
-        timestamp: new Date().toISOString()
+        timestamp: new Date(),
+        contactId: selectedContact.id
       };
 
       setChatMessages(prev => [...prev, aiMessage]);
