@@ -140,7 +140,7 @@ export default function ChatScreen({
 
     return (
       <div 
-        className="text-white leading-relaxed"
+        className="text-white"
         dangerouslySetInnerHTML={{ __html: formattedContent }}
       />
     );
@@ -311,29 +311,25 @@ export default function ChatScreen({
                     </div>
                   </div>
                 ) : (
-                  // AI message - full width with padding
-                  <div className="w-full">
-                    <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 border-l-4 border-slate-600">
-                      {renderAIMessage(message.content)}
-                    </div>
+                  // AI message - full width with padding, no background
+                  <div className="w-full px-4 py-2">
+                    {renderAIMessage(message.content)}
                   </div>
                 )}
               </div>
             ))}
 
             {isTyping && (
-              <div className="w-full">
-                <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 border-l-4 border-blue-500">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    </div>
-                    <span className="text-slate-400 text-sm">
-                      AI analyzing{totalConversationDocuments > 0 ? ` ${totalConversationDocuments + permanentDocuments} docs` : ''}...
-                    </span>
+              <div className="w-full px-4 py-2">
+                <div className="flex items-center space-x-3">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
+                  <span className="text-slate-400 text-sm">
+                    AI analyzing{totalConversationDocuments > 0 ? ` ${totalConversationDocuments + permanentDocuments} docs` : ''}...
+                  </span>
                 </div>
               </div>
             )}
