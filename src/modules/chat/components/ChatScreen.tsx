@@ -153,8 +153,16 @@ export default function ChatScreen({
 
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
-      {/* Header - Fixed at top with higher z-index */}
-      <div className="relative z-20 bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center space-x-4">
+      {/* Header - Fixed at top with glass effect and backdrop blur */}
+      <div 
+        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
+        style={{
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
+        }}
+      >
         <button
           onClick={onBack}
           className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
