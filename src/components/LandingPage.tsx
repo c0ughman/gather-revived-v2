@@ -79,20 +79,33 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           100% { background-position: 0% 50%; }
         }
         
-        .animated-gradient {
+        .animated-gradient-text {
+          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background-size: 400% 400%;
+          animation: gradientShift 8s ease-in-out infinite;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        
+        .animated-gradient-text:hover {
+          animation: gradientShift 2s ease-in-out infinite;
+        }
+        
+        .animated-gradient-bg {
           background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
         }
         
-        .animated-gradient:hover {
+        .animated-gradient-bg:hover {
           animation: gradientShift 2s ease-in-out infinite;
         }
         
-        .animated-gradient-fast {
+        .animated-gradient-orb {
           background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
           background-size: 400% 400%;
-          animation: gradientShift 2s ease-in-out infinite;
+          animation: gradientShift 12s ease-in-out infinite;
         }
       `}</style>
 
@@ -107,7 +120,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
       <nav className="relative z-50 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 animated-gradient rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 animated-gradient-bg rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
@@ -116,7 +129,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
           <button
             onClick={onGetStarted}
-            className="px-6 py-3 animated-gradient hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            className="px-6 py-3 animated-gradient-bg hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl text-white"
           >
             Get Started Free
           </button>
@@ -137,7 +150,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 Your AI
               </span>
               <br />
-              <span className="animated-gradient bg-clip-text text-transparent">
+              <span className="animated-gradient-text">
                 Dream Team
               </span>
             </h1>
@@ -150,7 +163,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={onGetStarted}
-                className="group px-8 py-4 animated-gradient hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
+                className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Building Your Team</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
@@ -183,11 +196,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Background decorative elements that go behind glass cards */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-20 left-10 w-32 h-32 animated-gradient rounded-full blur-2xl opacity-30"></div>
-            <div className="absolute top-40 right-20 w-24 h-24 animated-gradient rounded-full blur-xl opacity-40"></div>
-            <div className="absolute bottom-20 left-1/4 w-40 h-40 animated-gradient rounded-full blur-3xl opacity-20"></div>
-            <div className="absolute bottom-40 right-1/3 w-28 h-28 animated-gradient rounded-full blur-xl opacity-35"></div>
-            <div className="absolute top-60 left-1/2 w-36 h-36 animated-gradient rounded-full blur-2xl opacity-25"></div>
+            <div className="absolute top-20 left-10 w-32 h-32 animated-gradient-orb rounded-full blur-2xl opacity-30"></div>
+            <div className="absolute top-40 right-20 w-24 h-24 animated-gradient-orb rounded-full blur-xl opacity-40"></div>
+            <div className="absolute bottom-20 left-1/4 w-40 h-40 animated-gradient-orb rounded-full blur-3xl opacity-20"></div>
+            <div className="absolute bottom-40 right-1/3 w-28 h-28 animated-gradient-orb rounded-full blur-xl opacity-35"></div>
+            <div className="absolute top-60 left-1/2 w-36 h-36 animated-gradient-orb rounded-full blur-2xl opacity-25"></div>
           </div>
 
           <div className="relative grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -247,25 +260,25 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="text-4xl font-bold animated-gradient bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold animated-gradient-text mb-2">
                 50K+
               </div>
               <div className="text-slate-400">AI Assistants Created</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold animated-gradient bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold animated-gradient-text mb-2">
                 2M+
               </div>
               <div className="text-slate-400">Conversations</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold animated-gradient bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold animated-gradient-text mb-2">
                 99.9%
               </div>
               <div className="text-slate-400">Uptime</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold animated-gradient bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold animated-gradient-text mb-2">
                 4.9★
               </div>
               <div className="text-slate-400">User Rating</div>
@@ -284,7 +297,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   Everything You Need,
                 </span>
                 <br />
-                <span className="animated-gradient bg-clip-text text-transparent">
+                <span className="animated-gradient-text">
                   Nothing You Don't
                 </span>
               </h2>
@@ -295,7 +308,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               <div className="space-y-4">
                 {features.map((feature, index) => (
                   <div key={index} className="flex items-center space-x-3">
-                    <div className="w-6 h-6 animated-gradient rounded-full flex items-center justify-center flex-shrink-0">
+                    <div className="w-6 h-6 animated-gradient-bg rounded-full flex items-center justify-center flex-shrink-0">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-slate-300">{feature}</span>
@@ -315,7 +328,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 animated-gradient rounded-lg"></div>
+                    <div className="w-10 h-10 animated-gradient-bg rounded-lg"></div>
                     <div>
                       <div className="text-white font-semibold">Research Assistant</div>
                       <div className="text-slate-400 text-sm">Analyzing market trends...</div>
@@ -329,7 +342,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   </div>
                   
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 animated-gradient rounded-lg"></div>
+                    <div className="w-10 h-10 animated-gradient-bg rounded-lg"></div>
                     <div>
                       <div className="text-white font-semibold">Creative Director</div>
                       <div className="text-slate-400 text-sm">Generating campaign concepts...</div>
@@ -355,8 +368,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-4xl mx-auto px-6 text-center">
           {/* Background decorative elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-10 left-10 w-40 h-40 animated-gradient rounded-full blur-3xl opacity-20"></div>
-            <div className="absolute bottom-10 right-10 w-32 h-32 animated-gradient rounded-full blur-2xl opacity-25"></div>
+            <div className="absolute top-10 left-10 w-40 h-40 animated-gradient-orb rounded-full blur-3xl opacity-20"></div>
+            <div className="absolute bottom-10 right-10 w-32 h-32 animated-gradient-orb rounded-full blur-2xl opacity-25"></div>
           </div>
           
           <div className="relative bg-white/5 backdrop-blur-md rounded-3xl border border-white/20 p-12 shadow-2xl">
@@ -365,7 +378,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 Ready to Transform
               </span>
               <br />
-              <span className="animated-gradient bg-clip-text text-transparent">
+              <span className="animated-gradient-text">
                 How You Work?
               </span>
             </h2>
@@ -376,7 +389,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={onGetStarted}
-                className="group px-8 py-4 animated-gradient hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
+                className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Your Free Trial</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
@@ -395,7 +408,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
-              <div className="w-8 h-8 animated-gradient rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 animated-gradient-bg rounded-lg flex items-center justify-center">
                 <MessageCircle className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
