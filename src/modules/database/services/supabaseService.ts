@@ -1,264 +1,346 @@
-import { supabase } from '../lib/supabase'
-import { AIContact } from '../../../core/types/types'
-import { DocumentInfo } from '../../fileManagement/types/documents'
+import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export class SupabaseService {
-  // User Agents
-  async getUserAgents(userId: string) {
-    const { data, error } = await supabase
-      .from('user_agents')
-      .select(`
-        *,
-        agent_integrations (
-          id,
-          template_id,
-          name,
-          description,
-          config,
-          status
-        ),
-        agent_documents (
-          id,
-          name,
-          original_filename,
-          file_type,
-          file_size,
-          content,
-          summary,
-          extracted_text,
-          metadata,
-          uploaded_at
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+  private static instance: SupabaseService;
+  private client: SupabaseClient;
 
-    if (error) throw error
-    return data || []
+  private constructor() {
+    this.client = supabase;
   }
 
-  async createUserAgent(userId: string, agent: Partial<AIContact>) {
-    const { data, error } = await supabase
-      .from('user_agents')
-      .insert({
-        user_id: userId,
-        name: agent.name,
-        description: agent.description,
-        initials: agent.initials,
-        color: agent.color,
-        voice: agent.voice,
-        avatar_url: agent.avatar,
-        status: agent.status || 'online'
-      })
-      .select()
-      .single()
+  static getInstance(): SupabaseService {
+    if (!SupabaseService.instance) {
+      SupabaseService.instance = new SupabaseService();
+    }
+    return SupabaseService.instance;
+  }
 
-    if (error) throw error
-    return data
+  // Auth methods
+  async signUp(email: string, password: string) {
+    try {
+      console.log('🔐 Attempting to sign up user:', email);
+      
+      const { data, error } = await this.client.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) {
+        console.error('❌ Supabase signup error:', error);
+        throw error;
+      }
+
+      console.log('✅ User signed up successfully:', data.user?.email);
+      return data;
+    } catch (error) {
+      console.error('❌ Sign up error:', error);
+      throw error;
+    }
+  }
+
+  async signIn(email: string, password: string) {
+    try {
+      console.log('🔐 Attempting to sign in user:', email);
+      
+      const { data, error } = await this.client.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        console.error('❌ Supabase signin error:', error);
+        throw error;
+      }
+
+      console.log('✅ User signed in successfully:', data.user?.email);
+      return data;
+    } catch (error) {
+      console.error('❌ Sign in error:', error);
+      throw error;
+    }
+  }
+
+  async signOut() {
+    try {
+      console.log('🔐 Signing out user...');
+      
+      const { error } = await this.client.auth.signOut();
+      
+      if (error) {
+        console.error('❌ Sign out error:', error);
+        throw error;
+      }
+
+      console.log('✅ User signed out successfully');
+    } catch (error) {
+      console.error('❌ Sign out error:', error);
+      throw error;
+    }
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    try {
+      const { data: { user }, error } = await this.client.auth.getUser();
+      
+      if (error) {
+        console.error('❌ Error getting current user:', error);
+        return null;
+      }
+
+      return user;
+    } catch (error) {
+      console.error('❌ Error getting current user:', error);
+      return null;
+    }
+  }
+
+  // User profile methods
+  async getUserProfile(userId: string) {
+    try {
+      console.log('👤 Fetching user profile for:', userId);
+      
+      const { data, error } = await this.client
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('❌ Error fetching user profile:', error);
+        throw error;
+      }
+
+      console.log('✅ User profile fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error fetching user profile:', error);
+      throw error;
+    }
+  }
+
+  async createUserProfile(userId: string, profileData: any) {
+    try {
+      console.log('👤 Creating user profile for:', userId);
+      
+      const { data, error } = await this.client
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          ...profileData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error creating user profile:', error);
+        throw error;
+      }
+
+      console.log('✅ User profile created successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error creating user profile:', error);
+      throw error;
+    }
+  }
+
+  // User agents methods
+  async getUserAgents(userId: string) {
+    try {
+      console.log('🤖 Fetching user agents for:', userId);
+      
+      const { data, error } = await this.client
+        .rpc('get_user_agents', { p_user_id: userId });
+
+      if (error) {
+        console.error('❌ Error fetching user agents:', error);
+        // Fallback to direct query if RPC fails
+        const { data: fallbackData, error: fallbackError } = await this.client
+          .from('user_agents')
+          .select('*')
+          .eq('user_id', userId)
+          .order('is_favorite', { ascending: false })
+          .order('last_used_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false });
+
+        if (fallbackError) {
+          console.error('❌ Fallback query also failed:', fallbackError);
+          throw fallbackError;
+        }
+
+        console.log('✅ User agents fetched successfully (fallback)');
+        return fallbackData || [];
+      }
+
+      console.log('✅ User agents fetched successfully');
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error fetching user agents:', error);
+      return []; // Return empty array instead of throwing
+    }
+  }
+
+  async createUserAgent(agentData: any) {
+    try {
+      console.log('🤖 Creating user agent:', agentData.name);
+      
+      const { data, error } = await this.client
+        .from('user_agents')
+        .insert({
+          ...agentData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error creating user agent:', error);
+        throw error;
+      }
+
+      console.log('✅ User agent created successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error creating user agent:', error);
+      throw error;
+    }
   }
 
   async updateUserAgent(agentId: string, updates: any) {
-    const { data, error } = await supabase
-      .from('user_agents')
-      .update(updates)
-      .eq('id', agentId)
-      .select()
-      .single()
+    try {
+      console.log('🤖 Updating user agent:', agentId);
+      
+      const { data, error } = await this.client
+        .from('user_agents')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agentId)
+        .select()
+        .single();
 
-    if (error) throw error
-    return data
+      if (error) {
+        console.error('❌ Error updating user agent:', error);
+        throw error;
+      }
+
+      console.log('✅ User agent updated successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error updating user agent:', error);
+      throw error;
+    }
   }
 
   async deleteUserAgent(agentId: string) {
-    const { error } = await supabase
-      .from('user_agents')
-      .delete()
-      .eq('id', agentId)
+    try {
+      console.log('🤖 Deleting user agent:', agentId);
+      
+      const { error } = await this.client
+        .from('user_agents')
+        .delete()
+        .eq('id', agentId);
 
-    if (error) throw error
-  }
+      if (error) {
+        console.error('❌ Error deleting user agent:', error);
+        throw error;
+      }
 
-  // Agent Integrations
-  async createAgentIntegration(agentId: string, integration: any) {
-    const { data, error } = await supabase
-      .from('agent_integrations')
-      .insert({
-        agent_id: agentId,
-        template_id: integration.integrationId,
-        name: integration.name,
-        description: integration.description,
-        config: integration.config,
-        trigger_type: integration.config.trigger,
-        interval_minutes: integration.config.intervalMinutes,
-        status: 'active'
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  }
-
-  async deleteAgentIntegration(integrationId: string) {
-    const { error } = await supabase
-      .from('agent_integrations')
-      .delete()
-      .eq('id', integrationId)
-
-    if (error) throw error
-  }
-
-  // Agent Documents
-  async createAgentDocument(agentId: string, document: DocumentInfo) {
-    const { data, error } = await supabase
-      .from('agent_documents')
-      .insert({
-        agent_id: agentId,
-        name: document.name,
-        original_filename: document.name,
-        file_type: document.type,
-        file_size: document.size,
-        content: document.content,
-        summary: document.summary,
-        extracted_text: document.extractedText,
-        processing_status: 'completed',
-        metadata: document.metadata || {}
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  }
-
-  async deleteAgentDocument(documentId: string) {
-    const { error } = await supabase
-      .from('agent_documents')
-      .delete()
-      .eq('id', documentId)
-
-    if (error) throw error
-  }
-
-  // Document Retrieval Methods for Chat and Voice
-  async getAgentDocuments(agentId: string): Promise<DocumentInfo[]> {
-    const { data, error } = await supabase
-      .from('agent_documents')
-      .select('*')
-      .eq('agent_id', agentId)
-      .order('uploaded_at', { ascending: false })
-
-    if (error) throw error
-
-    return (data || []).map(doc => ({
-      id: doc.id,
-      name: doc.name,
-      type: doc.file_type,
-      size: doc.file_size,
-      uploadedAt: new Date(doc.uploaded_at),
-      content: doc.content || '',
-      summary: doc.summary,
-      extractedText: doc.extracted_text,
-      metadata: doc.metadata || {}
-    }))
-  }
-
-  async getDocumentById(documentId: string): Promise<DocumentInfo | null> {
-    const { data, error } = await supabase
-      .from('agent_documents')
-      .select('*')
-      .eq('id', documentId)
-      .single()
-
-    if (error) {
-      console.error('Error fetching document:', error)
-      return null
-    }
-
-    if (!data) return null
-
-    return {
-      id: data.id,
-      name: data.name,
-      type: data.file_type,
-      size: data.file_size,
-      uploadedAt: new Date(data.uploaded_at),
-      content: data.content || '',
-      summary: data.summary,
-      extractedText: data.extracted_text,
-      metadata: data.metadata || {}
+      console.log('✅ User agent deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting user agent:', error);
+      throw error;
     }
   }
 
-  // Conversation Documents Management
-  async saveConversationDocument(agentId: string, document: DocumentInfo): Promise<string> {
-    // Save conversation documents temporarily (could be in a separate table)
-    const { data, error } = await supabase
-      .from('agent_documents')
-      .insert({
-        agent_id: agentId,
-        name: document.name,
-        original_filename: document.name,
-        file_type: document.type,
-        file_size: document.size,
-        content: document.content,
-        summary: document.summary,
-        extracted_text: document.extractedText,
-        processing_status: 'completed',
-        metadata: {
-          ...document.metadata,
-          conversation_document: true, // Mark as conversation document
-          uploaded_in_conversation: true
-        }
-      })
-      .select('id')
-      .single()
+  // Usage and subscription methods
+  async getUserUsage(userId: string) {
+    try {
+      console.log('📊 Fetching user usage for:', userId);
+      
+      const { data, error } = await this.client
+        .from('user_usage')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-    if (error) throw error
-    return data.id
-  }
+      if (error) {
+        console.error('❌ Error fetching user usage:', error);
+        throw error;
+      }
 
-  async getConversationDocuments(agentId: string): Promise<DocumentInfo[]> {
-    const { data, error } = await supabase
-      .from('agent_documents')
-      .select('*')
-      .eq('agent_id', agentId)
-      .eq('metadata->conversation_document', true)
-      .order('uploaded_at', { ascending: false })
-
-    if (error) throw error
-
-    return (data || []).map(doc => ({
-      id: doc.id,
-      name: doc.name,
-      type: doc.file_type,
-      size: doc.file_size,
-      uploadedAt: new Date(doc.uploaded_at),
-      content: doc.content || '',
-      summary: doc.summary,
-      extractedText: doc.extracted_text,
-      metadata: doc.metadata || {}
-    }))
-  }
-
-  // Enhanced method to get all relevant documents for context building
-  async getAllAgentContext(agentId: string): Promise<{
-    permanentDocuments: DocumentInfo[]
-    conversationDocuments: DocumentInfo[]
-  }> {
-    const [permanent, conversation] = await Promise.all([
-      this.getAgentDocuments(agentId),
-      this.getConversationDocuments(agentId)
-    ])
-
-    const permanentDocuments = permanent.filter(doc => !doc.metadata?.conversation_document)
-    const conversationDocuments = conversation
-
-    return {
-      permanentDocuments,
-      conversationDocuments
+      console.log('✅ User usage fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error fetching user usage:', error);
+      throw error;
     }
+  }
+
+  async getUserSubscription(userId: string) {
+    try {
+      console.log('💳 Fetching user subscription for:', userId);
+      
+      const { data, error } = await this.client
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.error('❌ Error fetching user subscription:', error);
+        throw error;
+      }
+
+      console.log('✅ User subscription fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error fetching user subscription:', error);
+      throw error;
+    }
+  }
+
+  // Health check
+  async healthCheck() {
+    try {
+      const { data, error } = await this.client
+        .from('user_profiles')
+        .select('count')
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Database health check failed:', error);
+        return false;
+      }
+
+      console.log('✅ Database health check passed');
+      return true;
+    } catch (error) {
+      console.error('❌ Database health check failed:', error);
+      return false;
+    }
+  }
+
+  // Get the Supabase client for direct access
+  getClient() {
+    return this.client;
   }
 }
 
-export const supabaseService = new SupabaseService()
+export const supabaseService = SupabaseService.getInstance();
