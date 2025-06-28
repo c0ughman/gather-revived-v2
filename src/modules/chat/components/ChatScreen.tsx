@@ -104,7 +104,7 @@ export default function ChatScreen({
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
     
-    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
+    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, rgb(${r}, ${g}, ${b}) 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
   // Helper function to get user bubble gradient based on agent color
@@ -152,10 +152,10 @@ export default function ChatScreen({
   const pendingDocumentsCount = pendingDocuments.length;
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col font-inter">
+    <div className="h-full bg-glass-bg flex flex-col font-inter relative">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
+        className="fixed top-0 left-1/4 right-1/4 z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
         style={{
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
@@ -251,8 +251,8 @@ export default function ChatScreen({
         </div>
       </div>
 
-      {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pb-32">
+      {/* Messages Area - Scrollable with large top margin and padding for fixed input */}
+      <div className="flex-1 overflow-y-auto pb-32 pt-24">
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
