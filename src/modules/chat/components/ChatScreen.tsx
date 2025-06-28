@@ -104,7 +104,7 @@ export default function ChatScreen({
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
     
-    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, rgb(${r}, ${g}, ${b}) 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
+    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
   // Helper function to get user bubble gradient based on agent color
@@ -152,14 +152,15 @@ export default function ChatScreen({
   const pendingDocumentsCount = pendingDocuments.length;
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col font-inter relative">
+    <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
         className="fixed top-0 left-1/4 right-1/4 z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
         style={{
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
         }}
       >
         <button
@@ -251,8 +252,8 @@ export default function ChatScreen({
         </div>
       </div>
 
-      {/* Messages Area - Scrollable with large top margin and padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pb-32 pt-24">
+      {/* Messages Area - Scrollable with padding for fixed input */}
+      <div className="flex-1 overflow-y-auto pt-24 pb-32">
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -348,47 +349,65 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="relative z-10 p-4 bg-glass-bg">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-medium">Upload Conversation Documents</h3>
-            <button
-              onClick={() => {
-                setShowDocumentUpload(false);
-                setUploadError(null);
-              }}
-              className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
-            >
-              <X className="w-4 h-4 text-slate-400" />
-            </button>
-          </div>
-          
-          <p className="text-slate-400 text-sm mb-4">
-            These documents will be available throughout this conversation. For permanent knowledge, use Settings.
-          </p>
-          
-          {uploadError && (
-            <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
-              <p className="text-red-300 text-sm">{uploadError}</p>
+        <div className="fixed bottom-24 left-1/4 right-1/4 z-10 p-4">
+          <div 
+            className="rounded-lg border border-slate-700 p-4"
+            style={{
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+              backgroundColor: 'rgba(15, 23, 42, 0.9)' // Slightly more opaque for readability
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-medium">Upload Conversation Documents</h3>
+              <button
+                onClick={() => {
+                  setShowDocumentUpload(false);
+                  setUploadError(null);
+                }}
+                className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
             </div>
-          )}
-          
-          <DocumentUpload
-            onDocumentUploaded={handleDocumentUploaded}
-            onError={handleDocumentError}
-            className="mb-4"
-          />
-          
-          <DocumentList
-            documents={pendingDocuments}
-            onRemoveDocument={handleRemoveDocument}
-          />
+            
+            <p className="text-slate-400 text-sm mb-4">
+              These documents will be available throughout this conversation. For permanent knowledge, use Settings.
+            </p>
+            
+            {uploadError && (
+              <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+                <p className="text-red-300 text-sm">{uploadError}</p>
+              </div>
+            )}
+            
+            <DocumentUpload
+              onDocumentUploaded={handleDocumentUploaded}
+              onError={handleDocumentError}
+              className="mb-4"
+            />
+            
+            <DocumentList
+              documents={pendingDocuments}
+              onRemoveDocument={handleRemoveDocument}
+            />
+          </div>
         </div>
       )}
 
-      {/* Input Area - Fixed at bottom */}
+      {/* Input Area - Fixed at bottom with glass effect */}
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
-          <div className="relative flex items-center bg-glass-panel glass-effect rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg">
+          <div 
+            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg"
+            style={{
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+              backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
+            }}
+          >
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
@@ -458,7 +477,15 @@ export default function ChatScreen({
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
-          <div className="bg-glass-panel glass-effect rounded-lg border border-slate-700 p-4">
+          <div 
+            className="rounded-lg border border-slate-700 p-4"
+            style={{
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+              backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
+            }}
+          >
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
               <button
