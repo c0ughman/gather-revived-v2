@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
   Search, TrendingUp, Bell, Globe, Rss, Newspaper,
@@ -53,7 +53,7 @@ export default function Dashboard({
   const frequentAgents = contacts.slice(0, 4);
   
   // Get recent agents based on last seen
-  const recentAgents = useMemo(() => {
+  const recentAgents = React.useMemo(() => {
     return [...contacts]
       .sort((a, b) => {
         if (a.lastSeen === 'now') return -1;
@@ -64,7 +64,7 @@ export default function Dashboard({
   }, [contacts]);
 
   // Filter agents for search
-  const filteredAgents = useMemo(() => {
+  const filteredAgents = React.useMemo(() => {
     if (!agentSearchQuery.trim()) return contacts;
     return contacts.filter(contact => 
       contact.name.toLowerCase().includes(agentSearchQuery.toLowerCase()) ||
@@ -76,7 +76,7 @@ export default function Dashboard({
   const allIntegrations = [...sourceIntegrations, ...actionIntegrations];
   
   // Filter integrations for search
-  const filteredIntegrations = useMemo(() => {
+  const filteredIntegrations = React.useMemo(() => {
     if (!integrationSearchQuery.trim()) return allIntegrations;
     return allIntegrations.filter(integration => 
       integration.name.toLowerCase().includes(integrationSearchQuery.toLowerCase()) ||
@@ -97,7 +97,15 @@ export default function Dashboard({
 
   const getIconForIntegration = (iconName: string) => {
     const iconMap: { [key: string]: React.ComponentType<any> } = {
-      Globe, Rss, Newspaper, TrendingUp, Bot, Zap, Bell
+      Globe,
+      Rss,
+      Newspaper,
+      Cloud,
+      TrendingUp,
+      Calendar,
+      Building2,
+      Database,
+      FileText
     };
     const IconComponent = iconMap[iconName] || Globe;
     return <IconComponent className="w-5 h-5" />;
@@ -170,9 +178,9 @@ export default function Dashboard({
     // Set dot size based on container size
     const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
     
-    // Position dots in the top part of the image
+    // Position dots in the bottom right corner with rounded flow
     return (
-      <div className="absolute top-0 right-0 p-1 flex flex-wrap justify-end gap-1 max-w-[70%]">
+      <div className="absolute bottom-0 right-0 p-1 flex flex-wrap justify-end items-end gap-1 max-w-[70%]">
         {indicators.map((indicator, index) => (
           <div
             key={index}

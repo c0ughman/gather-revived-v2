@@ -87,9 +87,9 @@ export default function ContactSidebar({
     
     if (indicators.length === 0) return null;
     
-    // Position dots in the top part of the image
+    // Position dots in the bottom right corner with rounded flow
     return (
-      <div className="absolute top-0 right-0 p-1 flex flex-wrap justify-end gap-1 max-w-[70%]">
+      <div className="absolute bottom-0 right-0 p-1 flex flex-wrap justify-end items-end gap-1 max-w-[70%]">
         {indicators.map((indicator, index) => (
           <div
             key={index}
