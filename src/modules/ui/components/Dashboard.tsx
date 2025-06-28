@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ContactSidebar } from './ContactSidebar';
 import { ChatScreen } from '../../chat/components/ChatScreen';
-import { CallScreen } from '../../voice/components/CallScreen';
+import CallScreen from '../../voice/components/CallScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { IntegrationsLibrary } from './IntegrationsLibrary';
 import { DocumentUpload } from './DocumentUpload';
