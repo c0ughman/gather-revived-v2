@@ -108,18 +108,18 @@ src/modules/oauth/index.ts
 # ==============================================================================
 # DATABASE MODULE (~1,700 tokens)
 # ==============================================================================
-src/modules/database/
-src/modules/database/services/supabaseService.ts
-src/modules/database/lib/
-src/modules/database/types/
-src/modules/database/index.ts
+# src/modules/database/
+# src/modules/database/services/supabaseService.ts
+# src/modules/database/lib/
+# src/modules/database/types/
+# src/modules/database/index.ts
 
 # ==============================================================================
 # SUPABASE BACKEND (~3,000 tokens estimated)
 # ==============================================================================
-supabase/
-supabase/functions/
-supabase/migrations/
+# supabase/
+# supabase/functions/
+# supabase/migrations/
 
 # ==============================================================================
 # DOCUMENTATION & GUIDES (~10,000 tokens estimated)
