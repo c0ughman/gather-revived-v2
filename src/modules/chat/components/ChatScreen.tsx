@@ -121,9 +121,9 @@ export default function ChatScreen({
   const pendingDocumentsCount = pendingDocuments.length;
 
   return (
-    <div className="h-full bg-slate-900 flex flex-col font-inter">
+    <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with higher z-index */}
-      <div className="relative z-20 bg-slate-800 border-b border-slate-700 p-4 flex items-center space-x-4">
+      <div className="relative z-20 bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center space-x-4">
         <button
           onClick={onBack}
           className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
@@ -314,7 +314,7 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="relative z-10 p-4 bg-slate-900">
+        <div className="relative z-10 p-4 bg-glass-bg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-medium">Upload Conversation Documents</h3>
             <button
@@ -354,7 +354,7 @@ export default function ChatScreen({
       {/* Input Area - Fixed at bottom */}
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
-          <div className="relative flex items-center bg-slate-700 rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg">
+          <div className="relative flex items-center bg-glass-panel glass-effect rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg">
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
@@ -424,7 +424,7 @@ export default function ChatScreen({
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
-          <div className="bg-slate-800 bg-opacity-90 backdrop-blur-sm rounded-lg border border-slate-700 p-4">
+                        <div className="bg-glass-panel glass-effect rounded-lg border border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
               <button

@@ -175,7 +175,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
 
   if (!contact) {
     return (
-      <div className={`h-full bg-slate-800 flex items-center justify-center ${className}`}>
+      <div className={`h-full bg-glass-panel glass-effect flex items-center justify-center ${className}`}>
         <div className="text-center p-8">
           <Settings className="w-12 h-12 text-slate-500 mx-auto mb-3" />
           <p className="text-slate-400 font-inter">Select a contact to view settings</p>
@@ -187,7 +187,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
   // Show integration setup modal
   if (setupIntegration) {
     return (
-      <div className={`h-full bg-slate-800 flex flex-col ${className}`}>
+      <div className={`h-full bg-glass-panel glass-effect flex flex-col ${className}`}>
         <div className="p-4 border-b border-slate-700 flex items-center justify-between">
           <h3 className="text-white font-semibold font-inter">Setup Integration</h3>
           <button
@@ -220,7 +220,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
   // Show integrations library modal
   if (showIntegrationsLibrary) {
     return (
-      <div className={`h-full bg-slate-800 flex flex-col ${className}`}>
+      <div className={`h-full bg-glass-panel glass-effect flex flex-col ${className}`}>
         <div className="p-4 border-b border-slate-700 flex items-center justify-between">
           <h3 className="text-white font-semibold font-inter">Add Integration</h3>
           <button
@@ -243,9 +243,9 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
   }
 
   return (
-    <div className={`h-full bg-slate-800 flex flex-col font-inter ${className}`}>
+    <div className={`h-full bg-glass-panel glass-effect flex flex-col font-inter ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 bg-slate-800">
+      <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
@@ -280,12 +280,12 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
       </div>
 
       {/* Settings Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto bg-slate-800">
+      <div className="flex-1 overflow-y-auto bg-glass-panel glass-effect">
         {/* Basic Info Section */}
         <div className="border-b border-slate-700 bg-slate-800">
           <button
             onClick={() => toggleSection('basic')}
-            className="w-full p-4 flex items-center justify-between hover:bg-slate-750 transition-colors duration-200 bg-slate-800"
+            className="w-full p-4 flex items-center justify-between hover:bg-glass-panel/80 transition-colors duration-200 bg-glass-panel glass-effect"
           >
             <div className="flex items-center space-x-3">
               <User className="w-4 h-4 text-slate-400" />
@@ -299,7 +299,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.basic && (
-            <div className="px-4 pb-4 space-y-4 bg-slate-800">
+            <div className="px-4 pb-4 space-y-4 bg-glass-panel glass-effect">
               {/* Name */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-2">Name</label>
@@ -307,7 +307,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
                 />
               </div>
 
@@ -318,7 +318,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={3}
-                  className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm resize-none"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm resize-none"
                 />
               </div>
 
@@ -332,7 +332,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   <select
                     value={formData.voice}
                     onChange={(e) => handleInputChange('voice', e.target.value)}
-                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
+                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
                   >
                     {availableVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>
@@ -368,10 +368,10 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.integrations && (
-            <div className="px-4 pb-4 space-y-3 bg-slate-800">
+            <div className="px-4 pb-4 space-y-3 bg-glass-panel glass-effect">
               <button
                 onClick={() => setShowIntegrationsLibrary(true)}
-                className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-slate-750 transition-colors duration-200 text-sm"
+                className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-glass-panel/80 transition-colors duration-200 text-sm"
               >
                 <Plus className="w-4 h-4 text-slate-400" />
                 <span className="text-slate-400">Add Integration</span>
@@ -382,7 +382,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                 if (!integrationDef) return null;
 
                 return (
-                  <div key={integration.id} className="bg-slate-700 rounded-lg p-3">
+                  <div key={integration.id} className="bg-glass-panel glass-effect rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2 min-w-0 flex-1">
                         <div
@@ -420,7 +420,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
         </div>
 
         {/* Documents Section */}
-        <div className="bg-slate-800">
+        <div className="bg-glass-panel glass-effect">
           <button
             onClick={() => toggleSection('documents')}
             className="w-full p-4 flex items-center justify-between hover:bg-slate-750 transition-colors duration-200 bg-slate-800"
@@ -440,7 +440,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           </button>
           
           {expandedSections.documents && (
-            <div className="px-4 pb-4 space-y-3 bg-slate-800">
+            <div className="px-4 pb-4 space-y-3 bg-glass-panel glass-effect">
               {uploadError && (
                 <div className="p-2 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-300 text-xs">
                   {uploadError}

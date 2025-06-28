@@ -676,7 +676,7 @@ function AppContent() {
   };
 
   return (
-    <div className="h-screen bg-slate-900 flex font-inter overflow-hidden">
+          <div className="h-screen bg-glass-bg flex font-inter overflow-hidden">
       {/* OAuth Success/Error Message */}
       {oauthMessage && (
         <div className="fixed top-4 right-4 z-50 max-w-md">
@@ -709,7 +709,7 @@ function AppContent() {
 
       {/* Right Sidebar - Settings - 25% (only show when not on dashboard) */}
       {currentScreen !== 'dashboard' && (
-        <div className="w-1/4 bg-slate-800 border-l border-slate-700">
+        <div className="w-1/4 bg-glass-panel glass-effect border-l border-slate-700">
           <SettingsSidebar
             contact={selectedContact}
             onSave={handleSaveContact}

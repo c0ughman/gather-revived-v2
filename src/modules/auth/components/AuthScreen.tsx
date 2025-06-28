@@ -114,7 +114,7 @@ export default function AuthScreen() {
         </div>
 
         {/* Auth Form */}
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 shadow-2xl">
+        <div className="bg-glass-panel glass-effect rounded-2xl border border-slate-700 p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
@@ -129,7 +129,7 @@ export default function AuthScreen() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-slate-700 text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
                   placeholder="Enter your email"
                 />
               </div>
@@ -148,7 +148,7 @@ export default function AuthScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-slate-700 text-white pl-12 pr-12 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-12 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
                   placeholder="Enter your password"
                 />
                 <button
@@ -175,7 +175,7 @@ export default function AuthScreen() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full bg-slate-700 text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
                     placeholder="Confirm your password"
                   />
                 </div>

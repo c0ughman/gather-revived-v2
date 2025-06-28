@@ -185,9 +185,9 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   };
 
   return (
-    <div className="h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
-      <div className="p-6 flex items-center justify-between border-b border-slate-700">
+      <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
         <button
           onClick={onBack}
           className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"

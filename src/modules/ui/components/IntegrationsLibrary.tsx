@@ -48,7 +48,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
   const isSelected = (integrationId: string) => selectedIntegrations.includes(integrationId);
 
   return (
-    <div className={`bg-slate-800 rounded-xl border border-slate-700 ${className}`}>
+    <div className={`bg-glass-panel glass-effect rounded-xl border border-slate-700 ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center justify-between mb-4">
@@ -72,7 +72,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
               placeholder="Search integrations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-700 text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
             />
           </div>
 

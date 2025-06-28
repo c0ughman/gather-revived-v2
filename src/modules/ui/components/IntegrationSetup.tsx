@@ -189,7 +189,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
   };
 
   return (
-    <div className={`bg-slate-800 rounded-xl border border-slate-700 ${className}`}>
+    <div className={`bg-glass-panel glass-effect rounded-xl border border-slate-700 ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center justify-between">

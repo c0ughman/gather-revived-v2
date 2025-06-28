@@ -68,6 +68,9 @@ export default {
           900: '#1e3a8a',
           950: '#172554',
         },
+        // Custom colors for glass effect design
+        'glass-bg': '#01060d',
+        'glass-panel': '#020a16',
       },
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out',

@@ -205,7 +205,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
   // Show integration setup modal
   if (setupIntegration) {
     return (
-      <div className="h-full bg-slate-900 flex flex-col">
+      <div className="h-full bg-glass-bg flex flex-col">
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-2xl mx-auto">
             <IntegrationSetup
@@ -226,8 +226,8 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
   // Show integrations library modal
   if (showIntegrationsLibrary) {
     return (
-      <div className="h-full bg-slate-900 flex flex-col">
-        <div className="bg-slate-800 border-b border-slate-700 p-4 flex items-center justify-between">
+      <div className="h-full bg-glass-bg flex flex-col">
+        <div className="bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-white">Add Integration</h1>
           <button
             onClick={() => setShowIntegrationsLibrary(false)}
@@ -247,9 +247,9 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
   }
 
   return (
-    <div className="h-full bg-slate-900 flex flex-col">
+    <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
-      <div className="bg-slate-800 border-b border-slate-700 p-4 flex items-center justify-between">
+      <div className="bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
             onClick={onBack}
@@ -272,7 +272,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
       </div>
 
       {/* Tabs */}
-      <div className="bg-slate-800 border-b border-slate-700 px-4">
+      <div className="bg-glass-panel glass-effect border-b border-slate-700 px-4">
         <div className="flex space-x-1">
           <button
             onClick={() => setActiveTab('basic')}
@@ -322,7 +322,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
           {activeTab === 'basic' ? (
             <>
               {/* Contact Preview */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
                   <User className="w-5 h-5" />
                   <span>Preview</span>
@@ -350,7 +350,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
               </div>
 
               {/* Avatar Upload */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
                 <label className="block text-sm font-medium text-white mb-4 flex items-center space-x-2">
                   <User className="w-4 h-4" />
                   <span>Profile Picture</span>
@@ -401,7 +401,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   placeholder="Enter contact name"
-                  className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
                 />
               </div>
 
@@ -416,7 +416,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   placeholder="Describe this AI's personality and capabilities..."
                   rows={4}
-                  className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 resize-none"
+                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 resize-none"
                 />
               </div>
 
@@ -494,7 +494,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                     if (!integrationDef) return null;
 
                     return (
-                      <div key={integration.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                      <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center space-x-3">
                             <div
@@ -556,7 +556,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   })}
                 </div>
               ) : (
-                <div className="bg-slate-800 rounded-xl p-8 border border-slate-700 text-center">
+                <div className="bg-glass-panel glass-effect rounded-xl p-8 border border-slate-700 text-center">
                   <Database className="w-12 h-12 text-slate-500 mx-auto mb-3" />
                   <p className="text-slate-400 mb-4">No integrations configured</p>
                   <button

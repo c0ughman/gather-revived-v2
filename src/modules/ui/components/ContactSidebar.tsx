@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Users, Search, Home, Plus, LogOut } from 'lucide-react';
+import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 
@@ -22,7 +22,7 @@ export default function ContactSidebar({
 }: ContactSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -56,18 +56,12 @@ export default function ContactSidebar({
 
   const filters = ['All', 'Online', 'Favorites', 'Groups'];
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
+
 
   return (
-    <div className="h-full bg-slate-800 flex flex-col font-inter">
+    <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
       {/* Header */}
-      <div className="p-4 border-b border-slate-700">
+      <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
         <div className="flex items-center justify-between mb-4">
           <div 
             className="flex items-center space-x-3 cursor-pointer"
@@ -78,13 +72,6 @@ export default function ContactSidebar({
               <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
             </div>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
-            title="Sign Out"
-          >
-            <LogOut className="w-4 h-4 text-slate-400" />
-          </button>
         </div>
 
         {/* Search Bar */}
@@ -95,13 +82,13 @@ export default function ContactSidebar({
             placeholder="Search or start a new chat"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-700 text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 font-inter"
+            className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 font-inter"
           />
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="px-4 py-3 border-b border-slate-700">
+      <div className="px-4 py-3 border-b border-slate-700 bg-glass-panel glass-effect">
         <div className="flex space-x-1">
           {filters.map((filter) => (
             <button
@@ -120,7 +107,7 @@ export default function ContactSidebar({
       </div>
 
       {/* Navigation Section */}
-      <div className="px-4 py-2 border-b border-slate-700 space-y-1">
+      <div className="px-4 py-2 border-b border-slate-700 bg-glass-panel glass-effect space-y-1">
         <button 
           onClick={onHomeClick}
           className="flex items-center space-x-3 w-full text-left hover:bg-slate-700 p-2 rounded-lg transition-colors duration-200"
