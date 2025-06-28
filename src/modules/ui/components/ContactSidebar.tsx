@@ -87,24 +87,58 @@ export default function ContactSidebar({
     
     if (indicators.length === 0) return null;
     
-    // Position dots in the bottom right corner with rounded flow
+    // Calculate positions in a circular pattern
+    const calculatePosition = (index: number, total: number) => {
+      // Start from bottom right (90 degrees) and go counterclockwise
+      const startAngle = 90;
+      const angleStep = 180 / (total + (hasMore ? 0 : -1));
+      const angle = startAngle - index * angleStep;
+      
+      // Convert angle to radians
+      const radians = (angle * Math.PI) / 180;
+      
+      // Calculate position on circle
+      const radius = 8;
+      
+      // Calculate position (right = 0, bottom = 90 degrees)
+      const x = Math.cos(radians) * radius;
+      const y = Math.sin(radians) * radius;
+      
+      // Convert to CSS positioning
+      // Bottom right corner is our origin (0,0)
+      return {
+        right: `${radius - x}px`,
+        bottom: `${radius - y}px`
+      };
+    };
+    
     return (
-      <div className="absolute bottom-0 right-0 p-1 flex flex-wrap justify-end items-end gap-1 max-w-[70%]">
-        {indicators.map((indicator, index) => (
-          <div
-            key={index}
-            className="w-3 h-3 rounded-full border border-slate-800"
-            style={{
-              backgroundColor: indicator.color,
-              boxShadow: `0 0 6px ${indicator.color}40`
-            }}
-          />
-        ))}
+      <div className="absolute inset-0 overflow-hidden">
+        {indicators.map((indicator, index) => {
+          const position = calculatePosition(index, indicators.length + (hasMore ? 1 : 0));
+          return (
+            <div
+              key={index}
+              className="w-3 h-3 rounded-full border border-slate-800 absolute"
+              style={{
+                backgroundColor: indicator.color,
+                boxShadow: `0 0 6px ${indicator.color}40`,
+                right: position.right,
+                bottom: position.bottom,
+                transform: 'translate(50%, 50%)'
+              }}
+            />
+          );
+        })}
         
         {/* "More" indicator */}
         {hasMore && (
           <div
-            className="w-3 h-3 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center"
+            className="w-3 h-3 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center absolute"
+            style={{
+              ...calculatePosition(indicators.length, indicators.length + 1),
+              transform: 'translate(50%, 50%)'
+            }}
           >
             <MoreHorizontal className="w-2 h-2 text-white" />
           </div>

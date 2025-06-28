@@ -112,24 +112,6 @@ export default function Dashboard({
     return <IconComponent className="w-5 h-5" />;
   };
 
-  // Helper function to create radial gradient for agents without avatars
-  const createAgentGradient = (color: string) => {
-    const hex = color.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    const compR = Math.round(255 - r * 0.3);
-    const compG = Math.round(255 - g * 0.3);
-    const compB = Math.round(255 - b * 0.3);
-    
-    const lightCompR = Math.round(compR + (255 - compR) * 0.8);
-    const lightCompG = Math.round(compG + (255 - compG) * 0.8);
-    const lightCompB = Math.round(compB + (255 - compB) * 0.8);
-    
-    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
-  };
-
   const getComplexityIndicators = (contact: AIContact) => {
     const indicators = [];
     
@@ -179,24 +161,59 @@ export default function Dashboard({
     // Set dot size based on container size
     const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
     
-    // Position dots in the bottom right corner with rounded flow
+    // Calculate positions in a circular pattern
+    const calculatePosition = (index: number, total: number) => {
+      // Start from bottom right (90 degrees) and go counterclockwise
+      const startAngle = 90;
+      const angleStep = 180 / (total + (hasMore ? 0 : -1));
+      const angle = startAngle - index * angleStep;
+      
+      // Convert angle to radians
+      const radians = (angle * Math.PI) / 180;
+      
+      // Calculate position on circle
+      // For small size, use smaller radius
+      const radius = size === 'large' ? 16 : size === 'medium' ? 10 : 8;
+      
+      // Calculate position (right = 0, bottom = 90 degrees)
+      const x = Math.cos(radians) * radius;
+      const y = Math.sin(radians) * radius;
+      
+      // Convert to CSS positioning
+      // Bottom right corner is our origin (0,0)
+      return {
+        right: `${radius - x}px`,
+        bottom: `${radius - y}px`
+      };
+    };
+    
     return (
-      <div className="absolute bottom-0 right-0 p-1 flex flex-wrap justify-end items-end gap-1 max-w-[70%]">
-        {indicators.map((indicator, index) => (
-          <div
-            key={index}
-            className={`${dotSize} rounded-full border border-slate-800`}
-            style={{
-              backgroundColor: indicator.color,
-              boxShadow: `0 0 6px ${indicator.color}40`
-            }}
-          />
-        ))}
+      <div className="absolute inset-0 overflow-hidden">
+        {indicators.map((indicator, index) => {
+          const position = calculatePosition(index, indicators.length + (hasMore ? 1 : 0));
+          return (
+            <div
+              key={index}
+              className={`${dotSize} rounded-full border border-slate-800 absolute`}
+              style={{
+                backgroundColor: indicator.color,
+                boxShadow: `0 0 6px ${indicator.color}40`,
+                right: position.right,
+                bottom: position.bottom,
+                transform: 'translate(50%, 50%)'
+              }}
+            />
+          );
+        })}
         
         {/* "More" indicator */}
         {hasMore && (
           <div
-            className={`${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center`}
+            className={`${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center absolute`}
+            style={{
+              ...calculatePosition(indicators.length, indicators.length + 1),
+              transform: 'translate(50%, 50%)'
+            }}
           >
             <MoreHorizontal className={`${size === 'large' ? 'w-2.5 h-2.5' : 'w-2 h-2'} text-white`} />
           </div>
