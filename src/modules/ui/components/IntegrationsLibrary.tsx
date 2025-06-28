@@ -72,7 +72,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
               placeholder="Search integrations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
             />
           </div>
 
@@ -84,7 +84,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value as 'all' | 'source' | 'action')}
-                className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-blue-500 focus:outline-none"
+                className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-[#186799] focus:outline-none"
               >
                 <option value="all">All Categories</option>
                 <option value="source">Data Sources</option>
@@ -96,7 +96,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-blue-500 focus:outline-none"
+              className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-[#186799] focus:outline-none"
             >
               <option value="">All Tags</option>
               {allTags.map(tag => (
@@ -141,7 +141,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                   onClick={() => handleIntegrationClick(integration)}
                   className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer group ${
                     selected
-                      ? 'border-blue-500 bg-blue-900 bg-opacity-20'
+                      ? 'border-[#186799] bg-[#186799] bg-opacity-20'
                       : 'border-slate-600 hover:border-slate-500 bg-slate-700 hover:bg-slate-650'
                   }`}
                 >
@@ -155,7 +155,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                         <IconComponent className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-white text-sm group-hover:text-blue-300 transition-colors duration-200 truncate">
+                        <h3 className="font-semibold text-white text-sm group-hover:text-[#186799] transition-colors duration-200 truncate">
                           {integration.name}
                         </h3>
                         <div className="flex items-center space-x-1 mt-0.5">
@@ -167,7 +167,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                             {integration.category === 'source' ? 'Source' : 'Action'}
                           </span>
                           {!integration.requiresApiKey && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900 text-blue-300">
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#186799] bg-opacity-20 text-[#186799]">
                               No API Key
                             </span>
                           )}
@@ -175,7 +175,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                       </div>
                     </div>
                     {selected && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                      <div className="w-2 h-2 bg-[#186799] rounded-full flex-shrink-0"></div>
                     )}
                   </div>
 
@@ -219,7 +219,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                     <span className="text-xs text-slate-400">
                       {integration.fields.length} field{integration.fields.length !== 1 ? 's' : ''}
                     </span>
-                    <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-blue-400 transition-colors duration-200" />
+                    <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-[#186799] transition-colors duration-200" />
                   </div>
                 </div>
               );

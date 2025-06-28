@@ -128,7 +128,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   const getServiceStateColor = () => {
     switch (serviceState) {
       case 'listening':
-        return 'text-blue-400';
+        return 'text-[#186799]';
       case 'processing':
         return 'text-yellow-400';
       case 'responding':
@@ -215,7 +215,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             className={`w-40 h-40 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
               pulseAnimation ? 'animate-pulse scale-110' : ''
             } ${
-              serviceState === 'listening' ? 'ring-4 ring-blue-400 ring-opacity-75' : ''
+              serviceState === 'listening' ? 'ring-4 ring-[#186799] ring-opacity-75' : ''
             } ${
               serviceState === 'responding' ? 'ring-4 ring-green-400 ring-opacity-75' : ''
             } ${
@@ -228,12 +228,12 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
                 alt={contact.name}
                 className="w-full h-full object-cover rounded-2xl"
               />
-                         ) : (
-               <div
-                 className="w-full h-full rounded-2xl"
-                 style={{ background: createAgentGradient(contact.color) }}
-               />
-             )}
+            ) : (
+              <div
+                className="w-full h-full rounded-2xl"
+                style={{ background: createAgentGradient(contact.color) }}
+              />
+            )}
           </div>
           
           {/* Pulse rings for connecting state */}
@@ -252,7 +252,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
 
           {/* State indicators */}
           {serviceState === 'listening' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center animate-pulse">
+            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#186799] rounded-full flex items-center justify-center animate-pulse">
               <Mic className="w-4 h-4 text-white" />
             </div>
           )}

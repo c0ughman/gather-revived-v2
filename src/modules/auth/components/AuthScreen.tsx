@@ -104,7 +104,7 @@ export default function AuthScreen() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#186799] to-purple-600 rounded-2xl mb-4">
             <User className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Welcome to Gather</h1>
@@ -129,7 +129,7 @@ export default function AuthScreen() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
                   placeholder="Enter your email"
                 />
               </div>
@@ -148,7 +148,7 @@ export default function AuthScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-12 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-12 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
                   placeholder="Enter your password"
                 />
                 <button
@@ -175,7 +175,7 @@ export default function AuthScreen() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
                     placeholder="Confirm your password"
                   />
                 </div>
@@ -202,7 +202,7 @@ export default function AuthScreen() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-slate-600 disabled:to-slate-600 text-white py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center space-x-2"
+              className="w-full bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 disabled:from-slate-600 disabled:to-slate-600 text-white py-3 rounded-full font-semibold transition-all duration-200 flex items-center justify-center space-x-2"
             >
               {loading ? (
                 <>
@@ -220,7 +220,7 @@ export default function AuthScreen() {
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={loading}
-                className="w-full text-blue-400 hover:text-blue-300 text-sm transition-colors duration-200"
+                className="w-full text-[#186799] hover:text-[#1a5a7a] text-sm transition-colors duration-200"
               >
                 Forgot your password?
               </button>
@@ -240,7 +240,7 @@ export default function AuthScreen() {
                   setPassword('')
                   setConfirmPassword('')
                 }}
-                className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200"
+                className="text-[#186799] hover:text-[#1a5a7a] font-medium transition-colors duration-200"
               >
                 {isSignUp ? 'Sign In' : 'Sign Up'}
               </button>

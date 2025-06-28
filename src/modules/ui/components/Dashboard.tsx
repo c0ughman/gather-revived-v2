@@ -126,7 +126,7 @@ export default function Dashboard({
       {/* Header Section */}
       <div className="relative overflow-hidden">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-glass-bg"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#186799]/10 via-purple-600/5 to-glass-bg"></div>
         
         <div className="relative px-8 pt-8 pb-12">
           <div className="max-w-6xl mx-auto">
@@ -179,8 +179,8 @@ export default function Dashboard({
             <div className="grid grid-cols-4 gap-4 mb-8">
               <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-xl bg-blue-600/20">
-                    <Users className="w-5 h-5 text-blue-400" />
+                  <div className="p-2 rounded-xl bg-[#186799]/20">
+                    <Users className="w-5 h-5 text-[#186799]" />
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-white">{stats.totalAgents}</div>
@@ -188,39 +188,39 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-                              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 rounded-xl bg-green-600/20">
-                      <CheckCircle2 className="w-5 h-5 text-green-400" />
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-white">{stats.activeAgents}</div>
-                      <div className="text-slate-400 text-sm">Online Now</div>
-                    </div>
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-xl bg-green-600/20">
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.activeAgents}</div>
+                    <div className="text-slate-400 text-sm">Online Now</div>
                   </div>
                 </div>
-                              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 rounded-xl bg-purple-600/20">
-                      <Grid3x3 className="w-5 h-5 text-purple-400" />
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-white">{stats.totalIntegrations}</div>
-                      <div className="text-slate-400 text-sm">Integrations</div>
-                    </div>
+              </div>
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-xl bg-purple-600/20">
+                    <Grid3x3 className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.totalIntegrations}</div>
+                    <div className="text-slate-400 text-sm">Integrations</div>
                   </div>
                 </div>
-                              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 rounded-xl bg-orange-600/20">
-                      <Zap className="w-5 h-5 text-orange-400" />
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-white">{stats.activeIntegrations}</div>
-                      <div className="text-slate-400 text-sm">Active</div>
-                    </div>
+              </div>
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-xl bg-orange-600/20">
+                    <Zap className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.activeIntegrations}</div>
+                    <div className="text-slate-400 text-sm">Active</div>
                   </div>
                 </div>
+              </div>
             </div>
           </div>
         </div>
@@ -237,7 +237,7 @@ export default function Dashboard({
               {contacts.length > 0 && (
                 <button
                   onClick={onCreateAgent}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
+                  className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Create Agent</span>
@@ -247,7 +247,7 @@ export default function Dashboard({
             
             {contacts.length === 0 ? (
               <div className="bg-glass-panel glass-effect rounded-2xl p-8 border border-slate-700 text-center">
-                <div className="w-24 h-24 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                <div className="w-24 h-24 bg-gradient-to-r from-[#186799] to-purple-600 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                   <Bot className="w-12 h-12 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-4">Create Your First AI Agent</h3>
@@ -256,7 +256,7 @@ export default function Dashboard({
                 </p>
                 <button
                   onClick={onCreateAgent}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105"
+                  className="px-6 py-3 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 text-white rounded-full font-semibold transition-all duration-200 transform hover:scale-105"
                 >
                   Create Your First Agent
                 </button>
@@ -288,19 +288,19 @@ export default function Dashboard({
                         <div className="flex space-x-2 w-full">
                           <button 
                             onClick={() => onChatClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
                           >
                             <MessageCircle className="w-4 h-4 mx-auto" />
                           </button>
                           <button 
                             onClick={() => onCallClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
                           >
                             <Mic className="w-4 h-4 mx-auto" />
                           </button>
                           <button 
                             onClick={() => onSettingsClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-lg p-2 text-slate-300 hover:text-white transition-colors"
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
                           >
                             <Sliders className="w-4 h-4 mx-auto" />
                           </button>
@@ -356,13 +356,13 @@ export default function Dashboard({
                 <h2 className="text-2xl font-bold text-white">Agents Library</h2>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                  <input
-                  type="text"
-                  placeholder="Search agents..."
-                  value={agentSearchQuery}
-                  onChange={(e) => setAgentSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
-                />
+                  <input
+                    type="text"
+                    placeholder="Search agents..."
+                    value={agentSearchQuery}
+                    onChange={(e) => setAgentSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-[#186799] focus:outline-none"
+                  />
                 </div>
               </div>
               
@@ -393,19 +393,19 @@ export default function Dashboard({
                         <div className="flex items-center space-x-2">
                           <button 
                             onClick={() => onChatClick(agent)}
-                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full text-slate-300 hover:text-white transition-colors"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => onCallClick(agent)}
-                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full text-slate-300 hover:text-white transition-colors"
                           >
                             <Mic className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => onSettingsClick(agent)}
-                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 hover:text-white transition-colors"
+                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full text-slate-300 hover:text-white transition-colors"
                           >
                             <Sliders className="w-4 h-4" />
                           </button>
@@ -429,14 +429,14 @@ export default function Dashboard({
                   placeholder="Search integrations..."
                   value={integrationSearchQuery}
                   onChange={(e) => setIntegrationSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-[#186799] focus:outline-none"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredIntegrations.map((integration) => (
-                                  <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
+                <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
                   <div className="flex items-start space-x-4">
                     <div 
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0"
@@ -449,7 +449,7 @@ export default function Dashboard({
                       <p className="text-slate-400 text-sm mb-3 line-clamp-2">{integration.description}</p>
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${
                         integration.category === 'source' 
-                          ? 'bg-blue-600/20 text-blue-400' 
+                          ? 'bg-[#186799]/20 text-[#186799]' 
                           : 'bg-green-600/20 text-green-400'
                       }`}>
                         {integration.category}

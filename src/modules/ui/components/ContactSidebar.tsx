@@ -56,8 +56,6 @@ export default function ContactSidebar({
 
   const filters = ['All', 'Online', 'Favorites', 'Groups'];
 
-
-
   return (
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
       {/* Header */}
@@ -82,7 +80,7 @@ export default function ContactSidebar({
             placeholder="Search or start a new chat"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 font-inter"
+            className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 font-inter"
           />
         </div>
       </div>
@@ -96,7 +94,7 @@ export default function ContactSidebar({
               onClick={() => setActiveFilter(filter)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 font-inter ${
                 activeFilter === filter
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-[#186799] text-white'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700'
               }`}
             >
@@ -136,7 +134,7 @@ export default function ContactSidebar({
             </div>
             <button
               onClick={onCreateAgent}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors duration-200"
+              className="px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full text-sm transition-colors duration-200"
             >
               Create Agent
             </button>

@@ -69,7 +69,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
         onDrop={handleDrop}
         className={`relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 ${
           isDragOver
-            ? 'border-blue-400 bg-blue-50 bg-opacity-10'
+            ? 'border-[#186799] bg-[#186799] bg-opacity-10'
             : 'border-slate-600 hover:border-slate-500'
         } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
       >
@@ -85,7 +85,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
         <div className="text-center">
           <div className="mx-auto w-12 h-12 mb-4 flex items-center justify-center rounded-full bg-slate-700">
             {isProcessing ? (
-              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-[#186799] border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <Upload className="w-6 h-6 text-slate-400" />
             )}
@@ -135,9 +135,9 @@ export function DocumentList({ documents, onRemoveDocument, className = '' }: Do
       return <Presentation className="w-4 h-4 text-orange-400" />;
     }
     if (type.includes('word') || type.includes('document') || extension === 'docx' || extension === 'doc') {
-      return <FileText className="w-4 h-4 text-blue-400" />;
+      return <FileText className="w-4 h-4 text-[#186799]" />;
     }
-    return <FileText className="w-4 h-4 text-blue-400" />;
+    return <FileText className="w-4 h-4 text-[#186799]" />;
   };
 
   const getExtractionQuality = (metadata: any) => {

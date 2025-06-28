@@ -150,7 +150,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
             required={field.required}
           />
         );
@@ -162,7 +162,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}
             rows={3}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 resize-none text-sm"
+            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none text-sm"
             required={field.required}
           />
         );
@@ -172,7 +172,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           <select
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
             required={field.required}
           >
             {field.options?.map(option => (
@@ -207,7 +207,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           </div>
           <button
             onClick={onCancel}
-            className="p-1 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
           >
             <X className="w-4 h-4 text-slate-400" />
           </button>
@@ -266,7 +266,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
                     value={option.value}
                     checked={config.trigger === option.value}
                     onChange={(e) => handleConfigChange('trigger', e.target.value)}
-                    className="mt-0.5 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500"
+                    className="mt-0.5 text-[#186799] bg-slate-700 border-slate-600 focus:ring-[#186799]"
                   />
                   <div>
                     <div className="text-white font-medium text-sm">{option.label}</div>
@@ -287,7 +287,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             <select
               value={config.intervalMinutes}
               onChange={(e) => handleConfigChange('intervalMinutes', parseInt(e.target.value))}
-              className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+              className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
             >
               {intervalOptions.map(option => (
                 <option key={option.value} value={option.value}>
@@ -308,7 +308,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             onChange={(e) => handleConfigChange('description', e.target.value)}
             placeholder="Describe how this integration will be used..."
             rows={2}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 resize-none text-sm"
+            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none text-sm"
           />
         </div>
 
@@ -348,7 +348,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           <button
             onClick={handleTest}
             disabled={isTesting}
-            className="flex items-center space-x-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 text-sm"
+            className="flex items-center space-x-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 text-sm"
           >
             <Play className="w-3 h-3" />
             <span>{isTesting ? 'Testing...' : 'Test'}</span>
@@ -357,15 +357,15 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
           <div className="flex items-center space-x-2">
             <button
               onClick={onCancel}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200 text-sm"
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors duration-200 text-sm"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className={`flex items-center space-x-2 px-3 py-2 text-white rounded-lg transition-colors duration-200 text-sm ${
+              className={`flex items-center space-x-2 px-3 py-2 text-white rounded-full transition-colors duration-200 text-sm ${
                 hasUnsavedChanges 
-                  ? 'bg-blue-600 hover:bg-blue-700' 
+                  ? 'bg-[#186799] hover:bg-[#1a5a7a]' 
                   : 'bg-green-600 hover:bg-green-700'
               }`}
             >

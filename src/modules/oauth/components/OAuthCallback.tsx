@@ -218,7 +218,7 @@ export default function OAuthCallback() {
   const getStatusIcon = () => {
     switch (status) {
       case 'processing':
-        return <Loader2 className="w-8 h-8 animate-spin text-blue-500" />;
+        return <Loader2 className="w-8 h-8 animate-spin text-[#186799]" />;
       case 'success':
         return <CheckCircle className="w-8 h-8 text-green-500" />;
       case 'error':
@@ -229,7 +229,7 @@ export default function OAuthCallback() {
   const getStatusColor = () => {
     switch (status) {
       case 'processing':
-        return 'text-blue-600';
+        return 'text-[#186799]';
       case 'success':
         return 'text-green-600';
       case 'error':
@@ -242,7 +242,7 @@ export default function OAuthCallback() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-800 rounded-lg shadow-lg p-8 text-center border border-slate-700">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#186799] mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-white mb-4">
             Loading...
           </h1>
@@ -288,7 +288,7 @@ export default function OAuthCallback() {
             </div>
             <button
               onClick={() => navigate('/', { replace: true })}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors duration-200"
+              className="px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full text-sm transition-colors duration-200"
             >
               Return to App
             </button>

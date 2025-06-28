@@ -195,7 +195,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
               setSetupIntegration(null);
               setEditingIntegration(null);
             }}
-            className="p-1 rounded hover:bg-slate-700 transition-colors duration-200"
+            className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
           >
             <X className="w-4 h-4 text-slate-400" />
           </button>
@@ -225,7 +225,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           <h3 className="text-white font-semibold font-inter">Add Integration</h3>
           <button
             onClick={() => setShowIntegrationsLibrary(false)}
-            className="p-1 rounded hover:bg-slate-700 transition-colors duration-200"
+            className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
           >
             <X className="w-4 h-4 text-slate-400" />
           </button>
@@ -248,19 +248,19 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
       <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-          {contact.avatar ? (
-            <img
-              src={contact.avatar}
-              alt={contact.name}
-              className="w-full h-full object-cover rounded-lg"
-            />
-          ) : (
-            <div 
-              className="w-full h-full rounded-lg"
-              style={{ background: createAgentGradient(contact.color) }}
-            />
-          )}
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+              {contact.avatar ? (
+                <img
+                  src={contact.avatar}
+                  alt={contact.name}
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full rounded-lg"
+                  style={{ background: createAgentGradient(contact.color) }}
+                />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="text-white font-semibold truncate">{contact.name}</h2>
@@ -270,7 +270,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
           {hasChanges && (
             <button
               onClick={handleSave}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 text-sm"
+              className="flex items-center space-x-1 px-3 py-1.5 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200 text-sm"
             >
               <Save className="w-3 h-3" />
               <span>Save</span>
@@ -307,7 +307,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
                 />
               </div>
 
@@ -318,7 +318,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={3}
-                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm resize-none"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm resize-none"
                 />
               </div>
 
@@ -332,7 +332,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                   <select
                     value={formData.voice}
                     onChange={(e) => handleInputChange('voice', e.target.value)}
-                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
+                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
                   >
                     {availableVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>

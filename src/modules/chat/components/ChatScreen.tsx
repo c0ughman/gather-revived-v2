@@ -134,7 +134,7 @@ export default function ChatScreen({
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/_(.*?)_/g, '<em>$1</em>')
       // Code: `code`
-      .replace(/`(.*?)`/g, '<code class="bg-slate-700 text-blue-300 px-1 py-0.5 rounded text-sm">$1</code>')
+      .replace(/`(.*?)`/g, '<code class="bg-slate-700 text-[#186799] px-1 py-0.5 rounded text-sm">$1</code>')
       // Line breaks
       .replace(/\n/g, '<br>');
 
@@ -155,7 +155,7 @@ export default function ChatScreen({
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className="fixed top-0 left-1/4 right-1/4 z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
+        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
         style={{
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
@@ -165,7 +165,7 @@ export default function ChatScreen({
       >
         <button
           onClick={onBack}
-          className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+          className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
         >
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
@@ -186,8 +186,11 @@ export default function ChatScreen({
         </div>
         
         <div className="flex-1 min-w-0">
-          <h2 className="text-white font-semibold truncate">{contact.name}</h2>
-          <p className="text-slate-400 text-sm truncate">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold truncate">{contact.name}</h2>
+            <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
+          </div>
+          <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
             {isTyping ? (
               <span className="flex items-center space-x-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -199,7 +202,7 @@ export default function ChatScreen({
                 {permanentDocuments > 0 && (
                   <>
                     <span>•</span>
-                    <span className="text-blue-400">
+                    <span className="text-[#186799]">
                       📚 {permanentDocuments} knowledge doc{permanentDocuments > 1 ? 's' : ''}
                     </span>
                   </>
@@ -228,7 +231,7 @@ export default function ChatScreen({
         <div className="flex items-center space-x-2">
           <button
             onClick={() => onSettingsClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Settings"
           >
             <Settings className="w-5 h-5 text-slate-400" />
@@ -236,7 +239,7 @@ export default function ChatScreen({
           
           <button
             onClick={() => onNewChatClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Start new conversation"
           >
             <MessageSquarePlus className="w-5 h-5 text-slate-400" />
@@ -244,7 +247,7 @@ export default function ChatScreen({
           
           <button
             onClick={() => onCallClick(contact)}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Start call"
           >
             <Phone className="w-5 h-5 text-slate-400" />
@@ -253,7 +256,7 @@ export default function ChatScreen({
       </div>
 
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pt-24 pb-32">
+      <div className="flex-1 overflow-y-auto pb-32" style={{ paddingTop: '6rem' }}>
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -280,7 +283,7 @@ export default function ChatScreen({
               </p>
               <div className="space-y-2">
                 {permanentDocuments > 0 && (
-                  <p className="text-blue-400 text-sm">
+                  <p className="text-[#186799] text-sm">
                     📚 This AI has {permanentDocuments} document{permanentDocuments > 1 ? 's' : ''} in its permanent knowledge base
                   </p>
                 )}
@@ -349,63 +352,53 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="fixed bottom-24 left-1/4 right-1/4 z-10 p-4">
-          <div 
-            className="rounded-lg border border-slate-700 p-4"
-            style={{
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(15, 23, 42, 0.9)' // Slightly more opaque for readability
-            }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium">Upload Conversation Documents</h3>
-              <button
-                onClick={() => {
-                  setShowDocumentUpload(false);
-                  setUploadError(null);
-                }}
-                className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
-              >
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            </div>
-            
-            <p className="text-slate-400 text-sm mb-4">
-              These documents will be available throughout this conversation. For permanent knowledge, use Settings.
-            </p>
-            
-            {uploadError && (
-              <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
-                <p className="text-red-300 text-sm">{uploadError}</p>
-              </div>
-            )}
-            
-            <DocumentUpload
-              onDocumentUploaded={handleDocumentUploaded}
-              onError={handleDocumentError}
-              className="mb-4"
-            />
-            
-            <DocumentList
-              documents={pendingDocuments}
-              onRemoveDocument={handleRemoveDocument}
-            />
+        <div className="relative z-10 p-4 bg-glass-bg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">Upload Conversation Documents</h3>
+            <button
+              onClick={() => {
+                setShowDocumentUpload(false);
+                setUploadError(null);
+              }}
+              className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            >
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
           </div>
+          
+          <p className="text-slate-400 text-sm mb-4">
+            These documents will be available throughout this conversation. For permanent knowledge, use Settings.
+          </p>
+          
+          {uploadError && (
+            <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+              <p className="text-red-300 text-sm">{uploadError}</p>
+            </div>
+          )}
+          
+          <DocumentUpload
+            onDocumentUploaded={handleDocumentUploaded}
+            onError={handleDocumentError}
+            className="mb-4"
+          />
+          
+          <DocumentList
+            documents={pendingDocuments}
+            onRemoveDocument={handleRemoveDocument}
+          />
         </div>
       )}
 
-      {/* Input Area - Fixed at bottom with glass effect */}
+      {/* Input Area - Fixed at bottom */}
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
           <div 
-            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg"
+            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
             style={{
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
+              backgroundColor: 'rgba(15, 23, 42, 0.8)'
             }}
           >
             {/* File Upload Button - Inside input */}
@@ -413,7 +406,7 @@ export default function ChatScreen({
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
               className={`ml-4 p-2 rounded-full transition-colors duration-200 ${
                 showDocumentUpload || pendingDocuments.length > 0
-                  ? 'text-blue-400 hover:text-blue-300'
+                  ? 'text-[#186799] hover:text-[#1a5a7a]'
                   : 'text-slate-400 hover:text-slate-300'
               }`}
               title="Upload conversation documents"
@@ -441,7 +434,7 @@ export default function ChatScreen({
             <button
               onClick={handleSend}
               disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping}
-              className="mr-4 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
+              className="mr-4 p-2 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
             >
               {isTyping ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -465,7 +458,7 @@ export default function ChatScreen({
                 </span>
               )}
               {permanentDocuments > 0 && (
-                <span className="text-blue-400">
+                <span className="text-[#186799]">
                   📚 {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
                 </span>
               )}
@@ -483,14 +476,14 @@ export default function ChatScreen({
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
+              backgroundColor: 'rgba(15, 23, 42, 0.8)'
             }}
           >
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
               <button
                 onClick={() => setShowDocumentUpload(true)}
-                className="text-xs text-blue-400 hover:text-blue-300"
+                className="text-xs text-[#186799] hover:text-[#1a5a7a]"
               >
                 Add more
               </button>

@@ -231,7 +231,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
           <h1 className="text-xl font-semibold text-white">Add Integration</h1>
           <button
             onClick={() => setShowIntegrationsLibrary(false)}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors duration-200"
           >
             Cancel
           </button>
@@ -253,7 +253,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
         <div className="flex items-center space-x-4">
           <button
             onClick={onBack}
-            className="p-2 rounded-lg hover:bg-slate-700 transition-colors duration-200"
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
           >
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
@@ -263,7 +263,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
         {hasChanges && (
           <button
             onClick={handleSave}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
+            className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200"
           >
             <Save className="w-4 h-4" />
             <span>Save</span>
@@ -278,7 +278,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
             onClick={() => setActiveTab('basic')}
             className={`px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
               activeTab === 'basic'
-                ? 'text-blue-400 border-blue-400'
+                ? 'text-[#186799] border-[#186799]'
                 : 'text-slate-400 border-transparent hover:text-white'
             }`}
           >
@@ -291,7 +291,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
             onClick={() => setActiveTab('integrations')}
             className={`px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
               activeTab === 'integrations'
-                ? 'text-blue-400 border-blue-400'
+                ? 'text-[#186799] border-[#186799]'
                 : 'text-slate-400 border-transparent hover:text-white'
             }`}
           >
@@ -304,7 +304,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
             onClick={() => setActiveTab('documents')}
             className={`px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
               activeTab === 'documents'
-                ? 'text-blue-400 border-blue-400'
+                ? 'text-[#186799] border-[#186799]'
                 : 'text-slate-400 border-transparent hover:text-white'
             }`}
           >
@@ -335,12 +335,12 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                         alt="Profile"
                         className="w-full h-full object-cover rounded-xl"
                       />
-                                         ) : (
-                       <div
-                         className="w-full h-full rounded-xl"
-                         style={{ background: createAgentGradient(formData.color) }}
-                       />
-                     )}
+                    ) : (
+                      <div
+                        className="w-full h-full rounded-xl"
+                        style={{ background: createAgentGradient(formData.color) }}
+                      />
+                    )}
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-white">{formData.name || 'AI Assistant'}</h3>
@@ -366,7 +366,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                     />
                     <label
                       htmlFor="avatar-upload"
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors duration-200"
+                      className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full cursor-pointer transition-colors duration-200"
                     >
                       <Upload className="w-4 h-4" />
                       <span>Upload Image</span>
@@ -374,7 +374,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                     {formData.avatar && (
                       <button
                         onClick={handleRemoveAvatar}
-                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"
+                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200"
                       >
                         <Trash2 className="w-4 h-4" />
                         <span>Remove</span>
@@ -401,7 +401,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   placeholder="Enter contact name"
-                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
                 />
               </div>
 
@@ -416,7 +416,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   placeholder="Describe this AI's personality and capabilities..."
                   rows={4}
-                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 resize-none"
+                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none"
                 />
               </div>
 
@@ -452,7 +452,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   <select
                     value={formData.voice}
                     onChange={(e) => handleInputChange('voice', e.target.value)}
-                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
+                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
                   >
                     {availableVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>
@@ -475,7 +475,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   </div>
                   <button
                     onClick={() => setShowIntegrationsLibrary(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
+                    className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Integration</span>
@@ -511,13 +511,13 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => handleEditIntegration(integration)}
-                              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors duration-200"
+                              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded-full text-sm transition-colors duration-200"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => handleRemoveIntegration(integration.id)}
-                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors duration-200"
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm transition-colors duration-200"
                             >
                               Remove
                             </button>
@@ -561,7 +561,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   <p className="text-slate-400 mb-4">No integrations configured</p>
                   <button
                     onClick={() => setShowIntegrationsLibrary(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 mx-auto"
+                    className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200 mx-auto"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Your First Integration</span>
@@ -581,7 +581,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   {documents.length > 0 && (
                     <button
                       onClick={handleClearAllDocuments}
-                      className="flex items-center space-x-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm"
+                      className="flex items-center space-x-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200 text-sm"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Clear All</span>
@@ -625,7 +625,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
             <div className="md:hidden">
               <button
                 onClick={handleSave}
-                className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 font-semibold"
+                className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200 font-semibold"
               >
                 <Save className="w-5 h-5" />
                 <span>Save Changes</span>
