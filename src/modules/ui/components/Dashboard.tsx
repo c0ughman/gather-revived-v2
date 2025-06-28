@@ -121,6 +121,72 @@ export default function Dashboard({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  const getComplexityIndicators = (contact: AIContact) => {
+    const indicators = [];
+    
+    // Count documents (blue dots)
+    const documentCount = contact.documents?.length || 0;
+    for (let i = 0; i < Math.min(documentCount, 8); i++) {
+      indicators.push({ type: 'document', color: '#3b82f6' });
+    }
+    
+    // Count source integrations (green dots)
+    const sourceIntegrations = contact.integrations?.filter(integration => {
+      const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
+      return sourceIds.includes(integration.integrationId) && integration.config.enabled;
+    }) || [];
+    
+    for (let i = 0; i < Math.min(sourceIntegrations.length, 6); i++) {
+      indicators.push({ type: 'source', color: '#10b981' });
+    }
+    
+    // Count action integrations (red dots)
+    const actionIntegrations = contact.integrations?.filter(integration => {
+      const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
+      return actionIds.includes(integration.integrationId) && integration.config.enabled;
+    }) || [];
+    
+    for (let i = 0; i < Math.min(actionIntegrations.length, 6); i++) {
+      indicators.push({ type: 'action', color: '#ef4444' });
+    }
+    
+    return indicators;
+  };
+
+  const renderComplexityIndicators = (contact: AIContact, size: 'small' | 'large' = 'small') => {
+    const indicators = getComplexityIndicators(contact);
+    const maxIndicators = 12;
+    const displayIndicators = indicators.slice(0, maxIndicators);
+    
+    if (displayIndicators.length === 0) return null;
+    
+    const radius = size === 'large' ? 68 : 34;
+    const dotSize = size === 'large' ? 'w-3 h-3' : 'w-2 h-2';
+    
+    return (
+      <div className="absolute inset-0 pointer-events-none">
+        {displayIndicators.map((indicator, index) => {
+          const angle = (index / displayIndicators.length) * 360;
+          const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+          const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+          
+          return (
+            <div
+              key={index}
+              className={`absolute ${dotSize} rounded-full border border-slate-800`}
+              style={{
+                backgroundColor: indicator.color,
+                left: `calc(50% + ${x}px - ${size === 'large' ? '6px' : '4px'})`,
+                top: `calc(50% + ${y}px - ${size === 'large' ? '6px' : '4px'})`,
+                boxShadow: `0 0 4px ${indicator.color}40`
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="h-full bg-glass-bg overflow-y-auto">
       {/* Header Section */}
@@ -267,7 +333,7 @@ export default function Dashboard({
                   <div key={agent.id} className="group relative">
                     <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
                       <div className="flex flex-col items-center text-center space-y-4">
-                        <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
+                        <div className="relative w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
                           {agent.avatar ? (
                             <img
                               src={agent.avatar}
@@ -280,6 +346,7 @@ export default function Dashboard({
                               style={{ background: createAgentGradient(agent.color) }}
                             />
                           )}
+                          {renderComplexityIndicators(agent, 'large')}
                         </div>
                         <div>
                           <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
@@ -321,7 +388,7 @@ export default function Dashboard({
                 {recentAgents.slice(0, 6).map((agent) => (
                   <div key={`recent-${agent.id}`} className="bg-glass-panel glass-effect rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                      <div className="relative w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
                         {agent.avatar ? (
                           <img
                             src={agent.avatar}
@@ -334,6 +401,7 @@ export default function Dashboard({
                             style={{ background: createAgentGradient(agent.color) }}
                           />
                         )}
+                        {renderComplexityIndicators(agent, 'small')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-white truncate">{agent.name}</h4>
@@ -370,7 +438,7 @@ export default function Dashboard({
                 {filteredAgents.map((agent) => (
                   <div key={`library-${agent.id}`} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
                     <div className="flex items-start space-x-4">
-                      <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="relative w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                         {agent.avatar ? (
                           <img
                             src={agent.avatar}
@@ -383,6 +451,7 @@ export default function Dashboard({
                             style={{ background: createAgentGradient(agent.color) }}
                           />
                         )}
+                        {renderComplexityIndicators(agent, 'small')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-2">
