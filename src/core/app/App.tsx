@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext, useAuthProvider } from '../../modules/auth/hooks/useAuth';
 import { supabaseService } from '../../modules/database/services/supabaseService';
-import { AIContact } from '../types/types';
+import { AIContact, Message } from '../types/types';
+import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 
 // Import components
 import LandingPage from '../../components/LandingPage';
@@ -27,6 +28,10 @@ function AppContent() {
   const [loading, setLoading] = useState(false);
   const [showSuccessNotice, setShowSuccessNotice] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [chatConversationDocuments, setChatConversationDocuments] = useState<DocumentInfo[]>([]);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -36,6 +41,8 @@ function AppContent() {
       // User is not authenticated, reset to landing
       setContacts([]);
       setSelectedContact(null);
+      setChatMessages([]);
+      setChatConversationDocuments([]);
       if (currentView !== 'landing' && currentView !== 'pricing' && currentView !== 'auth') {
         setCurrentView('landing');
       }
@@ -99,6 +106,9 @@ function AppContent() {
 
   const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
+    // Reset chat state for new conversation
+    setChatMessages([]);
+    setChatConversationDocuments([]);
     setCurrentView('chat');
   };
 
@@ -117,6 +127,8 @@ function AppContent() {
   const handleHomeClick = () => {
     setCurrentView('dashboard');
     setSelectedContact(null);
+    setChatMessages([]);
+    setChatConversationDocuments([]);
   };
 
   const handleCreateAgent = () => {
@@ -174,6 +186,39 @@ function AppContent() {
 
   const handleNewChatClick = (contact: AIContact) => {
     handleChatClick(contact);
+  };
+
+  const handleSendMessage = (content: string, documents?: DocumentInfo[]) => {
+    if (!selectedContact) return;
+
+    // Create user message
+    const userMessage: Message = {
+      id: `msg_${Date.now()}`,
+      content,
+      sender: 'user',
+      timestamp: new Date().toISOString(),
+      attachments: documents
+    };
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, userMessage]);
+
+    // Add documents to conversation documents if provided
+    if (documents && documents.length > 0) {
+      setChatConversationDocuments(prev => [...prev, ...documents]);
+    }
+
+    // Simulate AI response after a short delay
+    setTimeout(() => {
+      const aiMessage: Message = {
+        id: `msg_${Date.now() + 1}`,
+        content: `Thank you for your message! I'm ${selectedContact.name}, and I'm here to help you. ${documents && documents.length > 0 ? `I've received ${documents.length} document${documents.length > 1 ? 's' : ''} and will analyze them to provide better assistance.` : ''}`,
+        sender: 'ai',
+        timestamp: new Date().toISOString()
+      };
+
+      setChatMessages(prev => [...prev, aiMessage]);
+    }, 1000);
   };
 
   // Show loading screen during auth check
@@ -249,7 +294,13 @@ function AppContent() {
             <div className="flex-1">
               <ChatScreen
                 contact={selectedContact}
+                messages={chatMessages}
+                conversationDocuments={chatConversationDocuments}
                 onBack={handleHomeClick}
+                onSendMessage={handleSendMessage}
+                onSettingsClick={handleSettingsClick}
+                onNewChatClick={handleNewChatClick}
+                onCallClick={handleCallClick}
               />
             </div>
           </div>
