@@ -155,12 +155,10 @@ export default function ChatScreen({
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
+        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4 bg-glass-panel glass-effect"
         style={{
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-          backgroundColor: 'rgba(15, 23, 42, 0.8)' // Semi-transparent slate-900
         }}
       >
         <button
@@ -393,18 +391,16 @@ export default function ChatScreen({
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
           <div 
-            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
+            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg bg-glass-panel glass-effect"
             style={{
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)'
             }}
           >
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
-              className={`ml-3 p-1.5 rounded-full transition-colors duration-200 ${
+              className={`ml-4 p-1.5 rounded-full transition-colors duration-200 ${
                 showDocumentUpload || pendingDocuments.length > 0
                   ? 'text-[#186799] hover:text-[#1a5a7a]'
                   : 'text-slate-400 hover:text-slate-300'
@@ -427,14 +423,14 @@ export default function ChatScreen({
               onKeyPress={handleKeyPress}
               placeholder={`Message ${contact.name}...`}
               disabled={isTyping}
-              className="flex-1 bg-transparent text-white px-3 py-3 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
+              className="flex-1 bg-transparent text-white px-4 py-3 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
             />
             
             {/* Send Button - Inside input */}
             <button
               onClick={handleSend}
               disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping}
-              className="mr-3 p-1.5 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
+              className="mr-4 p-1.5 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
             >
               {isTyping ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -471,12 +467,10 @@ export default function ChatScreen({
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
           <div 
-            className="rounded-lg border border-slate-700 p-4"
+            className="rounded-lg border border-slate-700 p-4 bg-glass-panel glass-effect"
             style={{
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)'
             }}
           >
             <div className="flex items-center justify-between mb-2">
