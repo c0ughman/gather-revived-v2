@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
-  Search, TrendingUp, Bell, Globe, Rss, Newspaper, Cloud,
+  Search, TrendingUp, Bell, Globe, Rss, Newspaper,
   Mic, MessageCircle, Sliders, Grid3x3, Filter, Star, Clock, 
-  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown, MoreHorizontal,
-  Calendar, Building2, Database, FileText
+  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown
 } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
@@ -50,11 +49,32 @@ export default function Dashboard({
     };
   }, [showProfileDropdown]);
 
+  // Helper function to create radial gradient for agents without avatars
+  const createAgentGradient = (color: string) => {
+    // Convert hex to RGB
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Create complementary color by shifting hue and make it lighter
+    const compR = Math.round(255 - r * 0.3); // Softer complement
+    const compG = Math.round(255 - g * 0.3);
+    const compB = Math.round(255 - b * 0.3);
+    
+    // Make complementary color lighter than the main color
+    const lightCompR = Math.round(compR + (255 - compR) * 0.8);
+    const lightCompG = Math.round(compG + (255 - compG) * 0.8);
+    const lightCompB = Math.round(compB + (255 - compB) * 0.8);
+    
+    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
+  };
+
   // Get frequently used agents (first 4 for hero section)
   const frequentAgents = contacts.slice(0, 4);
   
   // Get recent agents based on last seen
-  const recentAgents = React.useMemo(() => {
+  const recentAgents = useMemo(() => {
     return [...contacts]
       .sort((a, b) => {
         if (a.lastSeen === 'now') return -1;
@@ -65,7 +85,7 @@ export default function Dashboard({
   }, [contacts]);
 
   // Filter agents for search
-  const filteredAgents = React.useMemo(() => {
+  const filteredAgents = useMemo(() => {
     if (!agentSearchQuery.trim()) return contacts;
     return contacts.filter(contact => 
       contact.name.toLowerCase().includes(agentSearchQuery.toLowerCase()) ||
@@ -77,7 +97,7 @@ export default function Dashboard({
   const allIntegrations = [...sourceIntegrations, ...actionIntegrations];
   
   // Filter integrations for search
-  const filteredIntegrations = React.useMemo(() => {
+  const filteredIntegrations = useMemo(() => {
     if (!integrationSearchQuery.trim()) return allIntegrations;
     return allIntegrations.filter(integration => 
       integration.name.toLowerCase().includes(integrationSearchQuery.toLowerCase()) ||
@@ -98,128 +118,61 @@ export default function Dashboard({
 
   const getIconForIntegration = (iconName: string) => {
     const iconMap: { [key: string]: React.ComponentType<any> } = {
-      Globe,
-      Rss,
-      Newspaper,
-      Cloud,
-      TrendingUp,
-      Calendar,
-      Building2,
-      Database,
-      FileText
+      Globe, Rss, Newspaper, TrendingUp, Bot, Zap, Bell
     };
     const IconComponent = iconMap[iconName] || Globe;
     return <IconComponent className="w-5 h-5" />;
   };
 
-  const getComplexityIndicators = (contact: AIContact) => {
-    const indicators = [];
+  // Function to calculate circular position for complexity indicators
+  const calculatePosition = (index: number, total: number, radius: number = 16) => {
+    // Start from bottom right (90 degrees) and go up in a semicircle (180 degrees)
+    const startAngle = 90; // degrees
+    const endAngle = 270; // degrees
+    const angleRange = endAngle - startAngle;
+    const angleStep = angleRange / Math.max(1, total - 1);
+    const angle = startAngle + (index * angleStep);
     
-    // Count documents (blue dots)
-    const documentCount = contact.documents?.length || 0;
-    for (let i = 0; i < Math.min(documentCount, 7); i++) {
-      indicators.push({ type: 'document', color: '#3b82f6' });
-    }
+    // Convert to radians
+    const radians = (angle * Math.PI) / 180;
     
-    // Count source integrations (green dots)
-    const sourceIntegrations = contact.integrations?.filter(integration => {
-      const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
-      return sourceIds.includes(integration.integrationId) && integration.config.enabled;
-    }) || [];
+    // Calculate position
+    const x = radius + radius * Math.cos(radians);
+    const y = radius + radius * Math.sin(radians);
     
-    for (let i = 0; i < Math.min(sourceIntegrations.length, 7); i++) {
-      indicators.push({ type: 'source', color: '#10b981' });
-    }
-    
-    // Count action integrations (red dots)
-    const actionIntegrations = contact.integrations?.filter(integration => {
-      const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
-      return actionIds.includes(integration.integrationId) && integration.config.enabled;
-    }) || [];
-    
-    for (let i = 0; i < Math.min(actionIntegrations.length, 7); i++) {
-      indicators.push({ type: 'action', color: '#ef4444' });
-    }
-    
-    return {
-      indicators: indicators.slice(0, 7),
-      hasMore: indicators.length > 7,
-      counts: {
-        documents: documentCount,
-        sources: sourceIntegrations.length,
-        actions: actionIntegrations.length,
-        total: documentCount + sourceIntegrations.length + actionIntegrations.length
-      }
-    };
+    return { x, y };
   };
 
-  const renderComplexityIndicators = (contact: AIContact, size: 'small' | 'medium' | 'large' = 'small') => {
-    const { indicators, hasMore, counts } = getComplexityIndicators(contact);
+  // Function to get complexity indicators for an agent
+  const getComplexityIndicators = (agent: AIContact) => {
+    const indicators = [];
     
-    if (indicators.length === 0) return null;
+    // Add integration indicators
+    if (agent.integrations && agent.integrations.length > 0) {
+      agent.integrations.forEach((integration, index) => {
+        if (index < 5) { // Limit to 5 integration indicators
+          indicators.push({
+            type: 'integration',
+            color: '#10b981', // Green for integrations
+            title: `Integration: ${integration.name}`
+          });
+        }
+      });
+    }
     
-    // Set dot size based on container size
-    const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
+    // Add document indicators
+    if (agent.documents && agent.documents.length > 0) {
+      const docCount = Math.min(agent.documents.length, 3); // Limit to 3 document indicators
+      for (let i = 0; i < docCount; i++) {
+        indicators.push({
+          type: 'document',
+          color: '#3b82f6', // Blue for documents
+          title: `Document: ${agent.documents[i]?.name || 'Document'}`
+        });
+      }
+    }
     
-    // Calculate positions in a circular pattern
-    const calculatePosition = (index: number, total: number) => {
-      // Start from bottom right (90 degrees) and go counterclockwise
-      const startAngle = 90;
-      const angleStep = 180 / (total + (hasMore ? 0 : -1));
-      const angle = startAngle - index * angleStep;
-      
-      // Convert angle to radians
-      const radians = (angle * Math.PI) / 180;
-      
-      // Calculate position on circle
-      // For small size, use smaller radius
-      const radius = size === 'large' ? 16 : size === 'medium' ? 10 : 8;
-      
-      // Calculate position (right = 0, bottom = 90 degrees)
-      const x = Math.cos(radians) * radius;
-      const y = Math.sin(radians) * radius;
-      
-      // Convert to CSS positioning
-      // Bottom right corner is our origin (0,0)
-      return {
-        right: `${radius - x}px`,
-        bottom: `${radius - y}px`
-      };
-    };
-    
-    return (
-      <div className="absolute inset-0 overflow-hidden">
-        {indicators.map((indicator, index) => {
-          const position = calculatePosition(index, indicators.length + (hasMore ? 1 : 0));
-          return (
-            <div
-              key={index}
-              className={`${dotSize} rounded-full border border-slate-800 absolute`}
-              style={{
-                backgroundColor: indicator.color,
-                boxShadow: `0 0 6px ${indicator.color}40`,
-                right: position.right,
-                bottom: position.bottom,
-                transform: 'translate(50%, 50%)'
-              }}
-            />
-          );
-        })}
-        
-        {/* "More" indicator */}
-        {hasMore && (
-          <div
-            className={`${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center absolute`}
-            style={{
-              ...calculatePosition(indicators.length, indicators.length + 1),
-              transform: 'translate(50%, 50%)'
-            }}
-          >
-            <MoreHorizontal className={`${size === 'large' ? 'w-2.5 h-2.5' : 'w-2 h-2'} text-white`} />
-          </div>
-        )}
-      </div>
-    );
+    return indicators;
   };
 
   return (
@@ -235,7 +188,7 @@ export default function Dashboard({
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
+                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'Emmanuel'}</h1>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
                 </div>
                 
@@ -364,53 +317,90 @@ export default function Dashboard({
               </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                {frequentAgents.map((agent) => (
-                  <div key={agent.id} className="group relative">
-                    <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
-                      <div className="flex flex-col items-center text-center space-y-4">
-                        <div className="relative w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
-                          {agent.avatar ? (
-                            <img
-                              src={agent.avatar}
-                              alt={agent.name}
-                              className="w-full h-full object-cover rounded-2xl"
-                            />
-                          ) : (
-                            <div 
-                              className="w-full h-full rounded-2xl"
-                              style={{ background: createAgentGradient(agent.color) }}
-                            />
-                          )}
-                          {renderComplexityIndicators(agent, 'large')}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
-                          <p className="text-slate-400 text-sm line-clamp-2">{agent.description}</p>
-                        </div>
-                        <div className="flex space-x-2 w-full">
-                          <button 
-                            onClick={() => onChatClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
-                          >
-                            <MessageCircle className="w-4 h-4 mx-auto" />
-                          </button>
-                          <button 
-                            onClick={() => onCallClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
-                          >
-                            <Mic className="w-4 h-4 mx-auto" />
-                          </button>
-                          <button 
-                            onClick={() => onSettingsClick(agent)}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
-                          >
-                            <Sliders className="w-4 h-4 mx-auto" />
-                          </button>
+                {frequentAgents.map((agent) => {
+                  const complexityIndicators = getComplexityIndicators(agent);
+                  
+                  return (
+                    <div key={agent.id} className="group relative">
+                      <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                          <div className="relative w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
+                            {agent.avatar ? (
+                              <img
+                                src={agent.avatar}
+                                alt={agent.name}
+                                className="w-full h-full object-cover rounded-2xl"
+                              />
+                            ) : (
+                              <div 
+                                className="w-full h-full rounded-2xl"
+                                style={{ background: createAgentGradient(agent.color) }}
+                              />
+                            )}
+                            
+                            {/* Complexity Indicators */}
+                            {complexityIndicators.length > 0 && (
+                              <div className="absolute inset-0">
+                                {complexityIndicators.slice(0, 7).map((indicator, index) => {
+                                  const position = calculatePosition(index, Math.min(complexityIndicators.length, 7), 64);
+                                  return (
+                                    <div
+                                      key={index}
+                                      className="absolute w-3 h-3 rounded-full border-2 border-slate-800"
+                                      style={{
+                                        backgroundColor: indicator.color,
+                                        left: `${position.x}px`,
+                                        top: `${position.y}px`,
+                                        transform: 'translate(-50%, -50%)'
+                                      }}
+                                      title={indicator.title}
+                                    />
+                                  );
+                                })}
+                                {complexityIndicators.length > 7 && (
+                                  <div
+                                    className="absolute w-3 h-3 rounded-full bg-slate-600 border-2 border-slate-800 flex items-center justify-center"
+                                    style={{
+                                      ...calculatePosition(6, 7, 64),
+                                      transform: 'translate(-50%, -50%)'
+                                    }}
+                                    title={`+${complexityIndicators.length - 6} more`}
+                                  >
+                                    <span className="text-white text-xs font-bold">+</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
+                            <p className="text-slate-400 text-sm line-clamp-2">{agent.description}</p>
+                          </div>
+                          <div className="flex space-x-2 w-full">
+                            <button 
+                              onClick={() => onChatClick(agent)}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4 mx-auto" />
+                            </button>
+                            <button 
+                              onClick={() => onCallClick(agent)}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
+                            >
+                              <Mic className="w-4 h-4 mx-auto" />
+                            </button>
+                            <button 
+                              onClick={() => onSettingsClick(agent)}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
+                            >
+                              <Sliders className="w-4 h-4 mx-auto" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -423,7 +413,7 @@ export default function Dashboard({
                 {recentAgents.slice(0, 6).map((agent) => (
                   <div key={`recent-${agent.id}`} className="bg-glass-panel glass-effect rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
                     <div className="flex items-center space-x-3">
-                      <div className="relative w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
                         {agent.avatar ? (
                           <img
                             src={agent.avatar}
@@ -436,11 +426,11 @@ export default function Dashboard({
                             style={{ background: createAgentGradient(agent.color) }}
                           />
                         )}
-                        {renderComplexityIndicators(agent, 'small')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-white truncate">{agent.name}</h4>
                         <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
                           <span className="text-slate-400 text-sm">{agent.lastSeen}</span>
                         </div>
                       </div>
@@ -472,7 +462,7 @@ export default function Dashboard({
                 {filteredAgents.map((agent) => (
                   <div key={`library-${agent.id}`} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
                     <div className="flex items-start space-x-4">
-                      <div className="relative w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                         {agent.avatar ? (
                           <img
                             src={agent.avatar}
@@ -485,11 +475,11 @@ export default function Dashboard({
                             style={{ background: createAgentGradient(agent.color) }}
                           />
                         )}
-                        {renderComplexityIndicators(agent, 'medium')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-2">
                           <h3 className="font-semibold text-white">{agent.name}</h3>
+                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
                         </div>
                         <p className="text-slate-400 text-sm mb-4 line-clamp-2">{agent.description}</p>
                         <div className="flex items-center space-x-2">
