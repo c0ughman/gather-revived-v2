@@ -19,6 +19,11 @@ interface DashboardProps {
   onCreateAgent: () => void;
 }
 
+// Helper function to create agent gradient
+const createAgentGradient = (color: string) => {
+  return `radial-gradient(circle at 30% 30%, ${color}, ${color}dd)`;
+};
+
 export default function Dashboard({ 
   contacts, 
   onChatClick, 
