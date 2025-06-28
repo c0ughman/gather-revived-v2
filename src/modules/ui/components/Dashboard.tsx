@@ -21,7 +21,7 @@ interface DashboardProps {
 
 // Helper function to create agent gradient
 const createAgentGradient = (color: string) => {
-  return `radial-gradient(circle at 30% 30%, ${color}, ${color}dd)`;
+  return `radial-gradient(circle at 30% 30%, ${color}80, ${color})`;
 };
 
 export default function Dashboard({ 
@@ -120,30 +120,30 @@ export default function Dashboard({
   const getComplexityIndicators = (contact: AIContact) => {
     const indicators = [];
     
-    // Count documents (blue dots)
+    // Count documents (blue dots - lighter blue)
     const documentCount = contact.documents?.length || 0;
     for (let i = 0; i < Math.min(documentCount, 7); i++) {
-      indicators.push({ type: 'document', color: '#3b82f6' });
+      indicators.push({ type: 'document', color: '#60a5fa' });
     }
     
-    // Count source integrations (green dots)
+    // Count source integrations (green dots - way lighter)
     const sourceIntegrations = contact.integrations?.filter(integration => {
       const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
       return sourceIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
     for (let i = 0; i < Math.min(sourceIntegrations.length, 7); i++) {
-      indicators.push({ type: 'source', color: '#10b981' });
+      indicators.push({ type: 'source', color: '#34d399' });
     }
     
-    // Count action integrations (red dots)
+    // Count action integrations (light orange with reddish hue)
     const actionIntegrations = contact.integrations?.filter(integration => {
       const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
       return actionIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
     for (let i = 0; i < Math.min(actionIntegrations.length, 7); i++) {
-      indicators.push({ type: 'action', color: '#ef4444' });
+      indicators.push({ type: 'action', color: '#fb923c' });
     }
     
     return {
