@@ -2,7 +2,11 @@ import React, { useState } from 'react'
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
-export default function AuthScreen() {
+interface AuthScreenProps {
+  onSuccess?: () => void;
+}
+
+export default function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,10 +28,12 @@ export default function AuthScreen() {
       if (isSignUp) {
         if (password !== confirmPassword) {
           setError('Passwords do not match')
+          setLoading(false)
           return
         }
         if (password.length < 6) {
           setError('Password must be at least 6 characters')
+          setLoading(false)
           return
         }
 
@@ -46,7 +52,10 @@ export default function AuthScreen() {
           setPassword('')
           setConfirmPassword('')
           
-          // User will be automatically redirected by the auth state change
+          // Call onSuccess callback
+          if (onSuccess) {
+            onSuccess();
+          }
         } else if (data.user && !data.session) {
           console.log('⚠️ Sign up successful but no session - may need email confirmation')
           setMessage('Account created! Please check your email for confirmation, or try signing in.')
@@ -62,7 +71,10 @@ export default function AuthScreen() {
           setError(error.message)
         } else if (data.user && data.session) {
           console.log('✅ Sign in successful:', data.user.email)
-          // User will be automatically redirected by the auth state change
+          // Call onSuccess callback
+          if (onSuccess) {
+            onSuccess();
+          }
         } else {
           setError('Sign in failed. Please try again.')
         }
