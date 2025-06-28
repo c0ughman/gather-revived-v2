@@ -168,9 +168,10 @@ export default function Dashboard({
     if (indicators.length === 0) return null;
     
     // Set radius and dot size based on container size
-    const radius = size === 'large' ? 60 : size === 'medium' ? 40 : 30;
+    // Smaller radius to be partially inside the image
+    const radius = size === 'large' ? 40 : size === 'medium' ? 30 : 20;
     const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
-    const dotOffset = size === 'large' ? 8 : size === 'medium' ? 7 : 6;
+    const dotOffset = size === 'large' ? 4 : size === 'medium' ? 3 : 3;
     
     // Starting from bottom right and going counter-clockwise around the bottom-right quadrant
     return (
@@ -227,7 +228,7 @@ export default function Dashboard({
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'Emmanuel'}</h1>
+                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
                 </div>
                 

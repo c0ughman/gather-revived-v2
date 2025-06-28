@@ -88,6 +88,7 @@ export default function ContactSidebar({
     if (indicators.length === 0) return null;
     
     // Starting from bottom right and going counter-clockwise around the bottom-right quadrant
+    // Partially inside the avatar image
     return (
       <div className="absolute inset-0 pointer-events-none">
         {indicators.map((indicator, index) => {
@@ -96,7 +97,7 @@ export default function ContactSidebar({
           // Start at 0 degrees (right) and go counter-clockwise up to 90 degrees (bottom)
           // We're using a quarter circle (90 degrees) starting from the bottom right
           const angle = Math.PI / 2 - (index / totalItems) * (Math.PI / 2);
-          const radius = 30; // Distance from center
+          const radius = 20; // Smaller radius to be partially inside the image
           const x = Math.cos(angle) * radius;
           const y = Math.sin(angle) * radius;
           
@@ -106,8 +107,8 @@ export default function ContactSidebar({
               className="absolute w-3.5 h-3.5 rounded-full border border-slate-800"
               style={{
                 backgroundColor: indicator.color,
-                right: `${7 - x}px`,
-                bottom: `${7 - y}px`,
+                right: `${3 - x}px`, // Closer to the image
+                bottom: `${3 - y}px`, // Closer to the image
                 boxShadow: `0 0 6px ${indicator.color}40`
               }}
             />
@@ -119,8 +120,8 @@ export default function ContactSidebar({
           <div
             className="absolute w-3.5 h-3.5 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center"
             style={{
-              right: `${7 - Math.cos(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 30}px`,
-              bottom: `${7 - Math.sin(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 30}px`,
+              right: `${3 - Math.cos(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 20}px`,
+              bottom: `${3 - Math.sin(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 20}px`,
             }}
           >
             <MoreHorizontal className="w-2 h-2 text-white" />
