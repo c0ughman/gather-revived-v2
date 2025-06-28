@@ -86,14 +86,6 @@ export default function ChatScreen({
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  };
-
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
     // Convert hex to RGB
@@ -115,6 +107,45 @@ export default function ChatScreen({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  // Helper function to get user bubble gradient based on agent color
+  const getUserBubbleGradient = (color: string) => {
+    // Convert hex to RGB
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Create a subtle gradient using the agent's color
+    const lightR = Math.round(r + (255 - r) * 0.2);
+    const lightG = Math.round(g + (255 - g) * 0.2);
+    const lightB = Math.round(b + (255 - b) * 0.2);
+    
+    return `linear-gradient(135deg, rgb(${r}, ${g}, ${b}) 0%, rgb(${lightR}, ${lightG}, ${lightB}) 100%)`;
+  };
+
+  // Helper function to render AI message with simple markup support
+  const renderAIMessage = (content: string) => {
+    // Simple markup parsing
+    let formattedContent = content
+      // Bold text: **text** or __text__
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.*?)__/g, '<strong>$1</strong>')
+      // Italic text: *text* or _text_
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/_(.*?)_/g, '<em>$1</em>')
+      // Code: `code`
+      .replace(/`(.*?)`/g, '<code class="bg-slate-700 text-blue-300 px-1 py-0.5 rounded text-sm">$1</code>')
+      // Line breaks
+      .replace(/\n/g, '<br>');
+
+    return (
+      <div 
+        className="text-white leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: formattedContent }}
+      />
+    );
+  };
+
   // Count total documents available to this AI
   const permanentDocuments = contact.documents?.length || 0;
   const totalConversationDocuments = conversationDocuments.length;
@@ -131,19 +162,19 @@ export default function ChatScreen({
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
         
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-                {contact.avatar ? (
-                  <img
-                    src={contact.avatar}
-                    alt={contact.name}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                ) : (
-                  <div 
-                    className="w-full h-full rounded-lg"
-                    style={{ background: createAgentGradient(contact.color) }}
-                  />
-                )}
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+          {contact.avatar ? (
+            <img
+              src={contact.avatar}
+              alt={contact.name}
+              className="w-full h-full object-cover rounded-lg"
+            />
+          ) : (
+            <div 
+              className="w-full h-full rounded-lg"
+              style={{ background: createAgentGradient(contact.color) }}
+            />
+          )}
         </div>
         
         <div className="flex-1 min-w-0">
@@ -218,19 +249,19 @@ export default function ChatScreen({
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
-                          <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
-              {contact.avatar ? (
-                <img
-                  src={contact.avatar}
-                  alt={contact.name}
-                  className="w-full h-full object-cover rounded-xl"
-                />
-              ) : (
-                <div 
-                  className="w-full h-full rounded-xl"
-                  style={{ background: createAgentGradient(contact.color) }}
-                />
-              )}
+              <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
+                {contact.avatar ? (
+                  <img
+                    src={contact.avatar}
+                    alt={contact.name}
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                ) : (
+                  <div 
+                    className="w-full h-full rounded-xl"
+                    style={{ background: createAgentGradient(contact.color) }}
+                  />
+                )}
               </div>
               <h3 className="text-white text-2xl font-semibold mb-3">{contact.name}</h3>
               <p className="text-slate-400 text-base max-w-md mx-auto leading-relaxed mb-6">
@@ -254,52 +285,52 @@ export default function ChatScreen({
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                    message.sender === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-white'
-                  } shadow-lg`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  
-                  {/* Show attached documents (only newly attached in this message) */}
-                  {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-opacity-20 border-white">
-                      <p className="text-xs opacity-75 mb-1">📎 New documents shared:</p>
-                      {message.attachments.map((doc) => (
-                        <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1">
-                          📄 {doc.name} ({Math.round(doc.size / 1024)}KB)
+              <div key={message.id}>
+                {message.sender === 'user' ? (
+                  // User message - bubble style with agent color gradient
+                  <div className="flex justify-end">
+                    <div
+                      className="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl text-white shadow-lg"
+                      style={{ background: getUserBubbleGradient(contact.color) }}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      
+                      {/* Show attached documents (only newly attached in this message) */}
+                      {message.attachments && message.attachments.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-opacity-20 border-white">
+                          <p className="text-xs opacity-75 mb-1">📎 New documents shared:</p>
+                          {message.attachments.map((doc) => (
+                            <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1">
+                              📄 {doc.name} ({Math.round(doc.size / 1024)}KB)
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
-                  
-                  <p className={`text-xs mt-1 ${
-                    message.sender === 'user' ? 'text-blue-100' : 'text-slate-400'
-                  }`}>
-                    {formatTime(message.timestamp)}
-                  </p>
-                </div>
+                  </div>
+                ) : (
+                  // AI message - full width with padding
+                  <div className="w-full">
+                    <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 border-l-4 border-slate-600">
+                      {renderAIMessage(message.content)}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
             {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-slate-700 text-white px-4 py-2 rounded-2xl max-w-xs shadow-lg">
-                  <div className="flex items-center space-x-2">
+              <div className="w-full">
+                <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 border-l-4 border-blue-500">
+                  <div className="flex items-center space-x-3">
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                       <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-slate-400 text-sm">
                       AI analyzing{totalConversationDocuments > 0 ? ` ${totalConversationDocuments + permanentDocuments} docs` : ''}...
                     </span>
                   </div>
@@ -424,7 +455,7 @@ export default function ChatScreen({
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
-                        <div className="bg-glass-panel glass-effect rounded-lg border border-slate-700 p-4">
+          <div className="bg-glass-panel glass-effect rounded-lg border border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
               <button
