@@ -160,7 +160,7 @@ export default function ChatScreen({
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-          backgroundColor: 'rgba(2, 10, 22, 0.8)'
+          backgroundColor: 'rgba(2, 10, 22, 0.08)'
         }}
       >
         <button
@@ -398,7 +398,8 @@ export default function ChatScreen({
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-              backgroundColor: 'rgba(2, 10, 22, 0.8)'
+              backgroundColor: 'rgba(2, 10, 22, 0.0
+                8)'
             }}
           >
             {/* File Upload Button - Inside input */}
