@@ -125,10 +125,10 @@ export class SupabaseService {
       // Transform the data to match AIContact interface
       const agents: AIContact[] = (data || []).map(agent => ({
         id: agent.id,
-        name: agent.name,
-        description: agent.description,
-        initials: agent.initials,
-        color: agent.color,
+        name: agent.name || '',
+        description: agent.description || '', // Ensure description is never null/undefined
+        initials: agent.initials || '',
+        color: agent.color || '#3b82f6',
         voice: agent.voice,
         avatar: agent.avatar_url,
         status: agent.status as 'online' | 'busy' | 'offline',
