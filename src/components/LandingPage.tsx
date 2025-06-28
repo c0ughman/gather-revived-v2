@@ -73,43 +73,72 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
       <style jsx>{`
-        @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+        @keyframes gradientFlow {
+          0% { 
+            background-position: 0% 50%;
+            background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          }
+          14% { 
+            background-position: 20% 50%;
+            background: linear-gradient(45deg, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984);
+          }
+          28% { 
+            background-position: 40% 50%;
+            background: linear-gradient(45deg, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984, #332d97, #3033a8);
+          }
+          42% { 
+            background-position: 60% 50%;
+            background: linear-gradient(45deg, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984, #332d97, #3033a8, #4244e7, #4645eb);
+          }
+          56% { 
+            background-position: 80% 50%;
+            background: linear-gradient(45deg, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb);
+          }
+          70% { 
+            background-position: 100% 50%;
+            background: linear-gradient(45deg, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4);
+          }
+          84% { 
+            background-position: 80% 50%;
+            background: linear-gradient(45deg, #5d5fed, #6b3fec, #6d3aee, #713bff, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed);
+          }
+          100% { 
+            background-position: 0% 50%;
+            background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          }
         }
         
         .animated-gradient-text {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          background-size: 300% 300%;
+          animation: gradientFlow 8s ease-in-out infinite;
           -webkit-background-clip: text;
           background-clip: text;
           -webkit-text-fill-color: transparent;
         }
         
         .animated-gradient-bg {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          background-size: 300% 300%;
+          animation: gradientFlow 8s ease-in-out infinite;
         }
         
         .animated-gradient-button {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          background-size: 300% 300%;
+          animation: gradientFlow 8s ease-in-out infinite;
           transition: all 0.3s ease;
         }
         
         .animated-gradient-button:hover {
-          animation: gradientShift 2s ease-in-out infinite;
+          animation: gradientFlow 2s ease-in-out infinite;
           box-shadow: 0 0 30px rgba(97, 67, 250, 0.6), 0 0 60px rgba(199, 80, 206, 0.4), 0 0 90px rgba(113, 59, 255, 0.3);
         }
         
         .animated-gradient-orb {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
-          background-size: 400% 400%;
-          animation: gradientShift 12s ease-in-out infinite;
+          background: linear-gradient(45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
+          background-size: 300% 300%;
+          animation: gradientFlow 12s ease-in-out infinite;
         }
       `}</style>
 
