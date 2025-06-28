@@ -1,270 +1,88 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useAuth } from '../../modules/auth';
-import { AuthScreen } from '../../modules/auth';
-import { ContactSidebar, SettingsSidebar, Dashboard, SettingsScreen } from '../../modules/ui';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../../modules/auth/hooks/useAuth';
+import AuthScreen from '../../modules/auth/components/AuthScreen';
+import CallScreen from '../../modules/voice/components/CallScreen';
+import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
+import LandingPage from '../../components/LandingPage';
+import { Dashboard, ContactSidebar, SettingsSidebar, SettingsScreen } from '../../modules/ui';
 import { ChatScreen } from '../../modules/chat';
-import { CallScreen, geminiLiveService } from '../../modules/voice';
-import { OAuthCallback } from '../../modules/oauth';
+import { AIContact, Message } from '../types/types';
+import { DocumentInfo } from '../../modules/fileManagement/types/documents';
+import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
+import { geminiService } from '../../modules/fileManagement/services/geminiService';
+import { supabaseService } from '../../modules/database/services/supabaseService';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
-import { AIContact, Message, Screen, CallState, DocumentInfo } from '../types/types';
-import { supabaseService } from '../../modules/database';
-import { geminiService, documentContextService } from '../../modules/fileManagement';
-import { integrationsService, getIntegrationById } from '../../modules/integrations';
+type ViewType = 'landing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent';
 
-function AppContent() {
-  const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
+export default function App() {
+  const { user, loading } = useAuth();
+  const [currentView, setCurrentView] = useState<ViewType>('landing');
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
-  const [contacts, setContacts] = useState<AIContact[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
-  const [callState, setCallState] = useState<CallState>({
-    isActive: false,
-    duration: 0,
-    isMuted: false,
-    status: 'ended'
-  });
-  const [oauthMessage, setOauthMessage] = useState<string | null>(null);
+  const [contacts, setContacts] = useLocalStorage<AIContact[]>('gather-contacts', []);
+  const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
+  const [conversationDocuments, setConversationDocuments] = useState<DocumentInfo[]>([]);
 
-  // Update call duration
+  // Show landing page if not authenticated
+  const showLandingPage = !loading && !user;
+
   useEffect(() => {
-    let interval: number;
-    if (callState.isActive && callState.status === 'connected') {
-      interval = setInterval(() => {
-        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
-      }, 1000);
+    if (user && currentView === 'landing') {
+      setCurrentView('dashboard');
     }
-    return () => clearInterval(interval);
-  }, [callState.isActive, callState.status]);
+  }, [user, currentView]);
 
-  // Load user data when authenticated
-  useEffect(() => {
-    if (user) {
-      loadUserData();
-    } else {
-      setContacts([]);
-      setMessages([]);
-      setConversationDocuments({});
-    }
-  }, [user]);
-
-  // Handle OAuth success/error messages
-  useEffect(() => {
-    const handleLocationState = () => {
-      const state = window.history.state?.usr;
-      if (state?.oauthSuccess) {
-        setOauthMessage(`✅ ${state.provider} connected successfully!`);
-        // Mark as connected in localStorage for the OAuth component
-        if (user) {
-          localStorage.setItem(`oauth_connected_${state.provider}_${user.id}`, 'true');
-        }
-        // Clear the state
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(() => setOauthMessage(null), 5000);
-      } else if (state?.oauthError) {
-        setOauthMessage(`❌ OAuth error: ${state.error}`);
-        // Clear the state
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(() => setOauthMessage(null), 8000);
-      }
-    };
-
-    handleLocationState();
-  }, [user]);
-
-  const loadUserData = async () => {
-    if (!user) return;
-
-    try {
-      const agents = await supabaseService.getUserAgents(user.id);
-      
-      // Transform database agents to AIContact format
-      const transformedContacts: AIContact[] = agents.map(agent => ({
-        id: agent.id,
-        name: agent.name,
-        initials: agent.initials,
-        color: agent.color,
-        description: agent.description,
-        status: agent.status as 'online' | 'busy' | 'offline',
-        lastSeen: agent.last_seen || 'now',
-        voice: agent.voice,
-        avatar: agent.avatar_url,
-        integrations: agent.agent_integrations?.map((integration: any) => ({
-          id: integration.id,
-          integrationId: integration.template_id,
-          name: integration.name,
-          config: integration.config,
-          status: integration.status
-        })),
-        documents: agent.agent_documents?.map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.file_type,
-          size: doc.file_size,
-          uploadedAt: new Date(doc.uploaded_at),
-          content: doc.content || '',
-          summary: doc.summary,
-          extractedText: doc.extracted_text,
-          metadata: doc.metadata
-        }))
-      }));
-
-      setContacts(transformedContacts);
-      
-      // Initialize integrations
-      transformedContacts.forEach(contact => {
-        if (contact.integrations) {
-          contact.integrations.forEach(integrationInstance => {
-            const integration = getIntegrationById(integrationInstance.integrationId);
-            if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-              integrationsService.startPeriodicExecution(
-                contact.id, 
-                integration, 
-                integrationInstance.config, 
-                (contactId, data) => {
-                  console.log(`Integration data updated for contact ${contactId}`);
-                }
-              );
-            }
-          });
-        }
-      });
-
-    } catch (error) {
-      console.error('Failed to load user data:', error);
-      setContacts([]);
-    }
+  const handleGetStarted = () => {
+    setCurrentView('dashboard');
   };
 
-  const handleChatClick = async (contact: AIContact) => {
+  const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
-    setCurrentScreen('chat');
-
-    // Execute integrations on chat start if configured
-    if (contact.integrations) {
-      for (const integrationInstance of contact.integrations) {
-        const integration = getIntegrationById(integrationInstance.integrationId);
-        if (integration && 
-            integration.category !== 'action' &&
-            integrationInstance.config.enabled && 
-            (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
-          try {
-            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
-            integrationsService.storeIntegrationData(contact.id, integration.id, data);
-          } catch (error) {
-            console.error(`Failed to execute integration ${integration.name}:`, error);
-          }
-        }
-      }
-    }
-  };
-
-  const handleNewChatClick = async (contact: AIContact) => {
-    // Clear messages for this contact to start fresh
-    setMessages(prev => prev.filter(msg => msg.contactId !== contact.id));
+    setCurrentView('chat');
     
-    // Clear conversation documents for this contact
-    setConversationDocuments(prev => {
-      const updated = { ...prev };
-      delete updated[contact.id];
-      return updated;
-    });
-    
-    // Start new chat
-    setSelectedContact(contact);
-    setCurrentScreen('chat');
-
-    // Execute integrations on chat start if configured
-    if (contact.integrations) {
-      for (const integrationInstance of contact.integrations) {
-        const integration = getIntegrationById(integrationInstance.integrationId);
-        if (integration && 
-            integration.category !== 'action' &&
-            integrationInstance.config.enabled && 
-            (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
-          try {
-            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
-            integrationsService.storeIntegrationData(contact.id, integration.id, data);
-          } catch (error) {
-            console.error(`Failed to execute integration ${integration.name}:`, error);
-          }
-        }
-      }
-    }
+    // Load conversation documents for this contact
+    const contactMessages = messages.filter(m => m.contactId === contact.id);
+    const allAttachments = contactMessages.flatMap(m => m.attachments || []);
+    setConversationDocuments(allAttachments);
   };
 
   const handleCallClick = (contact: AIContact) => {
-    if (callState.isActive && callState.status !== 'ended') {
-      handleEndCall();
-      setTimeout(() => {
-        startNewCall(contact);
-      }, 200);
-    } else {
-      startNewCall(contact);
-    }
-  };
-
-  const startNewCall = (contact: AIContact) => {
     setSelectedContact(contact);
-    setCallState({
-      isActive: true,
-      duration: 0,
-      isMuted: false,
-      status: 'connecting'
-    });
-    setCurrentScreen('call');
-    
-    geminiLiveService.initialize().then(initialized => {
-      if (initialized) {
-        geminiLiveService.startSession(contact).then(() => {
-          setTimeout(() => {
-            setCallState(prev => ({ ...prev, status: 'connected' }));
-          }, 2000);
-        });
-      } else {
-        setTimeout(() => {
-          setCallState(prev => ({ ...prev, status: 'ended' }));
-          handleEndCall();
-        }, 2000);
-      }
-    });
+    setCurrentView('call');
   };
 
-  const handleSendMessage = async (content: string, attachedDocuments?: DocumentInfo[]) => {
-    if (!selectedContact || !user) return;
-
-    const existingConversationDocs = conversationDocuments[selectedContact.id] || [];
-    
-    // Save attached documents to Supabase and update local state
-    if (attachedDocuments && attachedDocuments.length > 0) {
-      try {
-        console.log(`💾 Saving ${attachedDocuments.length} conversation documents to Supabase`);
-        
-        // Save each document to Supabase
-        for (const doc of attachedDocuments) {
-          await documentContextService.saveConversationDocument(selectedContact, doc);
-        }
-        
-        const updatedConversationDocs = [...existingConversationDocs];
-        
-        attachedDocuments.forEach(newDoc => {
-          if (!updatedConversationDocs.find(doc => doc.id === newDoc.id)) {
-            updatedConversationDocs.push(newDoc);
-          }
-        });
-        
-        setConversationDocuments(prev => ({
-          ...prev,
-          [selectedContact.id]: updatedConversationDocs
-        }));
-        
-        console.log(`✅ Saved conversation documents to Supabase`);
-      } catch (error) {
-        console.error('❌ Failed to save conversation documents:', error);
-        // Continue with the conversation even if document saving fails
-      }
+  const handleSettingsClick = (contact?: AIContact) => {
+    if (contact) {
+      setSelectedContact(contact);
+      setCurrentView('settings');
     }
+  };
+
+  const handleNewChatClick = (contact: AIContact) => {
+    // Clear messages for this contact to start fresh
+    const otherMessages = messages.filter(m => m.contactId !== contact.id);
+    setMessages(otherMessages);
+    setConversationDocuments([]);
+    handleChatClick(contact);
+  };
+
+  const handleBack = () => {
+    setCurrentView('dashboard');
+    setSelectedContact(null);
+  };
+
+  const handleHomeClick = () => {
+    setCurrentView('dashboard');
+    setSelectedContact(null);
+  };
+
+  const handleCreateAgent = () => {
+    setCurrentView('create-agent');
+  };
+
+  const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
+    if (!selectedContact) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -272,463 +90,227 @@ function AppContent() {
       sender: 'user',
       timestamp: new Date(),
       contactId: selectedContact.id,
-      attachments: attachedDocuments
+      attachments: documents
     };
 
     setMessages(prev => [...prev, userMessage]);
 
-    try {
-      const contactMessages = messages.filter(msg => msg.contactId === selectedContact.id);
-      
-      // Get fresh document context from Supabase for AI
-      const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
-      
-      const aiResponseContent = await geminiService.generateResponse(
-        selectedContact, 
-        content, 
-        contactMessages,
-        documentContext.allDocuments
-      );
+    // Add new documents to conversation documents
+    if (documents && documents.length > 0) {
+      setConversationDocuments(prev => [...prev, ...documents]);
+    }
 
-      setTimeout(() => {
-        const aiResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          content: aiResponseContent,
-          sender: 'ai',
-          timestamp: new Date(),
-          contactId: selectedContact.id
-        };
-        setMessages(prev => [...prev, aiResponse]);
-      }, 1000 + Math.random() * 1000);
+    try {
+      // Prepare context for AI
+      const allDocuments = [
+        ...(selectedContact.documents || []),
+        ...conversationDocuments,
+        ...(documents || [])
+      ];
+
+      const context = await documentContextService.prepareContext(allDocuments);
+      const conversationHistory = messages
+        .filter(m => m.contactId === selectedContact.id)
+        .concat(userMessage)
+        .slice(-10)
+        .map(m => `${m.sender}: ${m.content}`)
+        .join('\n');
+
+      const prompt = `You are ${selectedContact.name}, an AI assistant with the following description: ${selectedContact.description}
+
+${context ? `Here is relevant context from documents:\n${context}\n` : ''}
+
+Conversation history:
+${conversationHistory}
+
+Please respond as ${selectedContact.name} in a helpful and engaging way. Keep your response concise but informative.`;
+
+      const response = await geminiService.generateResponse(prompt);
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: response,
+        sender: 'ai',
+        timestamp: new Date(),
+        contactId: selectedContact.id
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Update contact's last used timestamp
+      setContacts(prev => prev.map(contact => 
+        contact.id === selectedContact.id 
+          ? { ...contact, lastSeen: 'now', lastUsedAt: new Date() }
+          : contact
+      ));
+
     } catch (error) {
       console.error('Error generating AI response:', error);
       
-      setTimeout(() => {
-        const aiResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          content: "I'm having trouble connecting right now. Please try again in a moment.",
-          sender: 'ai',
-          timestamp: new Date(),
-          contactId: selectedContact.id
-        };
-        setMessages(prev => [...prev, aiResponse]);
-      }, 1500);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
+        sender: 'ai',
+        timestamp: new Date(),
+        contactId: selectedContact.id
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
-  const handleEndCall = () => {
-    geminiLiveService.endSession();
-    setCallState(prev => ({ ...prev, status: 'ended', isActive: false }));
-    setCurrentScreen('dashboard');
-  };
-
-  const handleToggleMute = () => {
-    setCallState(prev => ({ ...prev, isMuted: !prev.isMuted }));
-  };
-
-  const handleSettingsClick = (contact?: AIContact) => {
-    if (contact) {
-      setSelectedContact(contact);
-    }
-    setCurrentScreen('settings');
-  };
-
-  const handleSaveContact = async (updatedContact: AIContact) => {
-    if (!user) return;
-
-    try {
-      if (updatedContact.id.startsWith('new-')) {
-        // Create new agent in Supabase
-        const newAgent = await supabaseService.createUserAgent(user.id, {
-          name: updatedContact.name,
-          description: updatedContact.description,
-          initials: updatedContact.initials,
-          color: updatedContact.color,
-          voice: updatedContact.voice,
-          avatar: updatedContact.avatar,
-          status: updatedContact.status || 'online'
-        });
-
-        // Create the transformed contact with the real ID
-        const transformedContact: AIContact = {
-          ...updatedContact,
-          id: newAgent.id
-        };
-
-        // Save integrations if any
-        if (updatedContact.integrations && updatedContact.integrations.length > 0) {
-          const savedIntegrations = [];
-          for (const integration of updatedContact.integrations) {
-            try {
-              const savedIntegration = await supabaseService.createAgentIntegration(newAgent.id, integration);
-              savedIntegrations.push({
-                id: savedIntegration.id,
-                integrationId: integration.integrationId,
-                name: integration.name,
-                config: integration.config,
-                status: savedIntegration.status
-              });
-            } catch (integrationError) {
-              console.error(`Failed to save integration ${integration.name}:`, integrationError);
-            }
-          }
-          
-          transformedContact.integrations = savedIntegrations;
-        }
-
-        // Save documents if any
-        if (updatedContact.documents && updatedContact.documents.length > 0) {
-          const savedDocuments = [];
-          for (const document of updatedContact.documents) {
-            try {
-              const savedDocument = await supabaseService.createAgentDocument(newAgent.id, document);
-              savedDocuments.push({
-                id: savedDocument.id,
-                name: document.name,
-                type: document.type,
-                size: document.size,
-                uploadedAt: new Date(savedDocument.uploaded_at),
-                content: document.content,
-                summary: document.summary,
-                extractedText: document.extractedText,
-                metadata: document.metadata
-              });
-            } catch (documentError) {
-              console.error(`Failed to save document ${document.name}:`, documentError);
-            }
-          }
-          
-          transformedContact.documents = savedDocuments;
-        }
-
-        // Add to local state
-        setContacts(prev => [...prev, transformedContact]);
-        setSelectedContact(transformedContact);
-
+  const handleSaveContact = (contact: AIContact) => {
+    setContacts(prev => {
+      const existingIndex = prev.findIndex(c => c.id === contact.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = contact;
+        return updated;
       } else {
-        // Update existing agent
-        await supabaseService.updateUserAgent(updatedContact.id, {
-          name: updatedContact.name,
-          description: updatedContact.description,
-          initials: updatedContact.initials,
-          color: updatedContact.color,
-          voice: updatedContact.voice,
-          avatar_url: updatedContact.avatar,
-          status: updatedContact.status
-        });
-
-        // Handle integrations updates
-        if (updatedContact.integrations) {
-          // For simplicity, we'll delete all existing integrations and recreate them
-          const existingContact = contacts.find(c => c.id === updatedContact.id);
-          if (existingContact?.integrations) {
-            for (const integration of existingContact.integrations) {
-              try {
-                await supabaseService.deleteAgentIntegration(integration.id);
-              } catch (error) {
-                console.error(`Failed to delete integration ${integration.id}:`, error);
-              }
-            }
-          }
-
-          // Create new integrations
-          const savedIntegrations = [];
-          for (const integration of updatedContact.integrations) {
-            try {
-              const savedIntegration = await supabaseService.createAgentIntegration(updatedContact.id, integration);
-              savedIntegrations.push({
-                id: savedIntegration.id,
-                integrationId: integration.integrationId,
-                name: integration.name,
-                config: integration.config,
-                status: savedIntegration.status
-              });
-            } catch (error) {
-              console.error(`Failed to save integration ${integration.name}:`, error);
-            }
-          }
-          
-          updatedContact.integrations = savedIntegrations;
-        }
-
-        // Handle documents updates
-        if (updatedContact.documents) {
-          // For simplicity, we'll delete all existing documents and recreate them
-          const existingContact = contacts.find(c => c.id === updatedContact.id);
-          if (existingContact?.documents) {
-            for (const document of existingContact.documents) {
-              try {
-                await supabaseService.deleteAgentDocument(document.id);
-              } catch (error) {
-                console.error(`Failed to delete document ${document.id}:`, error);
-              }
-            }
-          }
-
-          // Create new documents
-          const savedDocuments = [];
-          for (const document of updatedContact.documents) {
-            try {
-              const savedDocument = await supabaseService.createAgentDocument(updatedContact.id, document);
-              savedDocuments.push({
-                id: savedDocument.id,
-                name: document.name,
-                type: document.type,
-                size: document.size,
-                uploadedAt: new Date(savedDocument.uploaded_at),
-                content: document.content,
-                summary: document.summary,
-                extractedText: document.extractedText,
-                metadata: document.metadata
-              });
-            } catch (error) {
-              console.error(`Failed to save document ${document.name}:`, error);
-            }
-          }
-          
-          updatedContact.documents = savedDocuments;
-        }
-        
-        // Update local state
-        setContacts(prev => 
-          prev.map(contact => 
-            contact.id === updatedContact.id ? updatedContact : contact
-          )
-        );
-        setSelectedContact(updatedContact);
+        return [...prev, contact];
       }
-
-      // Restart integrations with new configuration
-      if (updatedContact.integrations) {
-        updatedContact.integrations.forEach(integrationInstance => {
-          const integration = getIntegrationById(integrationInstance.integrationId);
-          if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-            integrationsService.startPeriodicExecution(
-              updatedContact.id, 
-              integration, 
-              integrationInstance.config, 
-              (contactId, data) => {
-                console.log(`Integration data updated for contact ${contactId}`);
-              }
-            );
-          }
-        });
-      } else {
-        integrationsService.stopAllExecution();
-      }
-      
-    } catch (error) {
-      console.error('Failed to save contact:', error);
-      alert(`Failed to save agent: ${(error as Error).message || error}`);
-    }
+    });
+    setSelectedContact(contact);
   };
 
-  const handleBack = () => {
-    if (currentScreen === 'call') {
-      handleEndCall();
-    } else if (currentScreen === 'settings') {
-      if (selectedContact) {
-        setCurrentScreen('chat');
-      } else {
-        setCurrentScreen('dashboard');
-      }
-    } else if (currentScreen === 'chat') {
-      setCurrentScreen('dashboard');
-      setSelectedContact(null);
-    } else {
-      setCurrentScreen('dashboard');
-      setSelectedContact(null);
-    }
-  };
-
-  const handleHomeClick = () => {
-    setCurrentScreen('dashboard');
-    setSelectedContact(null);
-  };
-
-  const handleCreateAgent = () => {
+  const handleCreateNewAgent = () => {
     const newAgent: AIContact = {
-      id: `new-${Date.now()}`,
-      name: 'New Agent',
-      initials: 'NA',
+      id: Date.now().toString(),
+      name: 'New AI Assistant',
+      description: 'A helpful AI assistant ready to be customized.',
+      initials: 'AI',
       color: '#3b82f6',
-      description: 'A new AI assistant ready to be customized.',
       status: 'online',
       lastSeen: 'now',
       voice: 'Puck'
     };
     
     setSelectedContact(newAgent);
-    setCurrentScreen('settings');
+    setCurrentView('settings');
   };
 
-  // Show loading screen while checking auth
-  if (authLoading) {
+  // Show landing page for non-authenticated users
+  if (showLandingPage) {
+    return <LandingPage onGetStarted={handleGetStarted} />;
+  }
+
+  if (loading) {
     return (
-      <div className="h-screen bg-slate-900 flex items-center justify-center">
+      <div className="h-screen bg-glass-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading...</p>
+          <div className="w-16 h-16 border-4 border-[#186799] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Show auth screen if not authenticated
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <Router>
+        <Routes>
+          <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
+          <Route path="*" element={<AuthScreen />} />
+        </Routes>
+      </Router>
+    );
   }
 
-  // Get messages for selected contact
-  const contactMessages = selectedContact 
-    ? messages.filter(msg => msg.contactId === selectedContact.id)
-    : [];
-
-  // Get conversation documents for selected contact
-  const contactConversationDocuments = selectedContact 
-    ? conversationDocuments[selectedContact.id] || []
-    : [];
-
-  const renderMainContent = () => {
-    switch (currentScreen) {
-      case 'dashboard':
-        return (
-          <Dashboard 
-            contacts={contacts}
-            onChatClick={handleChatClick}
-            onCallClick={handleCallClick}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCreateAgent={handleCreateAgent}
-          />
-        );
-
-      case 'chat':
-        return selectedContact ? (
-          <ChatScreen
-            contact={selectedContact}
-            messages={contactMessages}
-            conversationDocuments={contactConversationDocuments}
-            onBack={handleBack}
-            onSendMessage={handleSendMessage}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCallClick={handleCallClick}
-          />
-        ) : (
-          <Dashboard 
-            contacts={contacts}
-            onChatClick={handleChatClick}
-            onCallClick={handleCallClick}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCreateAgent={handleCreateAgent}
-          />
-        );
-      case 'call':
-        return selectedContact ? (
-          <CallScreen
-            contact={selectedContact}
-            callState={callState}
-            onBack={handleBack}
-            onEndCall={handleEndCall}
-            onToggleMute={handleToggleMute}
-          />
-        ) : (
-          <Dashboard 
-            contacts={contacts}
-            onChatClick={handleChatClick}
-            onCallClick={handleCallClick}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCreateAgent={handleCreateAgent}
-          />
-        );
-      case 'settings':
-        return selectedContact ? (
-          <SettingsScreen
-            contact={selectedContact}
-            onBack={handleBack}
-            onSave={handleSaveContact}
-          />
-        ) : (
-          <Dashboard 
-            contacts={contacts}
-            onChatClick={handleChatClick}
-            onCallClick={handleCallClick}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCreateAgent={handleCreateAgent}
-          />
-        );
-      default:
-        return (
-          <Dashboard 
-            contacts={contacts}
-            onChatClick={handleChatClick}
-            onCallClick={handleCallClick}
-            onSettingsClick={handleSettingsClick}
-            onNewChatClick={handleNewChatClick}
-            onCreateAgent={handleCreateAgent}
-          />
-        );
-    }
-  };
-
-  return (
-          <div className="h-screen bg-glass-bg flex font-inter overflow-hidden">
-      {/* OAuth Success/Error Message */}
-      {oauthMessage && (
-        <div className="fixed top-4 right-4 z-50 max-w-md">
-          <div className={`p-4 rounded-lg border ${
-            oauthMessage.includes('✅') 
-              ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
-              : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
-          } backdrop-blur-sm`}>
-            <p className="text-sm font-medium">{oauthMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Left Sidebar - Contacts - 25% */}
-      <div className="w-1/4 border-r border-slate-700">
-        <ContactSidebar
-          contacts={contacts}
-          onChatClick={handleChatClick}
-          onCallClick={handleCallClick}
-          onSettingsClick={handleSettingsClick}
-          onHomeClick={handleHomeClick}
-          onCreateAgent={handleCreateAgent}
-        />
-      </div>
-      
-      {/* Main Content - Chat/Call/Dashboard */}
-      <div className={currentScreen === 'dashboard' ? 'flex-1' : 'w-1/2'}>
-        {renderMainContent()}
-      </div>
-
-      {/* Right Sidebar - Settings - 25% (only show when not on dashboard) */}
-      {currentScreen !== 'dashboard' && (
-        <div className="w-1/4 bg-glass-panel glass-effect border-l border-slate-700">
-          <SettingsSidebar
-            contact={selectedContact}
-            onSave={handleSaveContact}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function App() {
   return (
     <Router>
       <Routes>
         <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
-        <Route path="/*" element={<AppContent />} />
+        <Route path="*" element={
+          <div className="h-screen flex bg-glass-bg">
+            {/* Left Sidebar - Contacts */}
+            <div className="w-80 border-r border-slate-700">
+              <ContactSidebar
+                contacts={contacts}
+                onChatClick={handleChatClick}
+                onCallClick={handleCallClick}
+                onSettingsClick={handleSettingsClick}
+                onHomeClick={handleHomeClick}
+                onCreateAgent={handleCreateAgent}
+              />
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex">
+              <div className="flex-1">
+                {currentView === 'dashboard' && (
+                  <Dashboard
+                    contacts={contacts}
+                    onChatClick={handleChatClick}
+                    onCallClick={handleCallClick}
+                    onSettingsClick={handleSettingsClick}
+                    onNewChatClick={handleNewChatClick}
+                    onCreateAgent={handleCreateAgent}
+                  />
+                )}
+                
+                {currentView === 'chat' && selectedContact && (
+                  <ChatScreen
+                    contact={selectedContact}
+                    messages={messages.filter(m => m.contactId === selectedContact.id)}
+                    conversationDocuments={conversationDocuments}
+                    onBack={handleBack}
+                    onSendMessage={handleSendMessage}
+                    onSettingsClick={handleSettingsClick}
+                    onNewChatClick={handleNewChatClick}
+                    onCallClick={handleCallClick}
+                  />
+                )}
+                
+                {currentView === 'call' && selectedContact && (
+                  <CallScreen
+                    contact={selectedContact}
+                    onBack={handleBack}
+                    onEndCall={handleBack}
+                  />
+                )}
+                
+                {currentView === 'settings' && selectedContact && (
+                  <SettingsScreen
+                    contact={selectedContact}
+                    onBack={handleBack}
+                    onSave={handleSaveContact}
+                  />
+                )}
+                
+                {currentView === 'create-agent' && (
+                  <SettingsScreen
+                    contact={{
+                      id: Date.now().toString(),
+                      name: 'New AI Assistant',
+                      description: 'A helpful AI assistant ready to be customized.',
+                      initials: 'AI',
+                      color: '#3b82f6',
+                      status: 'online',
+                      lastSeen: 'now',
+                      voice: 'Puck'
+                    }}
+                    onBack={handleBack}
+                    onSave={(contact) => {
+                      handleSaveContact(contact);
+                      setCurrentView('dashboard');
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Right Sidebar - Settings (when in chat view) */}
+              {currentView === 'chat' && (
+                <div className="w-80 border-l border-slate-700">
+                  <SettingsSidebar
+                    contact={selectedContact}
+                    onSave={handleSaveContact}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        } />
       </Routes>
     </Router>
   );
 }
-
-export default App;
