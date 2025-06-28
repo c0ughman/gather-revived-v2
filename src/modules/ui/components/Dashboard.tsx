@@ -3,7 +3,7 @@ import {
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
   Search, TrendingUp, Bell, Globe, Rss, Newspaper,
   Mic, MessageCircle, Sliders, Grid3x3, Filter, Star, Clock, 
-  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown
+  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
@@ -126,7 +126,7 @@ export default function Dashboard({
     
     // Count documents (blue dots)
     const documentCount = contact.documents?.length || 0;
-    for (let i = 0; i < Math.min(documentCount, 8); i++) {
+    for (let i = 0; i < Math.min(documentCount, 7); i++) {
       indicators.push({ type: 'document', color: '#3b82f6' });
     }
     
@@ -136,7 +136,7 @@ export default function Dashboard({
       return sourceIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
-    for (let i = 0; i < Math.min(sourceIntegrations.length, 6); i++) {
+    for (let i = 0; i < Math.min(sourceIntegrations.length, 7); i++) {
       indicators.push({ type: 'source', color: '#10b981' });
     }
     
@@ -146,29 +146,40 @@ export default function Dashboard({
       return actionIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
-    for (let i = 0; i < Math.min(actionIntegrations.length, 6); i++) {
+    for (let i = 0; i < Math.min(actionIntegrations.length, 7); i++) {
       indicators.push({ type: 'action', color: '#ef4444' });
     }
     
-    return indicators;
+    return {
+      indicators: indicators.slice(0, 7),
+      hasMore: indicators.length > 7,
+      counts: {
+        documents: documentCount,
+        sources: sourceIntegrations.length,
+        actions: actionIntegrations.length,
+        total: documentCount + sourceIntegrations.length + actionIntegrations.length
+      }
+    };
   };
 
-  const renderComplexityIndicators = (contact: AIContact, size: 'small' | 'large' = 'small') => {
-    const indicators = getComplexityIndicators(contact);
-    const maxIndicators = 12;
-    const displayIndicators = indicators.slice(0, maxIndicators);
+  const renderComplexityIndicators = (contact: AIContact, size: 'small' | 'medium' | 'large' = 'small') => {
+    const { indicators, hasMore, counts } = getComplexityIndicators(contact);
     
-    if (displayIndicators.length === 0) return null;
+    if (indicators.length === 0) return null;
     
-    const radius = size === 'large' ? 68 : 34;
-    const dotSize = size === 'large' ? 'w-3 h-3' : 'w-2 h-2';
+    // Set radius and dot size based on container size
+    const radius = size === 'large' ? 60 : size === 'medium' ? 40 : 30;
+    const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
+    const dotOffset = size === 'large' ? 8 : size === 'medium' ? 7 : 6;
     
     return (
       <div className="absolute inset-0 pointer-events-none">
-        {displayIndicators.map((indicator, index) => {
-          const angle = (index / displayIndicators.length) * 360;
-          const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
-          const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+        {indicators.map((indicator, index) => {
+          // Calculate position around the avatar
+          const totalItems = hasMore ? indicators.length + 1 : indicators.length;
+          const angle = (index / totalItems) * 2 * Math.PI;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
           
           return (
             <div
@@ -176,13 +187,26 @@ export default function Dashboard({
               className={`absolute ${dotSize} rounded-full border border-slate-800`}
               style={{
                 backgroundColor: indicator.color,
-                left: `calc(50% + ${x}px - ${size === 'large' ? '6px' : '4px'})`,
-                top: `calc(50% + ${y}px - ${size === 'large' ? '6px' : '4px'})`,
-                boxShadow: `0 0 4px ${indicator.color}40`
+                left: `calc(50% + ${x}px - ${dotOffset}px)`,
+                top: `calc(50% + ${y}px - ${dotOffset}px)`,
+                boxShadow: `0 0 6px ${indicator.color}40`
               }}
             />
           );
         })}
+        
+        {/* "More" indicator */}
+        {hasMore && (
+          <div
+            className={`absolute ${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center`}
+            style={{
+              left: `calc(50% + ${Math.cos((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * radius}px - ${dotOffset}px)`,
+              top: `calc(50% + ${Math.sin((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * radius}px - ${dotOffset}px)`,
+            }}
+          >
+            <MoreHorizontal className={`${size === 'large' ? 'w-2.5 h-2.5' : 'w-2 h-2'} text-white`} />
+          </div>
+        )}
       </div>
     );
   };
@@ -406,7 +430,6 @@ export default function Dashboard({
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-white truncate">{agent.name}</h4>
                         <div className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
                           <span className="text-slate-400 text-sm">{agent.lastSeen}</span>
                         </div>
                       </div>
@@ -451,12 +474,11 @@ export default function Dashboard({
                             style={{ background: createAgentGradient(agent.color) }}
                           />
                         )}
-                        {renderComplexityIndicators(agent, 'small')}
+                        {renderComplexityIndicators(agent, 'medium')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-2">
                           <h3 className="font-semibold text-white">{agent.name}</h3>
-                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
                         </div>
                         <p className="text-slate-400 text-sm mb-4 line-clamp-2">{agent.description}</p>
                         <div className="flex items-center space-x-2">

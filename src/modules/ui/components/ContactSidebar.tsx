@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
+import { MessageCircle, Phone, Users, Search, Home, Plus, MoreHorizontal } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 
@@ -46,7 +46,7 @@ export default function ContactSidebar({
     
     // Count documents (blue dots)
     const documentCount = contact.documents?.length || 0;
-    for (let i = 0; i < Math.min(documentCount, 8); i++) {
+    for (let i = 0; i < Math.min(documentCount, 7); i++) {
       indicators.push({ type: 'document', color: '#3b82f6' });
     }
     
@@ -56,7 +56,7 @@ export default function ContactSidebar({
       return sourceIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
-    for (let i = 0; i < Math.min(sourceIntegrations.length, 6); i++) {
+    for (let i = 0; i < Math.min(sourceIntegrations.length, 7); i++) {
       indicators.push({ type: 'source', color: '#10b981' });
     }
     
@@ -66,45 +66,63 @@ export default function ContactSidebar({
       return actionIds.includes(integration.integrationId) && integration.config.enabled;
     }) || [];
     
-    for (let i = 0; i < Math.min(actionIntegrations.length, 6); i++) {
+    for (let i = 0; i < Math.min(actionIntegrations.length, 7); i++) {
       indicators.push({ type: 'action', color: '#ef4444' });
     }
     
-    return indicators;
+    return {
+      indicators: indicators.slice(0, 7),
+      hasMore: indicators.length > 7,
+      counts: {
+        documents: documentCount,
+        sources: sourceIntegrations.length,
+        actions: actionIntegrations.length,
+        total: documentCount + sourceIntegrations.length + actionIntegrations.length
+      }
+    };
   };
 
   const renderComplexityIndicators = (contact: AIContact) => {
-    const indicators = getComplexityIndicators(contact);
-    const maxIndicators = 12; // Maximum dots to show
-    const displayIndicators = indicators.slice(0, maxIndicators);
+    const { indicators, hasMore, counts } = getComplexityIndicators(contact);
     
-    if (displayIndicators.length === 0) return null;
+    if (indicators.length === 0) return null;
     
     return (
       <div className="absolute inset-0 pointer-events-none">
-        {displayIndicators.map((indicator, index) => {
-          const angle = (index / displayIndicators.length) * 360;
-          const radius = 34; // Distance from center
-          const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
-          const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+        {indicators.map((indicator, index) => {
+          // Calculate position around the avatar
+          const totalItems = hasMore ? indicators.length + 1 : indicators.length;
+          const angle = (index / totalItems) * 2 * Math.PI;
+          const radius = 30; // Distance from center
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
           
           return (
             <div
               key={index}
-              className="absolute w-2 h-2 rounded-full border border-slate-800"
+              className="absolute w-3.5 h-3.5 rounded-full border border-slate-800"
               style={{
                 backgroundColor: indicator.color,
-                left: `calc(50% + ${x}px - 4px)`,
-                top: `calc(50% + ${y}px - 4px)`,
-                boxShadow: `0 0 4px ${indicator.color}40`
+                left: `calc(50% + ${x}px - 7px)`,
+                top: `calc(50% + ${y}px - 7px)`,
+                boxShadow: `0 0 6px ${indicator.color}40`
               }}
-              title={
-                indicator.type === 'document' ? 'Document' :
-                indicator.type === 'source' ? 'Data Source' : 'Action Tool'
-              }
             />
           );
         })}
+        
+        {/* "More" indicator */}
+        {hasMore && (
+          <div
+            className="absolute w-3.5 h-3.5 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center"
+            style={{
+              left: `calc(50% + ${Math.cos((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * 30}px - 7px)`,
+              top: `calc(50% + ${Math.sin((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * 30}px - 7px)`,
+            }}
+          >
+            <MoreHorizontal className="w-2 h-2 text-white" />
+          </div>
+        )}
       </div>
     );
   };
@@ -201,8 +219,8 @@ export default function ContactSidebar({
         ) : (
           <div className="space-y-1">
             {filteredContacts.map((contact) => {
-              const indicators = getComplexityIndicators(contact);
-              const complexityLevel = indicators.length > 8 ? 'High' : indicators.length > 4 ? 'Medium' : indicators.length > 0 ? 'Low' : 'Basic';
+              const { indicators, hasMore, counts } = getComplexityIndicators(contact);
+              const complexityLevel = counts.total > 8 ? 'High' : counts.total > 4 ? 'Medium' : counts.total > 0 ? 'Low' : 'Basic';
               
               return (
                 <div
@@ -256,33 +274,26 @@ export default function ContactSidebar({
                       </p>
                       
                       {/* Complexity Summary */}
-                      {indicators.length > 0 && (
+                      {counts.total > 0 && (
                         <div className="flex items-center space-x-3 mt-1">
-                          {contact.documents && contact.documents.length > 0 && (
+                          {counts.documents > 0 && (
                             <span className="text-xs text-blue-400 font-inter">
-                              📄 {contact.documents.length}
+                              {counts.documents}
                             </span>
                           )}
-                          {contact.integrations && contact.integrations.filter(i => {
-                            const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
-                            return sourceIds.includes(i.integrationId) && i.config.enabled;
-                          }).length > 0 && (
+                          {counts.sources > 0 && (
                             <span className="text-xs text-green-400 font-inter">
-                              📊 {contact.integrations.filter(i => {
-                                const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
-                                return sourceIds.includes(i.integrationId) && i.config.enabled;
-                              }).length}
+                              {counts.sources}
                             </span>
                           )}
-                          {contact.integrations && contact.integrations.filter(i => {
-                            const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
-                            return actionIds.includes(i.integrationId) && i.config.enabled;
-                          }).length > 0 && (
+                          {counts.actions > 0 && (
                             <span className="text-xs text-red-400 font-inter">
-                              ⚡ {contact.integrations.filter(i => {
-                                const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
-                                return actionIds.includes(i.integrationId) && i.config.enabled;
-                              }).length}
+                              {counts.actions}
+                            </span>
+                          )}
+                          {hasMore && (
+                            <span className="text-xs text-slate-400 font-inter">
+                              +{counts.total - indicators.length}
                             </span>
                           )}
                         </div>
