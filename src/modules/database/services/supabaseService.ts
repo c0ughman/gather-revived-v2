@@ -349,4 +349,4 @@ export class SupabaseService {
   }
 }
 
-export const supabaseService = new SupabaseService.getInstance();
+export const supabaseService = SupabaseService.getInstance();
