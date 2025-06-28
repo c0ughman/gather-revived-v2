@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
-  Search, TrendingUp, Bell, Globe, Rss, Newspaper,
+  Search, TrendingUp, Bell, Globe, Rss, Newspaper, Cloud,
   Mic, MessageCircle, Sliders, Grid3x3, Filter, Star, Clock, 
-  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown, MoreHorizontal
+  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown, MoreHorizontal,
+  Calendar, Building2, Database, FileText
 } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
