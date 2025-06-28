@@ -155,10 +155,11 @@ export default function ChatScreen({
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4 bg-glass-panel glass-effect"
+        className="relative z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
         style={{
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(15, 23, 42, 0.7)' // More transparent slate-900
         }}
       >
         <button
@@ -391,10 +392,11 @@ export default function ChatScreen({
       <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
         <div className="relative max-w-4xl mx-auto">
           <div 
-            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg bg-glass-panel glass-effect"
+            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
             style={{
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(15, 23, 42, 0.7)' // Same transparent background as header
             }}
           >
             {/* File Upload Button - Inside input */}
@@ -423,7 +425,7 @@ export default function ChatScreen({
               onKeyPress={handleKeyPress}
               placeholder={`Message ${contact.name}...`}
               disabled={isTyping}
-              className="flex-1 bg-transparent text-white px-4 py-3 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
+              className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
             />
             
             {/* Send Button - Inside input */}
@@ -467,10 +469,11 @@ export default function ChatScreen({
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
           <div 
-            className="rounded-lg border border-slate-700 p-4 bg-glass-panel glass-effect"
+            className="rounded-lg border border-slate-700 p-4"
             style={{
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(15, 23, 42, 0.7)'
             }}
           >
             <div className="flex items-center justify-between mb-2">
