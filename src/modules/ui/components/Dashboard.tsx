@@ -167,46 +167,27 @@ export default function Dashboard({
     
     if (indicators.length === 0) return null;
     
-    // Set radius and dot size based on container size
-    // Smaller radius to be partially inside the image
-    const radius = size === 'large' ? 40 : size === 'medium' ? 30 : 20;
+    // Set dot size based on container size
     const dotSize = size === 'large' ? 'w-4 h-4' : size === 'medium' ? 'w-3.5 h-3.5' : 'w-3 h-3';
-    const dotOffset = size === 'large' ? 4 : size === 'medium' ? 3 : 3;
     
-    // Starting from bottom right and going counter-clockwise around the bottom-right quadrant
+    // Position dots in the top part of the image
     return (
-      <div className="absolute inset-0 pointer-events-none">
-        {indicators.map((indicator, index) => {
-          // Calculate position around the bottom-right quadrant
-          const totalItems = hasMore ? indicators.length + 1 : indicators.length;
-          // Start at 0 degrees (right) and go counter-clockwise up to 90 degrees (bottom)
-          // We're using a quarter circle (90 degrees) starting from the bottom right
-          const angle = Math.PI / 2 - (index / totalItems) * (Math.PI / 2);
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-          
-          return (
-            <div
-              key={index}
-              className={`absolute ${dotSize} rounded-full border border-slate-800`}
-              style={{
-                backgroundColor: indicator.color,
-                right: `${dotOffset - x}px`,
-                bottom: `${dotOffset - y}px`,
-                boxShadow: `0 0 6px ${indicator.color}40`
-              }}
-            />
-          );
-        })}
+      <div className="absolute top-0 right-0 p-1 flex flex-wrap justify-end gap-1 max-w-[70%]">
+        {indicators.map((indicator, index) => (
+          <div
+            key={index}
+            className={`${dotSize} rounded-full border border-slate-800`}
+            style={{
+              backgroundColor: indicator.color,
+              boxShadow: `0 0 6px ${indicator.color}40`
+            }}
+          />
+        ))}
         
         {/* "More" indicator */}
         {hasMore && (
           <div
-            className={`absolute ${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center`}
-            style={{
-              right: `${dotOffset - Math.cos(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * radius}px`,
-              bottom: `${dotOffset - Math.sin(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * radius}px`,
-            }}
+            className={`${dotSize} rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center`}
           >
             <MoreHorizontal className={`${size === 'large' ? 'w-2.5 h-2.5' : 'w-2 h-2'} text-white`} />
           </div>
