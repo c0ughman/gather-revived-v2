@@ -104,7 +104,7 @@ export default function ChatScreen({
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
     
-    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, rgb(${r}, ${g}, ${b}) 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
+    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
   // Helper function to get user bubble gradient based on agent color
@@ -152,7 +152,7 @@ export default function ChatScreen({
   const pendingDocumentsCount = pendingDocuments.length;
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col font-inter relative">
+    <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
         className="fixed top-0 left-1/4 right-1/4 z-20 border-b border-slate-700 p-4 flex items-center space-x-4"
@@ -251,8 +251,8 @@ export default function ChatScreen({
         </div>
       </div>
 
-      {/* Messages Area - Scrollable with large top margin and padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pb-32 pt-24">
+      {/* Messages Area - Scrollable with padding for fixed header and input */}
+      <div className="flex-1 overflow-y-auto pt-24 pb-32">
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -348,7 +348,14 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="relative z-10 p-4 bg-glass-bg">
+        <div 
+          className="fixed bottom-24 left-1/4 right-1/4 z-10 p-4"
+          style={{
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.05)'
+          }}
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-medium">Upload Conversation Documents</h3>
             <button
@@ -385,8 +392,15 @@ export default function ChatScreen({
         </div>
       )}
 
-      {/* Input Area - Fixed at bottom */}
-      <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
+      {/* Input Area - Fixed at bottom with glass effect */}
+      <div 
+        className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4"
+        style={{
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.05)'
+        }}
+      >
         <div className="relative max-w-4xl mx-auto">
           <div className="relative flex items-center bg-glass-panel glass-effect rounded-full border border-slate-600 focus-within:border-blue-500 transition-colors duration-200 shadow-lg">
             {/* File Upload Button - Inside input */}
