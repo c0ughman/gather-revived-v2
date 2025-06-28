@@ -165,12 +165,12 @@ export default function ChatScreen({
       >
         <button
           onClick={onBack}
-          className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+          className="p-1.5 rounded-full hover:bg-slate-700 transition-colors duration-200"
         >
-          <ArrowLeft className="w-5 h-5 text-white" />
+          <ArrowLeft className="w-4 h-4 text-white" />
         </button>
         
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
           {contact.avatar ? (
             <img
               src={contact.avatar}
@@ -228,29 +228,29 @@ export default function ChatScreen({
           </p>
         </div>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button
             onClick={() => onSettingsClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            className="p-1.5 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Settings"
           >
-            <Settings className="w-5 h-5 text-slate-400" />
+            <Settings className="w-4 h-4 text-slate-400" />
           </button>
           
           <button
             onClick={() => onNewChatClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            className="p-1.5 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Start new conversation"
           >
-            <MessageSquarePlus className="w-5 h-5 text-slate-400" />
+            <MessageSquarePlus className="w-4 h-4 text-slate-400" />
           </button>
           
           <button
             onClick={() => onCallClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            className="p-1.5 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Start call"
           >
-            <Phone className="w-5 h-5 text-slate-400" />
+            <Phone className="w-4 h-4 text-slate-400" />
           </button>
         </div>
       </div>
@@ -404,7 +404,7 @@ export default function ChatScreen({
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
-              className={`ml-4 p-2 rounded-full transition-colors duration-200 ${
+              className={`ml-3 p-1.5 rounded-full transition-colors duration-200 ${
                 showDocumentUpload || pendingDocuments.length > 0
                   ? 'text-[#186799] hover:text-[#1a5a7a]'
                   : 'text-slate-400 hover:text-slate-300'
@@ -427,14 +427,14 @@ export default function ChatScreen({
               onKeyPress={handleKeyPress}
               placeholder={`Message ${contact.name}...`}
               disabled={isTyping}
-              className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
+              className="flex-1 bg-transparent text-white px-3 py-3 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
             />
             
             {/* Send Button - Inside input */}
             <button
               onClick={handleSend}
               disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping}
-              className="mr-4 p-2 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
+              className="mr-3 p-1.5 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
             >
               {isTyping ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
