@@ -88,22 +88,18 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           -webkit-text-fill-color: transparent;
         }
         
+        .animated-gradient-text:hover {
+          animation: gradientShift 2s ease-in-out infinite;
+        }
+        
         .animated-gradient-bg {
           background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
         }
         
-        .animated-gradient-button {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
-          transition: all 0.3s ease;
-        }
-        
-        .animated-gradient-button:hover {
+        .animated-gradient-bg:hover {
           animation: gradientShift 2s ease-in-out infinite;
-          box-shadow: 0 0 30px rgba(97, 67, 250, 0.6), 0 0 60px rgba(199, 80, 206, 0.4);
         }
         
         .animated-gradient-orb {
@@ -133,7 +129,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
           <button
             onClick={onGetStarted}
-            className="px-6 py-3 animated-gradient-button rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg text-white"
+            className="px-6 py-3 animated-gradient-bg hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl text-white"
           >
             Get Started Free
           </button>
@@ -167,7 +163,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={onGetStarted}
-                className="group px-8 py-4 animated-gradient-button rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center space-x-3 text-white"
+                className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Building Your Team</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
@@ -393,7 +389,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={onGetStarted}
-                className="group px-8 py-4 animated-gradient-button rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center space-x-3 text-white"
+                className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Your Free Trial</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />

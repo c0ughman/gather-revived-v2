@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext } from 'react'
+import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../database/lib/supabase'
 
@@ -7,15 +7,6 @@ export interface AuthState {
   session: Session | null
   loading: boolean
 }
-
-export interface AuthContextType extends AuthState {
-  signUp: (email: string, password: string) => Promise<{ data: any; error: any }>
-  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
-  signOut: () => Promise<{ error: any }>
-  resetPassword: (email: string) => Promise<{ data: any; error: any }>
-}
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -81,9 +72,4 @@ export function useAuth() {
     signOut,
     resetPassword
   }
-}
-
-// Hook to provide auth context value
-export function useAuthProvider(): AuthContextType {
-  return useAuth()
 }
