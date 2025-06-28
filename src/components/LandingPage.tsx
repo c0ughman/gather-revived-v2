@@ -73,43 +73,43 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
       <style jsx>{`
-        @keyframes gradientShift {
+        @keyframes gradientMove {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
         
         .animated-gradient-text {
-          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(90deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
+          background-size: 200% 100%;
+          animation: gradientMove 8s ease-in-out infinite;
           -webkit-background-clip: text;
           background-clip: text;
           -webkit-text-fill-color: transparent;
         }
         
         .animated-gradient-bg {
-          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(90deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
+          background-size: 200% 100%;
+          animation: gradientMove 8s ease-in-out infinite;
         }
         
         .animated-gradient-button {
-          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
-          background-size: 400% 400%;
-          animation: gradientShift 8s ease-in-out infinite;
+          background: linear-gradient(90deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
+          background-size: 200% 100%;
+          animation: gradientMove 8s ease-in-out infinite;
           transition: all 0.3s ease;
         }
         
         .animated-gradient-button:hover {
-          animation: gradientShift 2s ease-in-out infinite;
+          animation: gradientMove 2s ease-in-out infinite;
           box-shadow: 0 0 30px rgba(73, 72, 236, 0.6), 0 0 60px rgba(137, 75, 244, 0.4), 0 0 90px rgba(223, 84, 138, 0.3);
         }
         
         .animated-gradient-orb {
-          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
-          background-size: 400% 400%;
-          animation: gradientShift 12s ease-in-out infinite;
+          background: linear-gradient(90deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
+          background-size: 200% 100%;
+          animation: gradientMove 12s ease-in-out infinite;
         }
       `}</style>
 
