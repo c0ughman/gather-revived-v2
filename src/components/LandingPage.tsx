@@ -80,7 +80,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         }
         
         .animated-gradient-text {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
           -webkit-background-clip: text;
@@ -89,13 +89,13 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         }
         
         .animated-gradient-bg {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
         }
         
         .animated-gradient-button {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
           transition: all 0.3s ease;
@@ -103,11 +103,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         
         .animated-gradient-button:hover {
           animation: gradientShift 2s ease-in-out infinite;
-          box-shadow: 0 0 30px rgba(97, 67, 250, 0.6), 0 0 60px rgba(199, 80, 206, 0.4);
+          box-shadow: 0 0 30px rgba(97, 67, 250, 0.6), 0 0 60px rgba(199, 80, 206, 0.4), 0 0 90px rgba(113, 59, 255, 0.3);
         }
         
         .animated-gradient-orb {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713bff);
           background-size: 400% 400%;
           animation: gradientShift 12s ease-in-out infinite;
         }
