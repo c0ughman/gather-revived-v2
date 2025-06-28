@@ -87,12 +87,15 @@ export default function ContactSidebar({
     
     if (indicators.length === 0) return null;
     
+    // Starting from bottom right and going counter-clockwise around the bottom-right quadrant
     return (
       <div className="absolute inset-0 pointer-events-none">
         {indicators.map((indicator, index) => {
-          // Calculate position around the avatar
+          // Calculate position around the bottom-right quadrant
           const totalItems = hasMore ? indicators.length + 1 : indicators.length;
-          const angle = (index / totalItems) * 2 * Math.PI;
+          // Start at 0 degrees (right) and go counter-clockwise up to 90 degrees (bottom)
+          // We're using a quarter circle (90 degrees) starting from the bottom right
+          const angle = Math.PI / 2 - (index / totalItems) * (Math.PI / 2);
           const radius = 30; // Distance from center
           const x = Math.cos(angle) * radius;
           const y = Math.sin(angle) * radius;
@@ -103,8 +106,8 @@ export default function ContactSidebar({
               className="absolute w-3.5 h-3.5 rounded-full border border-slate-800"
               style={{
                 backgroundColor: indicator.color,
-                left: `calc(50% + ${x}px - 7px)`,
-                top: `calc(50% + ${y}px - 7px)`,
+                right: `${7 - x}px`,
+                bottom: `${7 - y}px`,
                 boxShadow: `0 0 6px ${indicator.color}40`
               }}
             />
@@ -116,8 +119,8 @@ export default function ContactSidebar({
           <div
             className="absolute w-3.5 h-3.5 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center"
             style={{
-              left: `calc(50% + ${Math.cos((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * 30}px - 7px)`,
-              top: `calc(50% + ${Math.sin((indicators.length / (indicators.length + 1)) * 2 * Math.PI) * 30}px - 7px)`,
+              right: `${7 - Math.cos(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 30}px`,
+              bottom: `${7 - Math.sin(Math.PI / 2 - (indicators.length / (indicators.length + 1)) * (Math.PI / 2)) * 30}px`,
             }}
           >
             <MoreHorizontal className="w-2 h-2 text-white" />
@@ -254,17 +257,7 @@ export default function ContactSidebar({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-inter ${
-                            complexityLevel === 'High' ? 'bg-red-900/30 text-red-300' :
-                            complexityLevel === 'Medium' ? 'bg-yellow-900/30 text-yellow-300' :
-                            complexityLevel === 'Low' ? 'bg-green-900/30 text-green-300' :
-                            'bg-slate-700 text-slate-400'
-                          }`}>
-                            {complexityLevel}
-                          </span>
-                        </div>
+                        <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
                       </div>
                       <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
                         {contact.description.length > 40 
@@ -272,32 +265,6 @@ export default function ContactSidebar({
                           : contact.description
                         }
                       </p>
-                      
-                      {/* Complexity Summary */}
-                      {counts.total > 0 && (
-                        <div className="flex items-center space-x-3 mt-1">
-                          {counts.documents > 0 && (
-                            <span className="text-xs text-blue-400 font-inter">
-                              {counts.documents}
-                            </span>
-                          )}
-                          {counts.sources > 0 && (
-                            <span className="text-xs text-green-400 font-inter">
-                              {counts.sources}
-                            </span>
-                          )}
-                          {counts.actions > 0 && (
-                            <span className="text-xs text-red-400 font-inter">
-                              {counts.actions}
-                            </span>
-                          )}
-                          {hasMore && (
-                            <span className="text-xs text-slate-400 font-inter">
-                              +{counts.total - indicators.length}
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     {/* Action Buttons - Show on Hover */}
