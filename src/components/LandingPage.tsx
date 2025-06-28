@@ -80,7 +80,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         }
         
         .animated-gradient-text {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
           -webkit-background-clip: text;
@@ -89,13 +89,13 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         }
         
         .animated-gradient-bg {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
         }
         
         .animated-gradient-button {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
           transition: all 0.3s ease;
@@ -103,11 +103,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         
         .animated-gradient-button:hover {
           animation: gradientShift 2s ease-in-out infinite;
-          box-shadow: 0 0 30px rgba(97, 67, 250, 0.6), 0 0 60px rgba(199, 80, 206, 0.4);
+          box-shadow: 0 0 30px rgba(73, 72, 236, 0.6), 0 0 60px rgba(137, 75, 244, 0.4), 0 0 90px rgba(223, 84, 138, 0.3);
         }
         
         .animated-gradient-orb {
-          background: linear-gradient(-45deg, #2c2984, #332d97, #3033a8, #4244e7, #4645eb, #6143fa, #8343fb, #a54aef, #a94ae4, #c750ce, #4578ed, #5d5fed, #6b3fec, #6d3aee, #713b);
+          background: linear-gradient(-45deg, #3435B7, #4948EC, #894BF4, #DF548A, #EB6D38);
           background-size: 400% 400%;
           animation: gradientShift 12s ease-in-out infinite;
         }
@@ -145,7 +145,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6 text-center">
           <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-8">
-              <Sparkles className="w-4 h-4 text-[#6143fa]" />
+              <Sparkles className="w-4 h-4 text-[#4948EC]" />
               <span className="text-sm font-medium">The future of AI collaboration is here</span>
             </div>
             
@@ -214,8 +214,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 className="relative p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-500"
                 style={{ animationDelay: `${index * 200}ms` }}
               >
-                <div className="w-16 h-16 bg-gradient-to-br from-[#6143fa]/20 to-[#c750ce]/20 rounded-2xl flex items-center justify-center mb-6">
-                  <benefit.icon className="w-8 h-8 text-[#6143fa]" />
+                <div className="w-16 h-16 bg-gradient-to-br from-[#4948EC]/20 to-[#894BF4]/20 rounded-2xl flex items-center justify-center mb-6">
+                  <benefit.icon className="w-8 h-8 text-[#4948EC]" />
                 </div>
                 <h3 className="text-xl font-bold mb-4 text-white">{benefit.title}</h3>
                 <p className="text-slate-400 leading-relaxed">{benefit.description}</p>
@@ -356,11 +356,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
               
               {/* Floating Elements */}
-              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-[#6143fa]/20 to-[#c750ce]/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                <Brain className="w-8 h-8 text-[#6143fa]" />
+              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-[#4948EC]/20 to-[#894BF4]/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
+                <Brain className="w-8 h-8 text-[#4948EC]" />
               </div>
-              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-[#c750ce]/20 to-[#4578ed]/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-[#c750ce]" />
+              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-[#894BF4]/20 to-[#DF548A]/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
+                <Zap className="w-6 h-6 text-[#894BF4]" />
               </div>
             </div>
           </div>
