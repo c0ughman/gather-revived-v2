@@ -1,15 +1,14 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabaseService } from '../../database/services/supabaseService';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../../database/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
-  userProfile: any | null;
+  session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,100 +23,81 @@ export function useAuth() {
 
 export function useAuthProvider() {
   const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<any | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // Get initial session
-    initializeAuth();
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (error) {
+            console.error('Error getting session:', error);
+          } else {
+            setSession(session);
+            setUser(session?.user ?? null);
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    getInitialSession();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabaseService.getClient().auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 Auth state changed:', event, session?.user?.email);
+        console.log('Auth state changed:', event, session?.user?.email);
         
-        if (session?.user) {
-          await handleUserSession(session.user);
-        } else {
-          setUser(null);
-          setUserProfile(null);
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  const initializeAuth = async () => {
-    try {
-      console.log('🔐 Initializing auth...');
-      setLoading(true);
-
-      const currentUser = await supabaseService.getCurrentUser();
-      
-      if (currentUser) {
-        await handleUserSession(currentUser);
-      }
-    } catch (error) {
-      console.error('❌ Error initializing auth:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUserSession = async (user: User) => {
-    try {
-      console.log('👤 Handling user session for:', user.email);
-      setUser(user);
-
-      // Try to get user profile
-      try {
-        const profile = await supabaseService.getUserProfile(user.id);
-        setUserProfile(profile);
-        console.log('✅ User profile loaded');
-      } catch (profileError) {
-        console.warn('⚠️ User profile not found, creating one...');
-        
-        // Create profile if it doesn't exist
-        try {
-          const newProfile = await supabaseService.createUserProfile(user.id, {
-            display_name: user.email?.split('@')[0] || 'User',
-            avatar_url: null,
-            timezone: 'UTC',
-            preferences: {},
-            subscription_tier: 'free',
-            usage_stats: {}
-          });
-          setUserProfile(newProfile);
-          console.log('✅ User profile created');
-        } catch (createError) {
-          console.error('❌ Failed to create user profile:', createError);
-          // Continue without profile for now
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error handling user session:', error);
-    }
-  };
-
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
-      console.log('🔐 Signing up user:', email);
       
-      const { user: newUser, session } = await supabaseService.signUp(email, password);
-      
-      if (newUser && session) {
-        await handleUserSession(newUser);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: undefined // Disable email confirmation for development
+        }
+      });
+
+      if (error) {
+        console.error('Signup error:', error);
+        throw new Error(error.message);
       }
-      
-      console.log('✅ Sign up successful');
+
+      if (data.user && data.session) {
+        // User is automatically signed in
+        console.log('User signed up and logged in:', data.user.email);
+      } else if (data.user && !data.session) {
+        // Email confirmation required
+        throw new Error('Please check your email to confirm your account');
+      }
     } catch (error) {
-      console.error('❌ Sign up error:', error);
+      console.error('Sign up error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -127,17 +107,20 @@ export function useAuthProvider() {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      console.log('🔐 Signing in user:', email);
       
-      const { user: signedInUser, session } = await supabaseService.signIn(email, password);
-      
-      if (signedInUser && session) {
-        await handleUserSession(signedInUser);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        console.error('Signin error:', error);
+        throw new Error(error.message);
       }
-      
-      console.log('✅ Sign in successful');
+
+      console.log('User signed in:', data.user?.email);
     } catch (error) {
-      console.error('❌ Sign in error:', error);
+      console.error('Sign in error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -147,36 +130,30 @@ export function useAuthProvider() {
   const signOut = async () => {
     try {
       setLoading(true);
-      console.log('🔐 Signing out user...');
       
-      await supabaseService.signOut();
+      const { error } = await supabase.auth.signOut();
       
-      setUser(null);
-      setUserProfile(null);
-      
-      console.log('✅ Sign out successful');
+      if (error) {
+        console.error('Signout error:', error);
+        throw new Error(error.message);
+      }
+
+      console.log('User signed out');
     } catch (error) {
-      console.error('❌ Sign out error:', error);
+      console.error('Sign out error:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshUser = async () => {
-    if (user) {
-      await handleUserSession(user);
-    }
-  };
-
   return {
     user,
-    userProfile,
+    session,
     loading,
     signUp,
     signIn,
-    signOut,
-    refreshUser
+    signOut
   };
 }
 

@@ -1,56 +1,85 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext, useAuthProvider } from '../../modules/auth/hooks/useAuth';
-import { AuthScreen } from '../../modules/auth';
-import { ChatScreen } from '../../modules/chat';
-import { CallScreen } from '../../modules/voice';
-import { Dashboard, ContactSidebar, SettingsScreen } from '../../modules/ui';
+import { supabaseService } from '../../modules/database/services/supabaseService';
 import { AIContact } from '../types/types';
-import { contactsService } from '../data/contacts';
+
+// Import components
 import LandingPage from '../../components/LandingPage';
 import PricingPage from '../../components/PricingPage';
 import SuccessNotice from '../../components/SuccessNotice';
+import AuthScreen from '../../modules/auth/components/AuthScreen';
+import ChatScreen from '../../modules/chat/components/ChatScreen';
+import CallScreen from '../../modules/voice/components/CallScreen';
+import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
+import { Dashboard, ContactSidebar, SettingsScreen } from '../../modules/ui';
 
-type AppView = 'landing' | 'auth' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings';
+// Import sample data
+import { sampleContacts } from '../data/contacts';
+
+type AppView = 'landing' | 'pricing' | 'auth' | 'dashboard' | 'chat' | 'call' | 'settings';
 
 function AppContent() {
   const { user, loading: authLoading } = useAuthProvider();
   const [currentView, setCurrentView] = useState<AppView>('landing');
-  const [contacts, setContacts] = useState<AIContact[]>([]);
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
+  const [contacts, setContacts] = useState<AIContact[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showSuccessNotice, setShowSuccessNotice] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Load contacts when user is authenticated
+  // Load user data when authenticated
   useEffect(() => {
-    if (user && currentView === 'dashboard') {
-      loadContacts();
+    if (user && !authLoading) {
+      loadUserData();
+    } else if (!user && !authLoading) {
+      // User is not authenticated, reset to landing
+      setContacts([]);
+      setSelectedContact(null);
+      if (currentView !== 'landing' && currentView !== 'pricing' && currentView !== 'auth') {
+        setCurrentView('landing');
+      }
     }
-  }, [user, currentView]);
+  }, [user, authLoading]);
 
-  // Auto-navigate to dashboard when user is authenticated
-  useEffect(() => {
-    if (user && (currentView === 'landing' || currentView === 'auth' || currentView === 'pricing')) {
-      setCurrentView('dashboard');
-    }
-  }, [user, currentView]);
-
-  const loadContacts = async () => {
+  const loadUserData = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      setError(null);
-      console.log('📱 Loading contacts for user:', user.email);
+      console.log('Loading user data for:', user.email);
+
+      // Test database connection first
+      const connectionOk = await supabaseService.testConnection();
+      if (!connectionOk) {
+        console.error('Database connection failed');
+        // Fall back to sample data for development
+        setContacts(sampleContacts);
+        setCurrentView('dashboard');
+        return;
+      }
+
+      // Load user profile
+      let profile = await supabaseService.getUserProfile(user.id);
+      if (!profile) {
+        console.log('Creating user profile...');
+        profile = await supabaseService.createUserProfile(user.id, {
+          display_name: user.email?.split('@')[0] || 'User',
+          email: user.email
+        });
+      }
+
+      // Load user agents
+      const userAgents = await supabaseService.getUserAgents(user.id);
+      console.log('Loaded agents:', userAgents);
       
-      const userContacts = await contactsService.loadUserContacts(user.id);
-      setContacts(userContacts);
-      
-      console.log('✅ Loaded', userContacts.length, 'contacts');
-    } catch (err) {
-      console.error('❌ Error loading contacts:', err);
-      setError('Failed to load your AI agents. Please try refreshing the page.');
+      setContacts(userAgents);
+      setCurrentView('dashboard');
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      // Fall back to sample data for development
+      setContacts(sampleContacts);
+      setCurrentView('dashboard');
     } finally {
       setLoading(false);
     }
@@ -79,8 +108,10 @@ function AppContent() {
   };
 
   const handleSettingsClick = (contact?: AIContact) => {
-    setSelectedContact(contact || null);
-    setCurrentView('settings');
+    if (contact) {
+      setSelectedContact(contact);
+      setCurrentView('settings');
+    }
   };
 
   const handleHomeClick = () => {
@@ -89,101 +120,69 @@ function AppContent() {
   };
 
   const handleCreateAgent = () => {
-    // Create a new contact template
-    const newContact: AIContact = {
-      id: 'new',
-      name: '',
-      description: '',
+    // Create a new agent with default values
+    const newAgent: AIContact = {
+      id: `agent_${Date.now()}`,
+      name: 'New AI Assistant',
+      description: 'A helpful AI assistant ready to be customized',
       initials: 'AI',
       color: '#3b82f6',
+      voice: 'Puck',
       status: 'online',
-      lastSeen: 'now',
-      voice: 'Puck'
+      lastSeen: 'now'
     };
-    setSelectedContact(newContact);
+
+    setSelectedContact(newAgent);
     setCurrentView('settings');
   };
 
   const handleSaveContact = async (contact: AIContact) => {
-    if (!user) return;
-
     try {
-      setLoading(true);
-      console.log('💾 Saving contact:', contact.name);
+      if (!user) return;
+
+      // Check if this is a new contact (no existing ID in contacts array)
+      const existingIndex = contacts.findIndex(c => c.id === contact.id);
       
-      const savedContact = await contactsService.saveContact(user.id, contact);
-      
-      // Update contacts list
-      if (contact.id === 'new') {
-        setContacts(prev => [...prev, savedContact]);
-        setSuccessMessage('AI agent created successfully!');
+      if (existingIndex >= 0) {
+        // Update existing contact
+        await supabaseService.updateUserAgent(contact.id, contact);
+        const updatedContacts = [...contacts];
+        updatedContacts[existingIndex] = contact;
+        setContacts(updatedContacts);
+        
+        setSuccessMessage('Agent updated successfully!');
       } else {
-        setContacts(prev => prev.map(c => c.id === contact.id ? savedContact : c));
-        setSuccessMessage('AI agent updated successfully!');
+        // Create new contact
+        const newAgent = await supabaseService.createUserAgent(user.id, contact);
+        const newContact: AIContact = {
+          ...contact,
+          id: newAgent.id
+        };
+        setContacts(prev => [newContact, ...prev]);
+        
+        setSuccessMessage('Agent created successfully!');
       }
       
+      setShowSuccessNotice(true);
       setCurrentView('dashboard');
       setSelectedContact(null);
-    } catch (err) {
-      console.error('❌ Error saving contact:', err);
-      setError('Failed to save AI agent. Please try again.');
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Error saving contact:', error);
+      alert('Failed to save agent. Please try again.');
     }
   };
 
-  const handleDeleteContact = async (contactId: string) => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      console.log('🗑️ Deleting contact:', contactId);
-      
-      await contactsService.deleteContact(contactId);
-      
-      setContacts(prev => prev.filter(c => c.id !== contactId));
-      setSuccessMessage('AI agent deleted successfully!');
-      
-      if (selectedContact?.id === contactId) {
-        setCurrentView('dashboard');
-        setSelectedContact(null);
-      }
-    } catch (err) {
-      console.error('❌ Error deleting contact:', err);
-      setError('Failed to delete AI agent. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  const handleNewChatClick = (contact: AIContact) => {
+    handleChatClick(contact);
   };
 
-  // Show loading screen during auth initialization
-  if (authLoading) {
+  // Show loading screen during auth check
+  if (authLoading || loading) {
     return (
       <div className="h-screen bg-glass-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#186799] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if there's a critical error
-  if (error && !user) {
-    return (
-      <div className="h-screen bg-glass-bg flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="text-red-400 mb-4">⚠️ Error</div>
-          <p className="text-white mb-4">{error}</p>
-          <button
-            onClick={() => {
-              setError(null);
-              setCurrentView('landing');
-            }}
-            className="px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200"
-          >
-            Try Again
-          </button>
+          <div className="w-16 h-16 border-4 border-[#186799] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
     );
@@ -201,16 +200,17 @@ function AppContent() {
       case 'auth':
         return (
           <AuthScreen 
-            onSuccess={() => setCurrentView('dashboard')}
-            onBack={() => setCurrentView('landing')}
+            onSuccess={() => {
+              setSuccessMessage('Welcome to Gather! Your account has been created.');
+              setShowSuccessNotice(true);
+            }}
           />
         );
       
       case 'dashboard':
-        if (!user) return <Navigate to="/auth" replace />;
         return (
           <div className="h-screen flex bg-glass-bg">
-            <div className="w-80 border-r border-slate-700">
+            <div className="w-80 flex-shrink-0">
               <ContactSidebar
                 contacts={contacts}
                 onChatClick={handleChatClick}
@@ -226,7 +226,7 @@ function AppContent() {
                 onChatClick={handleChatClick}
                 onCallClick={handleCallClick}
                 onSettingsClick={handleSettingsClick}
-                onNewChatClick={handleChatClick}
+                onNewChatClick={handleNewChatClick}
                 onCreateAgent={handleCreateAgent}
               />
             </div>
@@ -234,10 +234,9 @@ function AppContent() {
         );
       
       case 'chat':
-        if (!user || !selectedContact) return <Navigate to="/dashboard" replace />;
-        return (
+        return selectedContact ? (
           <div className="h-screen flex bg-glass-bg">
-            <div className="w-80 border-r border-slate-700">
+            <div className="w-80 flex-shrink-0">
               <ContactSidebar
                 contacts={contacts}
                 onChatClick={handleChatClick}
@@ -251,77 +250,51 @@ function AppContent() {
               <ChatScreen
                 contact={selectedContact}
                 onBack={handleHomeClick}
-                onCall={() => handleCallClick(selectedContact)}
-                onSettings={() => handleSettingsClick(selectedContact)}
               />
             </div>
           </div>
+        ) : (
+          <Navigate to="/dashboard" replace />
         );
       
       case 'call':
-        if (!user || !selectedContact) return <Navigate to="/dashboard" replace />;
-        return (
+        return selectedContact ? (
           <CallScreen
             contact={selectedContact}
             onEndCall={handleHomeClick}
-            onBack={handleHomeClick}
           />
+        ) : (
+          <Navigate to="/dashboard" replace />
         );
       
       case 'settings':
-        if (!user) return <Navigate to="/dashboard" replace />;
-        return (
+        return selectedContact ? (
           <SettingsScreen
             contact={selectedContact}
             onBack={handleHomeClick}
             onSave={handleSaveContact}
           />
+        ) : (
+          <Navigate to="/dashboard" replace />
         );
       
       default:
-        return <Navigate to="/landing" replace />;
+        return <LandingPage onGetStarted={handleGetStarted} />;
     }
   };
 
   return (
-    <div className="font-inter">
+    <>
       {renderCurrentView()}
       
       {/* Success Notice */}
-      {successMessage && (
+      {showSuccessNotice && (
         <SuccessNotice
           message={successMessage}
-          onClose={() => setSuccessMessage(null)}
+          onClose={() => setShowSuccessNotice(false)}
         />
       )}
-      
-      {/* Error Notice */}
-      {error && (
-        <div className="fixed top-6 right-6 z-50 bg-red-900/90 border border-red-700 text-red-300 px-4 py-3 rounded-lg shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">{error}</span>
-            <button
-              onClick={() => setError(null)}
-              className="ml-3 text-red-400 hover:text-red-300"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 border-2 border-[#186799] border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-white">Processing...</span>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -332,6 +305,7 @@ export default function App() {
     <AuthContext.Provider value={authValue}>
       <Router>
         <Routes>
+          <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
           <Route path="/*" element={<AppContent />} />
         </Routes>
       </Router>

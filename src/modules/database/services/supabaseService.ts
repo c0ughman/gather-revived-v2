@@ -1,21 +1,8 @@
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '../lib/supabase';
+import { AIContact } from '../../../core/types/types';
 
 export class SupabaseService {
   private static instance: SupabaseService;
-  private client: SupabaseClient;
-
-  private constructor() {
-    this.client = supabase;
-  }
 
   static getInstance(): SupabaseService {
     if (!SupabaseService.instance) {
@@ -24,211 +11,173 @@ export class SupabaseService {
     return SupabaseService.instance;
   }
 
-  // Auth methods
-  async signUp(email: string, password: string) {
-    try {
-      console.log('🔐 Attempting to sign up user:', email);
-      
-      const { data, error } = await this.client.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
-      });
-
-      if (error) {
-        console.error('❌ Supabase signup error:', error);
-        throw error;
-      }
-
-      console.log('✅ User signed up successfully:', data.user?.email);
-      return data;
-    } catch (error) {
-      console.error('❌ Sign up error:', error);
-      throw error;
-    }
-  }
-
-  async signIn(email: string, password: string) {
-    try {
-      console.log('🔐 Attempting to sign in user:', email);
-      
-      const { data, error } = await this.client.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        console.error('❌ Supabase signin error:', error);
-        throw error;
-      }
-
-      console.log('✅ User signed in successfully:', data.user?.email);
-      return data;
-    } catch (error) {
-      console.error('❌ Sign in error:', error);
-      throw error;
-    }
-  }
-
-  async signOut() {
-    try {
-      console.log('🔐 Signing out user...');
-      
-      const { error } = await this.client.auth.signOut();
-      
-      if (error) {
-        console.error('❌ Sign out error:', error);
-        throw error;
-      }
-
-      console.log('✅ User signed out successfully');
-    } catch (error) {
-      console.error('❌ Sign out error:', error);
-      throw error;
-    }
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    try {
-      const { data: { user }, error } = await this.client.auth.getUser();
-      
-      if (error) {
-        console.error('❌ Error getting current user:', error);
-        return null;
-      }
-
-      return user;
-    } catch (error) {
-      console.error('❌ Error getting current user:', error);
-      return null;
-    }
-  }
-
-  // User profile methods
+  // User Profile Methods
   async getUserProfile(userId: string) {
     try {
-      console.log('👤 Fetching user profile for:', userId);
-      
-      const { data, error } = await this.client
+      const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('❌ Error fetching user profile:', error);
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error fetching user profile:', error);
         throw error;
       }
 
-      console.log('✅ User profile fetched successfully');
       return data;
     } catch (error) {
-      console.error('❌ Error fetching user profile:', error);
-      throw error;
+      console.error('Error in getUserProfile:', error);
+      return null;
     }
   }
 
   async createUserProfile(userId: string, profileData: any) {
     try {
-      console.log('👤 Creating user profile for:', userId);
-      
-      const { data, error } = await this.client
+      const { data, error } = await supabase
         .from('user_profiles')
         .insert({
           id: userId,
-          ...profileData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          display_name: profileData.display_name || profileData.email,
+          ...profileData
         })
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Error creating user profile:', error);
+        console.error('Error creating user profile:', error);
         throw error;
       }
 
-      console.log('✅ User profile created successfully');
       return data;
     } catch (error) {
-      console.error('❌ Error creating user profile:', error);
+      console.error('Error in createUserProfile:', error);
       throw error;
     }
   }
 
-  // User agents methods
-  async getUserAgents(userId: string) {
+  // User Agents Methods
+  async getUserAgents(userId: string): Promise<AIContact[]> {
     try {
-      console.log('🤖 Fetching user agents for:', userId);
+      console.log('Fetching agents for user:', userId);
       
-      const { data, error } = await this.client
-        .rpc('get_user_agents', { p_user_id: userId });
+      const { data, error } = await supabase
+        .from('user_agents')
+        .select(`
+          *,
+          agent_integrations (
+            id,
+            template_id,
+            name,
+            description,
+            config,
+            status
+          ),
+          agent_documents (
+            id,
+            name,
+            original_filename,
+            file_type,
+            file_size,
+            content,
+            summary,
+            metadata,
+            uploaded_at
+          )
+        `)
+        .eq('user_id', userId)
+        .order('is_favorite', { ascending: false })
+        .order('last_used_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error fetching user agents:', error);
-        // Fallback to direct query if RPC fails
-        const { data: fallbackData, error: fallbackError } = await this.client
-          .from('user_agents')
-          .select('*')
-          .eq('user_id', userId)
-          .order('is_favorite', { ascending: false })
-          .order('last_used_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false });
-
-        if (fallbackError) {
-          console.error('❌ Fallback query also failed:', fallbackError);
-          throw fallbackError;
-        }
-
-        console.log('✅ User agents fetched successfully (fallback)');
-        return fallbackData || [];
+        console.error('Error fetching user agents:', error);
+        throw error;
       }
 
-      console.log('✅ User agents fetched successfully');
-      return data || [];
+      console.log('Raw agents data:', data);
+
+      // Transform the data to match AIContact interface
+      const agents: AIContact[] = (data || []).map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        initials: agent.initials,
+        color: agent.color,
+        voice: agent.voice,
+        avatar: agent.avatar_url,
+        status: agent.status as 'online' | 'busy' | 'offline',
+        lastSeen: this.formatLastSeen(agent.last_seen, agent.last_used_at),
+        integrations: agent.agent_integrations?.map((integration: any) => ({
+          id: integration.id,
+          integrationId: integration.template_id,
+          name: integration.name,
+          config: integration.config,
+          status: integration.status
+        })),
+        documents: agent.agent_documents?.map((doc: any) => ({
+          id: doc.id,
+          name: doc.name,
+          originalFilename: doc.original_filename,
+          type: doc.file_type,
+          size: doc.file_size,
+          content: doc.content,
+          summary: doc.summary,
+          metadata: doc.metadata,
+          uploadedAt: new Date(doc.uploaded_at)
+        }))
+      }));
+
+      console.log('Transformed agents:', agents);
+      return agents;
     } catch (error) {
-      console.error('❌ Error fetching user agents:', error);
-      return []; // Return empty array instead of throwing
+      console.error('Error in getUserAgents:', error);
+      return [];
     }
   }
 
-  async createUserAgent(agentData: any) {
+  async createUserAgent(userId: string, agentData: Partial<AIContact>) {
     try {
-      console.log('🤖 Creating user agent:', agentData.name);
-      
-      const { data, error } = await this.client
+      const { data, error } = await supabase
         .from('user_agents')
         .insert({
-          ...agentData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          user_id: userId,
+          name: agentData.name,
+          description: agentData.description,
+          initials: agentData.initials,
+          color: agentData.color,
+          voice: agentData.voice,
+          avatar_url: agentData.avatar,
+          status: agentData.status || 'online',
+          last_seen: 'now'
         })
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Error creating user agent:', error);
+        console.error('Error creating user agent:', error);
         throw error;
       }
 
-      console.log('✅ User agent created successfully');
       return data;
     } catch (error) {
-      console.error('❌ Error creating user agent:', error);
+      console.error('Error in createUserAgent:', error);
       throw error;
     }
   }
 
-  async updateUserAgent(agentId: string, updates: any) {
+  async updateUserAgent(agentId: string, updates: Partial<AIContact>) {
     try {
-      console.log('🤖 Updating user agent:', agentId);
-      
-      const { data, error } = await this.client
+      const { data, error } = await supabase
         .from('user_agents')
         .update({
-          ...updates,
+          name: updates.name,
+          description: updates.description,
+          initials: updates.initials,
+          color: updates.color,
+          voice: updates.voice,
+          avatar_url: updates.avatar,
+          status: updates.status,
           updated_at: new Date().toISOString()
         })
         .eq('id', agentId)
@@ -236,110 +185,77 @@ export class SupabaseService {
         .single();
 
       if (error) {
-        console.error('❌ Error updating user agent:', error);
+        console.error('Error updating user agent:', error);
         throw error;
       }
 
-      console.log('✅ User agent updated successfully');
       return data;
     } catch (error) {
-      console.error('❌ Error updating user agent:', error);
+      console.error('Error in updateUserAgent:', error);
       throw error;
     }
   }
 
   async deleteUserAgent(agentId: string) {
     try {
-      console.log('🤖 Deleting user agent:', agentId);
-      
-      const { error } = await this.client
+      const { error } = await supabase
         .from('user_agents')
         .delete()
         .eq('id', agentId);
 
       if (error) {
-        console.error('❌ Error deleting user agent:', error);
+        console.error('Error deleting user agent:', error);
         throw error;
       }
 
-      console.log('✅ User agent deleted successfully');
+      return true;
     } catch (error) {
-      console.error('❌ Error deleting user agent:', error);
+      console.error('Error in deleteUserAgent:', error);
       throw error;
     }
   }
 
-  // Usage and subscription methods
-  async getUserUsage(userId: string) {
-    try {
-      console.log('📊 Fetching user usage for:', userId);
-      
-      const { data, error } = await this.client
-        .from('user_usage')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+  // Helper Methods
+  private formatLastSeen(lastSeen: string, lastUsedAt: string | null): string {
+    if (lastSeen === 'now') return 'now';
+    
+    if (lastUsedAt) {
+      const lastUsed = new Date(lastUsedAt);
+      const now = new Date();
+      const diffMs = now.getTime() - lastUsed.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-      if (error) {
-        console.error('❌ Error fetching user usage:', error);
-        throw error;
-      }
-
-      console.log('✅ User usage fetched successfully');
-      return data;
-    } catch (error) {
-      console.error('❌ Error fetching user usage:', error);
-      throw error;
+      if (diffMins < 1) return 'now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return lastUsed.toLocaleDateString();
     }
+
+    return lastSeen;
   }
 
-  async getUserSubscription(userId: string) {
+  // Test connection
+  async testConnection() {
     try {
-      console.log('💳 Fetching user subscription for:', userId);
-      
-      const { data, error } = await this.client
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('❌ Error fetching user subscription:', error);
-        throw error;
-      }
-
-      console.log('✅ User subscription fetched successfully');
-      return data;
-    } catch (error) {
-      console.error('❌ Error fetching user subscription:', error);
-      throw error;
-    }
-  }
-
-  // Health check
-  async healthCheck() {
-    try {
-      const { data, error } = await this.client
+      const { data, error } = await supabase
         .from('user_profiles')
         .select('count')
         .limit(1);
 
       if (error) {
-        console.error('❌ Database health check failed:', error);
+        console.error('Database connection test failed:', error);
         return false;
       }
 
-      console.log('✅ Database health check passed');
+      console.log('Database connection test successful');
       return true;
     } catch (error) {
-      console.error('❌ Database health check failed:', error);
+      console.error('Database connection test error:', error);
       return false;
     }
-  }
-
-  // Get the Supabase client for direct access
-  getClient() {
-    return this.client;
   }
 }
 
