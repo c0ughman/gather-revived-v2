@@ -70,19 +70,36 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-      {/* Animated Background Elements */}
+    <div className="min-h-screen bg-[#0a0118] text-white overflow-hidden relative">
+      {/* Enhanced Background with New Gradient */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-purple-600/20 to-[#186799]/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-[#186799]/10 to-purple-600/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '4s' }}></div>
+        {/* Main gradient background */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(to bottom, #e0f7ff, #ec38bc, #7303c0, #0a0118)'
+          }}
+        />
+        
+        {/* Animated floating elements for glass backing */}
+        <div className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-br from-cyan-400/30 to-purple-600/30 rounded-full blur-3xl animate-pulse opacity-40"></div>
+        <div className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-tr from-pink-400/30 to-blue-600/30 rounded-full blur-3xl animate-pulse opacity-40" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-full blur-3xl animate-pulse opacity-30" style={{ animationDelay: '4s' }}></div>
+        <div className="absolute bottom-1/3 left-1/4 w-72 h-72 bg-gradient-to-br from-blue-400/25 to-purple-500/25 rounded-full blur-3xl animate-pulse opacity-35" style={{ animationDelay: '6s' }}></div>
+        
+        {/* Additional backing elements */}
+        <div className="absolute top-40 right-1/3 w-48 h-48 bg-gradient-to-bl from-cyan-300/20 to-pink-400/20 rounded-full blur-2xl animate-pulse opacity-50" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-40 left-1/2 w-56 h-56 bg-gradient-to-tr from-purple-400/25 to-cyan-400/25 rounded-full blur-2xl animate-pulse opacity-45" style={{ animationDelay: '3s' }}></div>
       </div>
+
+      {/* Dark overlay for better contrast */}
+      <div className="fixed inset-0 bg-[#0a0118]/60 pointer-events-none"></div>
 
       {/* Navigation */}
       <nav className="relative z-50 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#186799] to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
@@ -91,7 +108,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
           <button
             onClick={onGetStarted}
-            className="px-6 py-3 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-700 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
           >
             Get Started Free
           </button>
@@ -103,7 +120,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6 text-center">
           <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-8">
-              <Sparkles className="w-4 h-4 text-[#186799]" />
+              <Sparkles className="w-4 h-4 text-cyan-400" />
               <span className="text-sm font-medium">The future of AI collaboration is here</span>
             </div>
             
@@ -112,7 +129,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 Your AI
               </span>
               <br />
-              <span className="bg-gradient-to-r from-[#186799] via-purple-500 to-[#186799] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
                 Dream Team
               </span>
             </h1>
@@ -125,7 +142,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={onGetStarted}
-                className="group px-8 py-4 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
+                className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-700 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
               >
                 <span>Start Building Your Team</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
@@ -160,14 +177,19 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             {benefits.map((benefit, index) => (
               <div
                 key={index}
-                className="group p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-500 hover:transform hover:scale-105"
+                className="group relative"
                 style={{ animationDelay: `${index * 200}ms` }}
               >
-                <div className="w-16 h-16 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <benefit.icon className="w-8 h-8 text-[#186799]" />
+                {/* Backing element for glass effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-purple-600/20 rounded-2xl blur-xl transform group-hover:scale-110 transition-transform duration-500 opacity-60"></div>
+                
+                <div className="relative p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-500 hover:transform hover:scale-105">
+                  <div className="w-16 h-16 bg-gradient-to-br from-cyan-400/20 to-purple-600/20 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <benefit.icon className="w-8 h-8 text-cyan-400" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-4 text-white">{benefit.title}</h3>
+                  <p className="text-slate-400 leading-relaxed">{benefit.description}</p>
                 </div>
-                <h3 className="text-xl font-bold mb-4 text-white">{benefit.title}</h3>
-                <p className="text-slate-400 leading-relaxed">{benefit.description}</p>
               </div>
             ))}
           </div>
@@ -192,19 +214,24 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             {testimonials.map((testimonial, index) => (
               <div
                 key={index}
-                className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="relative group"
               >
-                <div className="flex items-center space-x-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <blockquote className="text-lg text-slate-300 mb-6 leading-relaxed">
-                  "{testimonial.quote}"
-                </blockquote>
-                <div>
-                  <div className="font-semibold text-white">{testimonial.author}</div>
-                  <div className="text-sm text-slate-400">{testimonial.role} at {testimonial.company}</div>
+                {/* Backing element for glass effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-400/15 to-cyan-400/15 rounded-2xl blur-lg transform group-hover:scale-105 transition-transform duration-300 opacity-70"></div>
+                
+                <div className="relative p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300">
+                  <div className="flex items-center space-x-1 mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                  <blockquote className="text-lg text-slate-300 mb-6 leading-relaxed">
+                    "{testimonial.quote}"
+                  </blockquote>
+                  <div>
+                    <div className="font-semibold text-white">{testimonial.author}</div>
+                    <div className="text-sm text-slate-400">{testimonial.role} at {testimonial.company}</div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -213,25 +240,25 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="text-4xl font-bold bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent mb-2">
                 50K+
               </div>
               <div className="text-slate-400">AI Assistants Created</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent mb-2">
                 2M+
               </div>
               <div className="text-slate-400">Conversations</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent mb-2">
                 99.9%
               </div>
               <div className="text-slate-400">Uptime</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent mb-2">
+              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent mb-2">
                 4.9★
               </div>
               <div className="text-slate-400">User Rating</div>
@@ -250,7 +277,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   Everything You Need,
                 </span>
                 <br />
-                <span className="bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent">
                   Nothing You Don't
                 </span>
               </h2>
@@ -261,7 +288,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               <div className="space-y-4">
                 {features.map((feature, index) => (
                   <div key={index} className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-gradient-to-r from-[#186799] to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <div className="w-6 h-6 bg-gradient-to-r from-cyan-400 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-slate-300">{feature}</span>
@@ -271,8 +298,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             </div>
 
             <div className="relative">
+              {/* Backing element for mock interface */}
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-purple-600/20 rounded-3xl blur-2xl transform scale-110 opacity-60"></div>
+              
               {/* Mock Interface */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-8 shadow-2xl">
+              <div className="relative bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-8 shadow-2xl">
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-3 h-3 bg-red-400 rounded-full"></div>
                   <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
@@ -281,7 +311,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-[#186799] to-purple-600 rounded-lg"></div>
+                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-lg"></div>
                     <div>
                       <div className="text-white font-semibold">Research Assistant</div>
                       <div className="text-slate-400 text-sm">Analyzing market trends...</div>
@@ -305,8 +335,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
               
               {/* Floating Elements */}
-              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                <Brain className="w-8 h-8 text-[#186799]" />
+              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-cyan-400/20 to-purple-600/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
+                <Brain className="w-8 h-8 text-cyan-400" />
               </div>
               <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
                 <Zap className="w-6 h-6 text-purple-400" />
@@ -319,31 +349,37 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
       {/* CTA Section */}
       <section className="relative z-10 py-32">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="bg-gradient-to-r from-[#186799]/10 to-purple-600/10 backdrop-blur-sm rounded-3xl border border-white/10 p-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                Ready to Transform
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-[#186799] to-purple-600 bg-clip-text text-transparent">
-                How You Work?
-              </span>
-            </h2>
-            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-              Join the AI revolution. Create your first intelligent assistant in minutes, not months.
-            </p>
+          <div className="relative">
+            {/* Enhanced backing element for CTA */}
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/25 to-purple-600/25 rounded-3xl blur-2xl transform scale-110 opacity-80"></div>
+            <div className="absolute inset-0 bg-gradient-to-tr from-pink-400/15 to-blue-400/15 rounded-3xl blur-xl transform scale-105 opacity-60"></div>
             
-            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-              <button
-                onClick={onGetStarted}
-                className="group px-8 py-4 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
-              >
-                <span>Start Your Free Trial</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-              </button>
+            <div className="relative bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 p-12">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6">
+                <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                  Ready to Transform
+                </span>
+                <br />
+                <span className="bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent">
+                  How You Work?
+                </span>
+              </h2>
+              <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                Join the AI revolution. Create your first intelligent assistant in minutes, not months.
+              </p>
               
-              <div className="text-slate-400 text-sm">
-                No credit card required • 14-day free trial
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+                <button
+                  onClick={onGetStarted}
+                  className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-700 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3"
+                >
+                  <span>Start Your Free Trial</span>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                </button>
+                
+                <div className="text-slate-400 text-sm">
+                  No credit card required • 14-day free trial
+                </div>
               </div>
             </div>
           </div>
@@ -355,7 +391,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#186799] to-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-lg flex items-center justify-center">
                 <MessageCircle className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
