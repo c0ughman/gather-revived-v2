@@ -1,12 +1,8 @@
 import React, { useState } from 'react'
-import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Loader2, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
-interface AuthScreenProps {
-  onBackToLanding: () => void;
-}
-
-export default function AuthScreen({ onBackToLanding }: AuthScreenProps) {
+export default function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -112,12 +108,6 @@ export default function AuthScreen({ onBackToLanding }: AuthScreenProps) {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <button
-            onClick={onBackToLanding}
-            className="absolute top-6 left-6 p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-          >
-            <ArrowLeft className="w-5 h-5 text-white" />
-          </button>
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#186799] to-purple-600 rounded-2xl mb-4">
             <User className="w-8 h-8 text-white" />
           </div>

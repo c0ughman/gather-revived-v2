@@ -59,22 +59,14 @@ Deno.serve(async (req) => {
       return corsResponse({ error }, 400);
     }
 
-    // Get the authorization header and extract the token
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return corsResponse({ error: 'Authorization header is required' }, 401);
-    }
-    
+    const authHeader = req.headers.get('Authorization')!;
     const token = authHeader.replace('Bearer ', '');
-    
-    // Verify the token and get the user
     const {
       data: { user },
       error: getUserError,
     } = await supabase.auth.getUser(token);
 
     if (getUserError) {
-      console.error('Auth error:', getUserError);
       return corsResponse({ error: 'Failed to authenticate user' }, 401);
     }
 
@@ -185,7 +177,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create Checkout Session with immediate payment settings
+    // create Checkout Session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
@@ -199,15 +191,6 @@ Deno.serve(async (req) => {
       success_url,
       cancel_url,
       allow_promotion_codes: true,
-      // Add payment_behavior to ensure immediate charging
-      payment_behavior: 'default_incomplete',
-      // Set subscription_data to ensure immediate invoicing
-      ...(mode === 'subscription' ? {
-        subscription_data: {
-          trial_period_days: 0,
-          billing_cycle_anchor: 'now',
-        }
-      } : {})
     });
 
     console.log(`Created checkout session ${session.id} for customer ${customerId}`);

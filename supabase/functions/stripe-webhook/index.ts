@@ -127,6 +127,7 @@ async function handleEvent(event: Stripe.Event) {
 // based on the excellent https://github.com/t3dotgg/stripe-recommendations
 async function syncCustomerFromStripe(customerId: string) {
   try {
+    // fetch latest subscription data from Stripe
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       limit: 1,
@@ -134,64 +135,54 @@ async function syncCustomerFromStripe(customerId: string) {
       expand: ['data.default_payment_method'],
     });
 
+    // TODO verify if needed
     if (subscriptions.data.length === 0) {
       console.info(`No active subscriptions found for customer: ${customerId}`);
-      
-      // Prepare data for no subscription case
-      const noSubData = {
-        customer_id: customerId,
-        subscription_id: null,
-        status: 'not_started',
-        price_id: null,
-        current_period_start: null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-        payment_method_brand: null,
-        payment_method_last4: null,
-      };
-      
-      console.info('Upserting empty subscription data:', noSubData);
-      
-      // Removed onConflict parameter - let the database handle it based on existing constraints
-      const { error: noSubError } = await supabase.from('stripe_subscriptions').upsert(noSubData);
+      const { error: noSubError } = await supabase.from('stripe_subscriptions').upsert(
+        {
+          customer_id: customerId,
+          subscription_status: 'not_started',
+        },
+        {
+          onConflict: 'customer_id',
+        },
+      );
 
       if (noSubError) {
-        console.error('Error updating subscription status for no active subscriptions:', noSubError);
+        console.error('Error updating subscription status:', noSubError);
         throw new Error('Failed to update subscription status in database');
       }
-      return;
     }
 
+    // assumes that a customer can only have a single subscription
     const subscription = subscriptions.data[0];
 
-    const upsertData = {
-      customer_id: customerId,
-      subscription_id: subscription.id,
-      price_id: subscription.items.data[0].price.id,
-      current_period_start: subscription.current_period_start,
-      current_period_end: subscription.current_period_end,
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      payment_method_brand:
-        subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
-          ? subscription.default_payment_method.card?.brand ?? null
-          : null,
-      payment_method_last4:
-        subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
-          ? subscription.default_payment_method.card?.last4 ?? null
-          : null,
-      status: subscription.status,
-    };
-
-    console.info('Upserting subscription data:', upsertData);
-
-    // Removed onConflict parameter - let the database handle it based on existing constraints
-    const { error: subError } = await supabase.from('stripe_subscriptions').upsert(upsertData);
+    // store subscription state
+    const { error: subError } = await supabase.from('stripe_subscriptions').upsert(
+      {
+        customer_id: customerId,
+        subscription_id: subscription.id,
+        price_id: subscription.items.data[0].price.id,
+        current_period_start: subscription.current_period_start,
+        current_period_end: subscription.current_period_end,
+        cancel_at_period_end: subscription.cancel_at_period_end,
+        ...(subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
+          ? {
+              payment_method_brand: subscription.default_payment_method.card?.brand ?? null,
+              payment_method_last4: subscription.default_payment_method.card?.last4 ?? null,
+            }
+          : {}),
+        status: subscription.status,
+      },
+      {
+        onConflict: 'customer_id',
+      },
+    );
 
     if (subError) {
       console.error('Error syncing subscription:', subError);
       throw new Error('Failed to sync subscription in database');
     }
-
     console.info(`Successfully synced subscription for customer: ${customerId}`);
   } catch (error) {
     console.error(`Failed to sync subscription for customer ${customerId}:`, error);
