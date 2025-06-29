@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       // Set subscription_data to ensure immediate invoicing for subscriptions
       ...(mode === 'subscription' ? {
         subscription_data: {
-          billing_cycle_anchor: 'now',
+          billing_cycle_anchor: Math.floor(Date.now() / 1000),
         }
       } : {})
     });
