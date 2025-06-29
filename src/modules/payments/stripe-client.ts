@@ -15,6 +15,7 @@ export interface CheckoutOptions {
   mode: 'payment' | 'subscription';
   successUrl: string;
   cancelUrl: string;
+  promoCode?: string;
 }
 
 export interface CheckoutResponse {
@@ -56,6 +57,7 @@ export const stripeClient = {
         success_url: options.successUrl,
         cancel_url: options.cancelUrl,
         mode: options.mode,
+        promo_code: options.promoCode
       }),
     });
 
