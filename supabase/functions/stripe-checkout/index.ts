@@ -128,21 +128,31 @@ Deno.serve(async (req) => {
 
         // For subscription mode, create initial subscription record
         if (mode === 'subscription') {
-          const { error: createSubscriptionError } = await supabase
-            .from('stripe_subscriptions')
-            .insert({
-              customer_id: newCustomer.id,
-              status: 'not_started',
-            });
+          try {
+            const { error: createSubscriptionError } = await supabase
+              .from('stripe_subscriptions')
+              .insert({
+                customer_id: newCustomer.id,
+                status: 'not_started',
+              });
 
-          if (createSubscriptionError) {
-            console.error('Failed to save subscription in the database', createSubscriptionError);
+            if (createSubscriptionError) {
+              console.error('Failed to save subscription in the database', createSubscriptionError);
+              
+              // Clean up the Stripe customer and customer record
+              await stripe.customers.del(newCustomer.id);
+              await supabase.from('stripe_customers').delete().eq('customer_id', newCustomer.id);
+              
+              return corsResponse({ error: 'Unable to save the subscription in the database' }, 500);
+            }
+          } catch (subError) {
+            console.error('Exception creating subscription record:', subError);
             
             // Clean up the Stripe customer and customer record
             await stripe.customers.del(newCustomer.id);
             await supabase.from('stripe_customers').delete().eq('customer_id', newCustomer.id);
             
-            return corsResponse({ error: 'Unable to save the subscription in the database' }, 500);
+            return corsResponse({ error: 'Exception creating subscription record' }, 500);
           }
         }
 
@@ -170,23 +180,27 @@ Deno.serve(async (req) => {
 
         // Create subscription record if it doesn't exist
         if (!subscription) {
-          // Insert without ON CONFLICT clause
-          const { error: createSubscriptionError } = await supabase
-            .from('stripe_subscriptions')
-            .insert({
-              customer_id: customerId,
-              status: 'not_started',
-            });
+          try {
+            // Insert without ON CONFLICT clause
+            const { error: createSubscriptionError } = await supabase
+              .from('stripe_subscriptions')
+              .insert({
+                customer_id: customerId,
+                status: 'not_started',
+              });
 
-          if (createSubscriptionError) {
-            console.error('Failed to create subscription record', createSubscriptionError);
-            
-            // Check if it's a duplicate key error, which means the record already exists
-            if (createSubscriptionError.message.includes('duplicate key')) {
-              console.log('Subscription record already exists, continuing...');
-            } else {
-              return corsResponse({ error: 'Failed to create subscription record' }, 500);
+            if (createSubscriptionError) {
+              // If it's a duplicate key error, we can ignore it as the record already exists
+              if (createSubscriptionError.message.includes('duplicate key')) {
+                console.log('Subscription record already exists, continuing...');
+              } else {
+                console.error('Failed to create subscription record', createSubscriptionError);
+                return corsResponse({ error: 'Failed to create subscription record' }, 500);
+              }
             }
+          } catch (subError) {
+            console.error('Exception creating subscription record for existing customer:', subError);
+            return corsResponse({ error: 'Exception creating subscription record for existing customer' }, 500);
           }
         }
       }
