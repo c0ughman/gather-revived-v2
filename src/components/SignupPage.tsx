@@ -5,10 +5,9 @@ import { useAuth } from '../modules/auth/hooks/useAuth';
 interface SignupPageProps {
   onSuccess: () => void;
   onBackToLanding: () => void;
-  onSignIn: () => void; // Added prop for sign in navigation
 }
 
-export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: SignupPageProps) {
+export default function SignupPage({ onSuccess, onBackToLanding }: SignupPageProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -176,7 +175,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
             <p className="text-slate-400 text-sm">
               Already have an account?{' '}
               <button
-                onClick={onSignIn} // Changed to use onSignIn prop instead of onBackToLanding
+                onClick={onBackToLanding}
                 className="text-[#186799] hover:text-[#1a5a7a] font-medium transition-colors duration-200"
               >
                 Sign In

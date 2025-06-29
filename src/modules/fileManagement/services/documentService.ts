@@ -4,7 +4,6 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 class DocumentService {
   private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-  private static readonly MAX_AI_CONTENT_LENGTH = 1500; // Maximum characters for AI context
   private static readonly TEXT_FILE_TYPES = [
     'text/plain',
     'text/csv',
@@ -511,25 +510,7 @@ The AI can still reference this document by name but won't have access to its co
 📅 Uploaded: ${document.uploadedAt.toLocaleString()}
 📊 Summary: ${document.summary}`;
 
-    // Get the content to include (prefer extractedText over content)
-    const contentToInclude = document.extractedText || document.content || '';
-    
-    // Truncate content if it exceeds the maximum length for AI context
-    let truncatedContent = contentToInclude;
-    let wasTruncated = false;
-    
-    if (contentToInclude.length > DocumentService.MAX_AI_CONTENT_LENGTH) {
-      truncatedContent = contentToInclude.substring(0, DocumentService.MAX_AI_CONTENT_LENGTH);
-      wasTruncated = true;
-    }
-
-    formattedDoc += `\n\n📖 CONTENT:\n${'-'.repeat(80)}\n${truncatedContent}`;
-    
-    if (wasTruncated) {
-      const remainingChars = contentToInclude.length - DocumentService.MAX_AI_CONTENT_LENGTH;
-      formattedDoc += `\n\n[Content truncated for AI context - ${remainingChars.toLocaleString()} more characters available in full document]`;
-    }
-    
+    formattedDoc += `\n\n📖 CONTENT:\n${'-'.repeat(80)}\n${document.extractedText || document.content}`;
     formattedDoc += `\n${'-'.repeat(80)}\n📄 END OF DOCUMENT: ${document.name}`;
 
     return formattedDoc;

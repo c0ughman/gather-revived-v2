@@ -22,9 +22,6 @@ class GeminiLiveService {
   private currentContact: AIContact | null = null;
   private isListening = false;
   private audioProcessor: ScriptProcessorNode | null = null;
-  private autoListenTimeout: number | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 3;
 
   constructor() {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -105,7 +102,6 @@ class GeminiLiveService {
     console.log('✅ Audio is ready, proceeding with session...');
     
     this.currentContact = contact;
-    this.reconnectAttempts = 0;
 
     try {
       // Build system instruction with document context
@@ -152,71 +148,28 @@ class GeminiLiveService {
       }
 
       if (hasWebhookTool) {
-        systemInstruction += '\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🔧\nYou can trigger workflows when users ask to activate, start, or execute processes.';
+        systemInstruction += '\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🪝\nYou can trigger workflows when users ask to activate, start, or execute processes.';
       }
 
       if (hasGoogleSheets) {
-        systemInstruction += '\n\n📊 GOOGLE SHEETS ACCESS AVAILABLE 🔧\nYou can read and modify Google Sheets data when users ask about spreadsheet operations.';
+        systemInstruction += '\n\n📊 GOOGLE SHEETS ACCESS AVAILABLE 📊\nYou can read and modify Google Sheets data when users ask about spreadsheet operations.';
       }
 
       if (hasNotion) {
-        systemInstruction += '\n\n📝 NOTION INTEGRATION AVAILABLE 🔧\nYou can access and manage Notion content when users ask about their workspace.';
+        systemInstruction += '\n\n📝 NOTION INTEGRATION AVAILABLE 📝\nYou can access and manage Notion content when users ask about their workspace.';
       }
 
       // Add general instruction
       systemInstruction += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
 
-      await this.connectWebSocket(systemInstruction);
-
-    } catch (error) {
-      console.error('❌ Failed to start session:', error);
-      if (this.errorCallback) {
-        this.errorCallback(new Error('Failed to start session: ' + error.message));
-      }
-      throw error;
-    }
-  }
-
-  private async connectWebSocket(systemInstruction: string): Promise<void> {
-    try {
       // Create WebSocket connection to Gemini Live API
       const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
-      
-      console.log('🔌 Connecting to WebSocket:', wsUrl.substring(0, wsUrl.indexOf('?')));
-      
-      // Close existing WebSocket if any
-      if (this.ws) {
-        try {
-          this.ws.close();
-        } catch (e) {
-          console.warn('⚠️ Error closing existing WebSocket:', e);
-        }
-        this.ws = null;
-      }
       
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected to Gemini Live API');
-        
-        // Increased delay to ensure the WebSocket connection is truly stable
-        // This prevents race conditions where onopen fires but the connection
-        // immediately closes or becomes unstable
-        setTimeout(() => {
-          // Double-check that the WebSocket is still valid and open
-          if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentContact) {
-            console.log('🔄 WebSocket confirmed stable, setting up session...');
-            this.setupSession(this.currentContact, systemInstruction);
-          } else {
-            console.error('❌ WebSocket became invalid after onopen event');
-            const wsState = this.ws ? this.ws.readyState : 'null';
-            console.error(`❌ WebSocket state: ${wsState}, Contact: ${!!this.currentContact}`);
-            
-            if (this.errorCallback) {
-              this.errorCallback(new Error('WebSocket connection became unstable immediately after opening'));
-            }
-          }
-        }, 500); // Increased delay from 50ms to 500ms for better stability
+        this.setupSession(contact, systemInstruction);
       };
 
       this.ws.onmessage = (event) => {
@@ -225,80 +178,25 @@ class GeminiLiveService {
 
       this.ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error);
-        
-        // Log more details about the error
-        console.error('❌ WebSocket error details:', {
-          readyState: this.ws?.readyState,
-          url: wsUrl.substring(0, wsUrl.indexOf('?')),
-          apiKeyLength: this.apiKey.length,
-          hasCallback: !!this.errorCallback
-        });
-        
         if (this.errorCallback) {
           this.errorCallback(new Error('WebSocket connection failed'));
         }
-        
-        // Try to reconnect if appropriate
-        this.attemptReconnect(systemInstruction);
       };
 
-      this.ws.onclose = (event) => {
-        console.log(`🔌 WebSocket connection closed: ${event.code} ${event.reason}`);
-        console.log(`🔌 WebSocket close details: wasClean=${event.wasClean}, code=${event.code}`);
-        
+      this.ws.onclose = () => {
+        console.log('🔌 WebSocket connection closed');
         this.isSessionActive = false;
         this.setState('idle');
-        
-        // Clear any pending auto-listen timeout
-        if (this.autoListenTimeout) {
-          clearTimeout(this.autoListenTimeout);
-          this.autoListenTimeout = null;
-        }
-        
-        // Try to reconnect if it wasn't a clean close
-        if (!event.wasClean && event.code !== 1000) {
-          this.attemptReconnect(systemInstruction);
-        }
       };
+
     } catch (error) {
-      console.error('❌ Failed to connect WebSocket:', error);
+      console.error('❌ Failed to start session:', error);
       throw error;
     }
   }
 
-  private attemptReconnect(systemInstruction: string): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
-      
-      console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
-      
-      setTimeout(() => {
-        if (this.isSessionActive) {
-          console.log('🔄 Reconnecting WebSocket...');
-          this.connectWebSocket(systemInstruction).catch(err => {
-            console.error('❌ Reconnection failed:', err);
-          });
-        }
-      }, delay);
-    } else {
-      console.error(`❌ Maximum reconnection attempts (${this.maxReconnectAttempts}) reached`);
-      if (this.errorCallback) {
-        this.errorCallback(new Error('Failed to establish a stable connection after multiple attempts'));
-      }
-    }
-  }
-
   private setupSession(contact: AIContact, systemInstruction: string) {
-    // Additional safety check before proceeding
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot setup session - WebSocket not open');
-      console.error(`❌ WebSocket state: ${this.ws ? this.ws.readyState : 'null'}`);
-      if (this.errorCallback) {
-        this.errorCallback(new Error('WebSocket not open, cannot start session'));
-      }
-      return;
-    }
+    if (!this.ws) return;
 
     // Define tools based on contact integrations
     const tools: any[] = [];
@@ -355,27 +253,13 @@ class GeminiLiveService {
 
     console.log('🔧 Final session config:', JSON.stringify(sessionConfig, null, 2));
 
-    try {
-      // Final check before sending
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({
-          setup: sessionConfig
-        }));
-        console.log('✅ Live API session setup sent');
-        this.isSessionActive = true;
-      } else {
-        console.error('❌ WebSocket not open at final send check');
-        console.error(`❌ WebSocket state at send: ${this.ws ? this.ws.readyState : 'null'}`);
-        if (this.errorCallback) {
-          this.errorCallback(new Error('WebSocket not open, cannot start session'));
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error sending session setup:', error);
-      if (this.errorCallback) {
-        this.errorCallback(new Error('Failed to send session setup: ' + error.message));
-      }
-    }
+    // Send session setup
+    this.ws.send(JSON.stringify({
+      setup: sessionConfig
+    }));
+
+    console.log('✅ Live API session opened');
+    this.isSessionActive = true;
   }
 
   private handleWebSocketMessage(event: MessageEvent) {
@@ -387,12 +271,9 @@ class GeminiLiveService {
         this.setState('idle');
         
         // Automatically start listening after session is ready
-        this.autoListenTimeout = window.setTimeout(() => {
-          console.log('🔄 Auto-starting listening after setup...');
-          this.startListening().catch(err => {
-            console.error('❌ Auto-listen failed:', err);
-          });
-        }, 1000);
+        setTimeout(() => {
+          this.startListening();
+        }, 500);
         return;
       }
 
@@ -407,14 +288,11 @@ class GeminiLiveService {
           this.setState('idle');
           
           // Automatically start listening again after response
-          this.autoListenTimeout = window.setTimeout(() => {
-            console.log('🔄 Auto-restarting listening after response...');
+          setTimeout(() => {
             if (this.isSessionActive && !this.isListening) {
-              this.startListening().catch(err => {
-                console.error('❌ Auto-restart listen failed:', err);
-              });
+              this.startListening();
             }
-          }, 1000);
+          }, 500);
         }
       }
 
@@ -435,23 +313,12 @@ class GeminiLiveService {
 
     } catch (error) {
       console.error('❌ Error parsing WebSocket message:', error);
-      console.error('Raw message data:', event.data);
     }
   }
 
   async startListening(): Promise<void> {
-    if (!this.isSessionActive) {
-      console.warn('⚠️ Cannot start listening - session not active');
-      return;
-    }
-    
-    if (!this.audioContext || !this.mediaStream) {
-      console.error('❌ Audio context or media stream not available');
-      return;
-    }
-    
-    if (this.isListening) {
-      console.log('⚠️ Already listening, ignoring duplicate start request');
+    if (!this.isSessionActive || !this.audioContext || !this.mediaStream || this.isListening) {
+      console.log('⚠️ Cannot start listening - session not ready or already listening');
       return;
     }
 
@@ -459,16 +326,6 @@ class GeminiLiveService {
       console.log('🎤 Starting to listen...');
       this.isListening = true;
       this.setState('listening');
-
-      // Clear any existing processor
-      if (this.audioProcessor) {
-        try {
-          this.audioProcessor.disconnect();
-        } catch (e) {
-          console.warn('⚠️ Error disconnecting previous processor:', e);
-        }
-        this.audioProcessor = null;
-      }
 
       // Create audio processing pipeline
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
@@ -489,21 +346,14 @@ class GeminiLiveService {
         }
 
         // Send audio data to Gemini Live API
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          try {
-            this.ws.send(JSON.stringify({
-              realtimeInput: {
-                mediaChunks: [{
-                  mimeType: "audio/pcm",
-                  data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
-                }]
-              }
-            }));
-          } catch (error) {
-            console.error('❌ Error sending audio data:', error);
-            // Don't stop listening on a single error, just log it
+        this.ws.send(JSON.stringify({
+          realtimeInput: {
+            mediaChunks: [{
+              mimeType: "audio/pcm",
+              data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
+            }]
           }
-        }
+        }));
       };
 
       source.connect(this.audioProcessor);
@@ -522,27 +372,14 @@ class GeminiLiveService {
   }
 
   stopListening(): void {
-    if (!this.isListening) {
-      console.log('⚠️ Not currently listening, ignoring stop request');
-      return;
-    }
+    if (!this.isListening) return;
 
     console.log('🛑 Stopping listening...');
     this.isListening = false;
 
     if (this.audioProcessor) {
-      try {
-        this.audioProcessor.disconnect();
-      } catch (e) {
-        console.warn('⚠️ Error disconnecting processor:', e);
-      }
+      this.audioProcessor.disconnect();
       this.audioProcessor = null;
-    }
-
-    // Clear any pending auto-listen timeout
-    if (this.autoListenTimeout) {
-      clearTimeout(this.autoListenTimeout);
-      this.autoListenTimeout = null;
     }
 
     this.setState('idle');
@@ -552,40 +389,20 @@ class GeminiLiveService {
   endSession(): void {
     console.log('🔚 Ending Gemini Live session...');
     
-    // Clear any pending auto-listen timeout
-    if (this.autoListenTimeout) {
-      clearTimeout(this.autoListenTimeout);
-      this.autoListenTimeout = null;
-    }
-    
     this.stopListening();
     
     if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) {
-        console.warn('⚠️ Error closing WebSocket:', e);
-      }
+      this.ws.close();
       this.ws = null;
     }
 
     if (this.mediaStream) {
-      try {
-        this.mediaStream.getTracks().forEach(track => track.stop());
-      } catch (e) {
-        console.warn('⚠️ Error stopping media tracks:', e);
-      }
+      this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
 
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      try {
-        this.audioContext.close().catch(err => {
-          console.warn('⚠️ Error closing AudioContext:', err);
-        });
-      } catch (e) {
-        console.warn('⚠️ Error closing AudioContext:', e);
-      }
+    if (this.audioContext) {
+      this.audioContext.close();
       this.audioContext = null;
     }
 
@@ -593,9 +410,8 @@ class GeminiLiveService {
     this.isInitialized = false;
     this.currentContact = null;
     this.setState('idle');
-    this.reconnectAttempts = 0;
     
-    console.log('✅ Session ended and resources cleaned up');
+    console.log('✅ Session ended');
   }
 
   getCurrentState(): ServiceState {
