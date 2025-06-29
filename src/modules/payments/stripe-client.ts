@@ -84,17 +84,22 @@ export const stripeClient = {
    * Get current user's subscription data
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
-    const { data, error } = await supabase
-      .from('stripe_user_subscriptions')
-      .select('*')
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('stripe_user_subscriptions')
+        .select('*')
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching subscription:', error);
+      if (error) {
+        console.error('Error fetching subscription:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching subscription data:', error);
       return null;
     }
-
-    return data;
   },
 
   /**
@@ -109,26 +114,37 @@ export const stripeClient = {
    * Get the user's current plan based on subscription
    */
   async getCurrentPlan(): Promise<string> {
-    const subscription = await this.getUserSubscription();
-    
-    if (!subscription || !subscription.subscription_id) {
+    try {
+      // First try to get from Stripe subscription
+      const subscription = await this.getUserSubscription();
+      
+      if (subscription && (subscription.subscription_status === 'active' || subscription.subscription_status === 'trialing')) {
+        // Map price_id to plan name
+        switch (subscription.price_id) {
+          case 'price_1RfLCZCHpOkAgMGGUtW046jz':
+            return 'standard';
+          case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
+            return 'premium';
+          case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
+            return 'pro';
+        }
+      }
+      
+      // If no active subscription from Stripe, check user profile
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('plan, subscription_tier, subscription_plan')
+        .single();
+        
+      if (profile) {
+        // Use the most specific plan field available
+        return profile.plan || profile.subscription_plan || profile.subscription_tier || 'free';
+      }
+      
       return 'free';
-    }
-    
-    if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
+    } catch (error) {
+      console.error('Error getting current plan:', error);
       return 'free';
-    }
-    
-    // Map price_id to plan name
-    switch (subscription.price_id) {
-      case 'price_1RfLCZCHpOkAgMGGUtW046jz':
-        return 'standard';
-      case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
-        return 'premium';
-      case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
-        return 'pro';
-      default:
-        return 'free';
     }
   },
 
