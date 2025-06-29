@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
-import SubscriptionBadge from '../../../components/SubscriptionBadge';
 
 interface ContactSidebarProps {
   contacts: AIContact[];
@@ -70,7 +69,6 @@ export default function ContactSidebar({
               <h1 className="text-xl font-bold text-white">Gather</h1>
               <div className="flex items-center space-x-2">
                 <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
-                <SubscriptionBadge />
               </div>
             </div>
           </div>

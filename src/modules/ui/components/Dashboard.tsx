@@ -8,7 +8,6 @@ import {
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
 import { useAuth } from '../../auth/hooks/useAuth';
-import SubscriptionBadge from '../../../components/SubscriptionBadge';
 
 interface DashboardProps {
   contacts: AIContact[];
@@ -135,10 +134,7 @@ export default function Dashboard({
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
-                    <SubscriptionBadge />
-                  </div>
+                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
                 </div>
                 

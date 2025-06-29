@@ -7,7 +7,6 @@ import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
 import PricingPage from '../../components/PricingPage';
-import SuccessPage from '../../components/SuccessPage';
 import { Dashboard, ContactSidebar, SettingsSidebar, SettingsScreen } from '../../modules/ui';
 import { ChatScreen } from '../../modules/chat';
 import { AIContact, Message, CallState } from '../types/types';
@@ -16,9 +15,8 @@ import { documentContextService } from '../../modules/fileManagement/services/do
 import { geminiService } from '../../modules/fileManagement/services/geminiService';
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { stripeService } from '../../services/stripe-service';
 
-type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
+type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'login';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -155,15 +153,14 @@ export default function App() {
   };
 
   const handleSelectPlan = (plan: string) => {
-    // Store the selected plan
-    stripeService.setUserPlan(plan);
-    // Redirect to dashboard
+    // Here you would implement the logic to set the user's plan
+    console.log(`Selected plan: ${plan}`);
+    // For now, just redirect to dashboard
     setCurrentView('dashboard');
   };
 
   const handleStayFree = () => {
     // User chooses to stay with the free plan
-    stripeService.setUserPlan('free');
     setCurrentView('dashboard');
   };
 
@@ -423,7 +420,6 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
-        <Route path="/success" element={<SuccessPage />} />
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
             {/* Left Sidebar - Contacts */}

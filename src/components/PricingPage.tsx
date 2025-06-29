@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
-import { PRODUCTS } from '../stripe-config';
-import { stripeService } from '../services/stripe-service';
+import React from 'react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle } from 'lucide-react';
 
 interface PricingPageProps {
   onSelectPlan: (plan: string) => void;
@@ -9,31 +7,47 @@ interface PricingPageProps {
 }
 
 export default function PricingPage({ onSelectPlan, onStayFree }: PricingPageProps) {
-  const [isLoading, setIsLoading] = useState<string | null>(null);
-
-  const handleSelectPlan = async (priceId: string, planName: string) => {
-    try {
-      setIsLoading(planName);
-      
-      // Store the selected plan in localStorage for demo purposes
-      stripeService.setUserPlan(planName.toLowerCase());
-      
-      // Simulate a checkout process
-      await stripeService.redirectToCheckout({
-        priceId,
-        mode: 'subscription',
-        successUrl: `${window.location.origin}?plan=${planName}`,
-        cancelUrl: `${window.location.origin}/pricing`,
-      });
-      
-      // This will be called after the redirect simulation
-      onSelectPlan(planName);
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      setIsLoading(null);
-      alert('There was an error redirecting to checkout. Please try again.');
+  const products = [
+    {
+      name: 'Standard',
+      description: 'Dipping your toes in the water of seamless AI interaction.',
+      price: 20,
+      features: [
+        'Call time: 20min / day',
+        'Agents: 7',
+        'All Integrations',
+        'Storage: 5GB',
+        'Chat Tokens: 4M'
+      ]
+    },
+    {
+      name: 'Premium',
+      description: 'For the real Gather experience, providing very powerful functionality.',
+      price: 80,
+      features: [
+        'Call time: 100min / day',
+        'Agents: up to 50',
+        'All Integrations',
+        'Storage: 50GB',
+        'Chat Tokens: 15M',
+        'Priority support'
+      ],
+      popular: true
+    },
+    {
+      name: 'Pro',
+      description: 'For practitioners and professionals looking to maximize their AI use. Including custom integrations and much more.',
+      price: 250,
+      features: [
+        'Call time: Unlimited*',
+        'Agents: Unlimited*',
+        'Custom Integrations',
+        'Storage: Unlimited*',
+        'Chat Tokens: Unlimited*',
+        'Dedicated account manager'
+      ]
     }
-  };
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
@@ -88,9 +102,9 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       {/* Pricing Cards */}
       <div className="max-w-7xl mx-auto px-4 pb-20">
         <div className="grid md:grid-cols-3 gap-8">
-          {PRODUCTS.map((product) => (
+          {products.map((product) => (
             <div 
-              key={product.id}
+              key={product.name}
               className={`${
                 product.popular 
                   ? "bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20" 
@@ -125,8 +139,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                 </div>
                 
                 <button 
-                  onClick={() => handleSelectPlan(product.priceId, product.name.toLowerCase())}
-                  disabled={isLoading !== null}
+                  onClick={() => onSelectPlan(product.name.toLowerCase())}
                   className={`w-full py-3 px-4 rounded-lg ${
                     product.name === 'Standard' 
                       ? "border border-slate-600 text-white hover:bg-slate-700" 
@@ -135,22 +148,13 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                       : "border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40"
                   } transition-colors duration-200 mb-6`}
                 >
-                  {isLoading === product.name.toLowerCase() ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      <span>Processing...</span>
+                  {product.name === 'Premium' ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>Choose Premium</span>
+                      <ArrowRight className="w-4 h-4" />
                     </div>
                   ) : (
-                    <>
-                      {product.name === 'Premium' ? (
-                        <div className="flex items-center justify-center space-x-2">
-                          <span>Choose Premium</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </div>
-                      ) : (
-                        `Choose ${product.name}`
-                      )}
-                    </>
+                    product.name === 'Pro' ? 'Choose Pro' : 'Choose Standard'
                   )}
                 </button>
                 
