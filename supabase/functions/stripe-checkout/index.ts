@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
       return corsResponse({ error: 'Method not allowed' }, 405);
     }
 
-    const { price_id, success_url, cancel_url, mode, promo_code } = await req.json();
+    const { price_id, success_url, cancel_url, mode } = await req.json();
 
     const error = validateParameters(
       { price_id, success_url, cancel_url, mode },
@@ -177,8 +177,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create checkout session configuration
-    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+    // create Checkout Session
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [
@@ -190,37 +190,7 @@ Deno.serve(async (req) => {
       mode,
       success_url,
       cancel_url,
-      allow_promotion_codes: true, // Enable promotion codes
-    };
-
-    // If a specific promo code was provided, add it to the session
-    if (promo_code) {
-      // Find the promotion code in Stripe
-      try {
-        const promoCodes = await stripe.promotionCodes.list({
-          code: promo_code,
-          active: true,
-        });
-
-        if (promoCodes.data.length > 0) {
-          // Use the first matching promotion code
-          sessionConfig.discounts = [
-            {
-              promotion_code: promoCodes.data[0].id,
-            },
-          ];
-          console.log(`Applied promotion code: ${promo_code}`);
-        } else {
-          console.log(`No active promotion code found with code: ${promo_code}`);
-        }
-      } catch (promoError) {
-        console.error(`Error looking up promotion code: ${promo_code}`, promoError);
-        // Continue without the promotion code rather than failing
-      }
-    }
-
-    // create Checkout Session
-    const session = await stripe.checkout.sessions.create(sessionConfig);
+    });
 
     console.log(`Created checkout session ${session.id} for customer ${customerId}`);
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Tag } from 'lucide-react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
 import { PRODUCTS } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
 
@@ -10,8 +10,6 @@ interface PricingPageProps {
 
 export default function PricingPage({ onSelectPlan, onStayFree }: PricingPageProps) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const [promoCode, setPromoCode] = useState('');
-  const [showPromoInput, setShowPromoInput] = useState(false);
 
   const handleSelectPlan = async (priceId: string, planName: string) => {
     try {
@@ -22,7 +20,6 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         mode: 'subscription',
         successUrl: `${window.location.origin}/success?plan=${planName}`,
         cancelUrl: `${window.location.origin}/pricing`,
-        promoCode: promoCode.trim() || undefined
       });
       
       // Note: The page will redirect, so we won't reach this point
@@ -82,38 +79,6 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         <p className="text-xl text-slate-300 max-w-3xl mx-auto">
           Select the plan that best fits your needs and start building your AI dream team today.
         </p>
-      </div>
-
-      {/* Promotion Code */}
-      <div className="max-w-md mx-auto mb-8 px-4">
-        {showPromoInput ? (
-          <div className="flex items-center space-x-2">
-            <div className="relative flex-1">
-              <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Enter promotion code"
-                className="w-full pl-10 pr-4 py-2 bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-white"
-              />
-            </div>
-            <button 
-              onClick={() => setShowPromoInput(false)}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            >
-              Apply
-            </button>
-          </div>
-        ) : (
-          <button 
-            onClick={() => setShowPromoInput(true)}
-            className="flex items-center space-x-2 text-[#186799] hover:text-[#1a5a7a] transition-colors duration-200"
-          >
-            <Tag className="w-4 h-4" />
-            <span>Have a promotion code?</span>
-          </button>
-        )}
       </div>
 
       {/* Pricing Cards */}
@@ -227,11 +192,6 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold text-white mb-3">Is there a free trial for paid plans?</h3>
             <p className="text-slate-300">Yes, all paid plans come with a 14-day free trial. You can cancel anytime during the trial period and won't be charged.</p>
-          </div>
-          
-          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold text-white mb-3">Do you offer promotional discounts?</h3>
-            <p className="text-slate-300">Yes! We occasionally offer promotional discounts for new subscribers or during special events. You can enter a promotion code during checkout to receive your discount. These codes may offer percentage discounts, fixed amount discounts, or extended trial periods.</p>
           </div>
           
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
