@@ -518,7 +518,7 @@ export default function App() {
   // If not authenticated, show landing page or signup page based on currentView
   if (!user) {
     if (currentView === 'signup') {
-      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
+      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} onSignIn={handleSignIn} />;
     } else if (currentView === 'login') {
       return <AuthScreen />;
     } else {
