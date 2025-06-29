@@ -1,284 +1,186 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../auth/hooks/useAuth';
-import { usageService } from '../services/usageService';
-import { PLAN_LIMITS, UsageStats, UsageLimits } from '../../../core/types/limits';
-import { supabase } from '../../database/lib/supabase';
+import { useState, useEffect } from 'react'
+import { supabase } from '../../database/lib/supabase'
+import { useAuth } from '../../auth/hooks/useAuth'
+import type { UserUsage, PlanLimits } from '../../../core/types/limits'
 
-export interface LimitsState {
-  isLoading: boolean;
-  plan: string;
-  limits: UsageLimits;
-  usage: UsageStats | null;
-  hasExceededCallTime: boolean;
-  hasExceededChatTokens: boolean;
-  hasExceededStorage: boolean;
-  hasExceededAgents: boolean;
-  hasExceededIntegrations: boolean;
-  error: string | null;
+const PLAN_LIMITS: Record<string, PlanLimits> = {
+  free: {
+    callTimeMinutes: 60,
+    maxAgents: 3,
+    maxIntegrations: 2,
+    storageGB: 1,
+    chatTokens: 50000
+  },
+  pro: {
+    callTimeMinutes: 600,
+    maxAgents: 25,
+    maxIntegrations: 10,
+    storageGB: 10,
+    chatTokens: 500000
+  },
+  enterprise: {
+    callTimeMinutes: -1, // unlimited
+    maxAgents: -1, // unlimited
+    maxIntegrations: -1, // unlimited
+    storageGB: -1, // unlimited
+    chatTokens: -1 // unlimited
+  }
 }
 
 export function useLimits() {
-  const { user } = useAuth();
-  const [state, setState] = useState<LimitsState>({
-    isLoading: true,
-    plan: 'free',
-    limits: PLAN_LIMITS.free,
-    usage: null,
-    hasExceededCallTime: false,
-    hasExceededChatTokens: false,
-    hasExceededStorage: false,
-    hasExceededAgents: false,
-    hasExceededIntegrations: false,
-    error: null
-  });
+  const { user } = useAuth()
+  const [usage, setUsage] = useState<UserUsage | null>(null)
+  const [limits, setLimits] = useState<PlanLimits | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchLimits = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      setError(null)
+      
+      // Test Supabase connection first
+      const { data: connectionTest, error: connectionError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .limit(1)
+        .maybeSingle()
+
+      if (connectionError) {
+        console.error('Supabase connection error:', connectionError)
+        throw new Error(`Database connection failed: ${connectionError.message}`)
+      }
+
+      // Fetch user profile to get plan
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', profileError)
+        throw new Error(`Failed to fetch user profile: ${profileError.message}`)
+      }
+
+      // Fetch usage data
+      const { data: usageData, error: usageError } = await supabase
+        .from('user_usage')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      if (usageError && usageError.code !== 'PGRST116') {
+        console.error('Error fetching usage data:', usageError)
+        throw new Error(`Failed to fetch usage data: ${usageError.message}`)
+      }
+
+      // Count agents
+      const { count: agentCount, error: agentError } = await supabase
+        .from('user_agents')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      if (agentError) {
+        console.error('Error counting agents:', agentError)
+        throw new Error(`Failed to count agents: ${agentError.message}`)
+      }
+
+      // Count integrations
+      const { count: integrationCount, error: integrationError } = await supabase
+        .from('agent_integrations')
+        .select('agent_id', { count: 'exact', head: true })
+        .in('agent_id', 
+          supabase
+            .from('user_agents')
+            .select('id')
+            .eq('user_id', user.id)
+        )
+
+      if (integrationError) {
+        console.error('Error counting integrations:', integrationError)
+        // Don't throw here, just log and continue with 0
+      }
+
+      const planId = profile?.preferences?.plan_id || usageData?.plan_id || 'free'
+      const planLimits = PLAN_LIMITS[planId] || PLAN_LIMITS.free
+
+      const currentUsage: UserUsage = {
+        callTimeUsed: usageData?.call_time_used || 0,
+        agentsCreated: agentCount || 0,
+        integrationsActive: integrationCount || 0,
+        storageUsed: usageData?.storage_used || 0,
+        chatTokensUsed: usageData?.chat_tokens_used || 0,
+        planId
+      }
+
+      setUsage(currentUsage)
+      setLimits(planLimits)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      console.error('Error in fetchLimits:', errorMessage)
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchLimits = async () => {
-      if (!user) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
+    fetchLimits()
+  }, [user])
 
-      try {
-        // Get user's plan from profile
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('preferences')
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError) {
-          console.error('Error fetching user profile:', profileError);
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            error: 'Failed to fetch user profile'
-          }));
-          return;
-        }
-        
-        // Get plan from preferences
-        const plan = profile?.preferences?.plan || 'free';
-        const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
-        
-        // Get usage stats
-        const usage = await usageService.getUserUsage(user.id);
-        
-        if (!usage) {
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            plan,
-            limits,
-            error: 'Failed to fetch usage stats'
-          }));
-          return;
-        }
-        
-        // Count agents and integrations
-        const { data: agents, error: agentsError } = await supabase
-          .from('user_agents')
-          .select('*', { count: 'exact' })
-          .eq('user_id', user.id);
-        
-        if (agentsError) {
-          console.error('Error counting agents:', agentsError);
-        }
-        
-        const agentCount = agents?.length || 0;
-        
-        // Count integrations
-        const { data: integrations, error: integrationsError } = await supabase
-          .from('agent_integrations')
-          .select('agent_id')
-          .in('agent_id', 
-            (await supabase.from('user_agents').select('id').eq('user_id', user.id)).data?.map(agent => agent.id) || []
-          );
-        
-        if (integrationsError) {
-          console.error('Error counting integrations:', integrationsError);
-        }
-        
-        const integrationCount = integrations?.length || 0;
-        
-        // Update usage with current counts
-        await usageService.updateAgentsCreated(user.id, agentCount);
-        await usageService.updateIntegrationsActive(user.id, integrationCount);
-        
-        // Check if limits are exceeded
-        const hasExceededCallTime = usage.callTimeUsedMinutes >= limits.callTimeMinutes;
-        const hasExceededChatTokens = usage.chatTokensUsed >= Math.floor(limits.maxChatTokens / 30); // Daily limit
-        const hasExceededStorage = usage.storageUsedMB >= limits.maxStorageMB;
-        const hasExceededAgents = agentCount >= limits.maxAgents;
-        const hasExceededIntegrations = integrationCount >= limits.maxIntegrations;
-        
-        setState({
-          isLoading: false,
-          plan,
-          limits,
-          usage: {
-            ...usage,
-            agentsCreated: agentCount,
-            integrationsActive: integrationCount
-          },
-          hasExceededCallTime,
-          hasExceededChatTokens,
-          hasExceededStorage,
-          hasExceededAgents,
-          hasExceededIntegrations,
-          error: null
-        });
-        
-      } catch (error) {
-        console.error('Error fetching limits:', error);
-        setState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: 'Failed to fetch usage limits'
-        }));
-      }
-    };
-
-    fetchLimits();
-  }, [user]);
-
-  // Function to update call time usage
-  const updateCallTimeUsage = async (additionalMinutes: number) => {
-    if (!user) return false;
-    
-    try {
-      const success = await usageService.updateCallTimeUsage(user.id, additionalMinutes);
-      
-      if (success) {
-        // Update local state
-        setState(prev => {
-          const newCallTimeUsed = (prev.usage?.callTimeUsedMinutes || 0) + additionalMinutes;
-          const hasExceededCallTime = newCallTimeUsed >= prev.limits.callTimeMinutes;
-          
-          return {
-            ...prev,
-            usage: prev.usage ? {
-              ...prev.usage,
-              callTimeUsedMinutes: newCallTimeUsed
-            } : null,
-            hasExceededCallTime
-          };
-        });
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error updating call time usage:', error);
-      return false;
+  const checkLimit = (type: keyof PlanLimits): { exceeded: boolean; percentage: number } => {
+    if (!usage || !limits) {
+      return { exceeded: false, percentage: 0 }
     }
-  };
 
-  // Function to update chat tokens usage
-  const updateChatTokensUsage = async (additionalTokens: number) => {
-    if (!user) return false;
-    
-    try {
-      const success = await usageService.updateChatTokensUsage(user.id, additionalTokens);
-      
-      if (success) {
-        // Update local state
-        setState(prev => {
-          const newTokensUsed = (prev.usage?.chatTokensUsed || 0) + additionalTokens;
-          const dailyLimit = Math.floor(prev.limits.maxChatTokens / 30);
-          const hasExceededChatTokens = newTokensUsed >= dailyLimit;
-          
-          return {
-            ...prev,
-            usage: prev.usage ? {
-              ...prev.usage,
-              chatTokensUsed: newTokensUsed
-            } : null,
-            hasExceededChatTokens
-          };
-        });
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error updating chat tokens usage:', error);
-      return false;
+    const limit = limits[type]
+    if (limit === -1) {
+      return { exceeded: false, percentage: 0 } // unlimited
     }
-  };
 
-  // Function to update storage usage
-  const updateStorageUsage = async (additionalStorageMB: number) => {
-    if (!user) return false;
-    
-    try {
-      const success = await usageService.updateStorageUsage(user.id, additionalStorageMB);
-      
-      if (success) {
-        // Update local state
-        setState(prev => {
-          const newStorageUsed = (prev.usage?.storageUsedMB || 0) + additionalStorageMB;
-          const hasExceededStorage = newStorageUsed >= prev.limits.maxStorageMB;
-          
-          return {
-            ...prev,
-            usage: prev.usage ? {
-              ...prev.usage,
-              storageUsedMB: newStorageUsed
-            } : null,
-            hasExceededStorage
-          };
-        });
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error updating storage usage:', error);
-      return false;
+    let used = 0
+    switch (type) {
+      case 'callTimeMinutes':
+        used = usage.callTimeUsed
+        break
+      case 'maxAgents':
+        used = usage.agentsCreated
+        break
+      case 'maxIntegrations':
+        used = usage.integrationsActive
+        break
+      case 'storageGB':
+        used = Math.ceil(usage.storageUsed / (1024 * 1024 * 1024)) // Convert bytes to GB
+        break
+      case 'chatTokens':
+        used = usage.chatTokensUsed
+        break
     }
-  };
 
-  // Function to check if creating a new agent would exceed limits
-  const canCreateAgent = (): boolean => {
-    if (state.isLoading) return false;
-    return !state.hasExceededAgents;
-  };
+    const percentage = limit > 0 ? (used / limit) * 100 : 0
+    return {
+      exceeded: used >= limit,
+      percentage: Math.min(percentage, 100)
+    }
+  }
 
-  // Function to check if adding a new integration would exceed limits
-  const canAddIntegration = (): boolean => {
-    if (state.isLoading) return false;
-    return !state.hasExceededIntegrations;
-  };
-
-  // Function to check if user can make a call
-  const canMakeCall = (): boolean => {
-    if (state.isLoading) return false;
-    return !state.hasExceededCallTime;
-  };
-
-  // Function to check if user can send a message
-  const canSendMessage = (): boolean => {
-    if (state.isLoading) return false;
-    return !state.hasExceededChatTokens;
-  };
-
-  // Function to check if user can upload a file
-  const canUploadFile = (fileSizeBytes: number): boolean => {
-    if (state.isLoading) return false;
-    
-    const fileSizeMB = usageService.calculateFileSizeMB(fileSizeBytes);
-    const newStorageUsed = (state.usage?.storageUsedMB || 0) + fileSizeMB;
-    
-    return newStorageUsed <= state.limits.maxStorageMB;
-  };
+  const canPerformAction = (type: keyof PlanLimits): boolean => {
+    const { exceeded } = checkLimit(type)
+    return !exceeded
+  }
 
   return {
-    ...state,
-    updateCallTimeUsage,
-    updateChatTokensUsage,
-    updateStorageUsage,
-    canCreateAgent,
-    canAddIntegration,
-    canMakeCall,
-    canSendMessage,
-    canUploadFile
-  };
+    usage,
+    limits,
+    loading,
+    error,
+    checkLimit,
+    canPerformAction,
+    refetch: fetchLimits
+  }
 }
