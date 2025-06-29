@@ -73,7 +73,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
-      <style jsx="true">{`
+      <style jsx>{`
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -128,20 +128,12 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
               Gather
             </span>
           </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => onSignUp()}
-              className="px-4 py-2 text-white hover:text-slate-200 transition-colors duration-200"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={onSignUp}
-              className="px-6 py-3 animated-gradient-bg hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl text-white"
-            >
-              Get Started Free
-            </button>
-          </div>
+          <button
+            onClick={onSignUp}
+            className="px-6 py-3 animated-gradient-bg hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl text-white"
+          >
+            Get Started Free
+          </button>
         </div>
       </nav>
 

@@ -56,7 +56,7 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user && (currentView === 'landing' || currentView === 'signup')) {
+    if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
       setCurrentView('dashboard');
     }
   }, [user, currentView]);
