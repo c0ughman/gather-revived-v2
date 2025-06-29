@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // create Checkout Session
+    // Create Checkout Session with immediate payment settings
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],

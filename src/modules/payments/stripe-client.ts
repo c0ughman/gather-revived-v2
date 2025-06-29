@@ -84,17 +84,22 @@ export const stripeClient = {
    * Get current user's subscription data
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
-    const { data, error } = await supabase
-      .from('stripe_user_subscriptions')
-      .select('*')
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('stripe_user_subscriptions')
+        .select('*')
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching subscription:', error);
-      return null;
+      if (error) {
+        console.error('Error fetching subscription:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getUserSubscription:', error);
+      throw error;
     }
-
-    return data;
   },
 
   /**
