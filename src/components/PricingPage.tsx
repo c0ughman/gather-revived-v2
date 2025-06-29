@@ -229,7 +229,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
             onClick={onStayFree}
             className="text-slate-400 hover:text-slate-300 text-sm transition-colors duration-200"
           >
-            I'll stay with the free plan for now
+            I'll stay with the lite version for now
           </button>
         </div>
       </div>
