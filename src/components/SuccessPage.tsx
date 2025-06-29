@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, MessageCircle } from 'lucide-react';
 import { getProductByPriceId } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
+import { supabase } from '../modules/database/lib/supabase';
 
 export default function SuccessPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [plan, setPlan] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const planParam = searchParams.get('plan');
@@ -17,7 +19,12 @@ export default function SuccessPage() {
     // Get subscription details
     const getSubscription = async () => {
       try {
+        setIsLoading(true);
         console.log('Fetching subscription details');
+        
+        // Wait a moment to ensure webhook has processed
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         const subscription = await stripeClient.getUserSubscription();
         if (subscription?.price_id) {
           const product = getProductByPriceId(subscription.price_id);
@@ -25,13 +32,17 @@ export default function SuccessPage() {
             setPlan(product.name.toLowerCase());
           }
         }
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching subscription:', error);
+        setIsLoading(false);
       }
     };
 
     if (!planParam) {
       getSubscription();
+    } else {
+      setIsLoading(false);
     }
 
     // Countdown to redirect
@@ -48,6 +59,13 @@ export default function SuccessPage() {
 
     return () => clearInterval(timer);
   }, [searchParams, navigate]);
+
+  // Clear localStorage on successful payment
+  useEffect(() => {
+    // Clear any previous subscription data to ensure fresh state
+    localStorage.removeItem('subscription_data');
+    localStorage.removeItem('subscription_status');
+  }, []);
 
   const handleContinue = () => {
     navigate('/');
@@ -105,9 +123,13 @@ export default function SuccessPage() {
           </h1>
           
           <p className="text-xl text-slate-300 mb-6">
-            {plan 
-              ? `Thank you for subscribing to our ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!` 
-              : 'Thank you for your subscription!'}
+            {isLoading ? (
+              <span>Processing your subscription...</span>
+            ) : plan ? (
+              `Thank you for subscribing to our ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`
+            ) : (
+              'Thank you for your subscription!'
+            )}
           </p>
           
           <p className="text-slate-400 mb-8">

@@ -31,13 +31,13 @@ export function useSubscription() {
         let plan = 'free';
         if (subscription?.price_id) {
           switch (subscription.price_id) {
-            case 'price_standard':
+            case 'price_1RfLCZCHpOkAgMGGUtW046jz':
               plan = 'standard';
               break;
-            case 'price_premium':
+            case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
               plan = 'premium';
               break;
-            case 'price_pro':
+            case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
               plan = 'pro';
               break;
           }
