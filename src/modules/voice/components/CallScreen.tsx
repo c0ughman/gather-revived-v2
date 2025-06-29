@@ -1,12 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, Clock } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
-import { useCallTimeLimit } from '../hooks/useCallTimeLimit';
-import { formatCallTime } from '../utils/formatCallTime';
-import CallLimitReached from './CallLimitReached';
-import { useNavigate } from 'react-router-dom';
 
 interface CallScreenProps {
   contact: AIContact;
@@ -22,26 +18,6 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
-  const callDurationInterval = useRef<number | null>(null);
-  const navigate = useNavigate();
-  
-  // Call time tracking
-  const { callTimeLimit, isLoading: isLoadingLimit, updateCallTimeUsed } = useCallTimeLimit();
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
-  const [showLimitReached, setShowLimitReached] = useState(false);
-
-  // Check if call limit is reached
-  useEffect(() => {
-    if (callTimeLimit.isLimitReached && callState.status === 'connected') {
-      // End the call if limit is reached during an active call
-      handleEndCall();
-      setShowLimitReached(true);
-    } else if (callTimeLimit.isLimitReached && callState.status === 'connecting') {
-      // Prevent connecting if limit is already reached
-      handleEndCall();
-      setShowLimitReached(true);
-    }
-  }, [callTimeLimit.isLimitReached, callState.status]);
 
   useEffect(() => {
     if (callState.status === 'connecting') {
@@ -101,47 +77,6 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
       }
     };
   }, [callState.status, contact.id]);
-
-  // Set up call duration tracking
-  useEffect(() => {
-    if (callState.status === 'connected') {
-      // Set initial update time
-      setLastUpdateTime(Date.now());
-      
-      // Set up interval to update call time usage in database every 15 seconds
-      const updateInterval = window.setInterval(() => {
-        const now = Date.now();
-        const elapsedSeconds = Math.floor((now - lastUpdateTime) / 1000);
-        
-        if (elapsedSeconds > 0) {
-          updateCallTimeUsed(elapsedSeconds);
-          setLastUpdateTime(now);
-        }
-      }, 15000); // Update every 15 seconds
-      
-      return () => {
-        window.clearInterval(updateInterval);
-      };
-    }
-  }, [callState.status]);
-
-  // Set up call duration timer
-  useEffect(() => {
-    if (callState.status === 'connected') {
-      callDurationInterval.current = window.setInterval(() => {
-        // This just updates the UI timer
-      }, 1000);
-    } else if (callDurationInterval.current) {
-      window.clearInterval(callDurationInterval.current);
-      callDurationInterval.current = null;
-    }
-    
-    return () => {
-      if (callDurationInterval.current) {
-        window.clearInterval(callDurationInterval.current);
-      }
-    };
-  }, [callState.status]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -221,26 +156,11 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   };
 
   const handleEndCall = () => {
-    // Update the final call time usage
-    if (callState.status === 'connected') {
-      const now = Date.now();
-      const elapsedSeconds = Math.floor((now - lastUpdateTime) / 1000);
-      
-      if (elapsedSeconds > 0) {
-        updateCallTimeUsed(elapsedSeconds);
-      }
-    }
-    
     if (serviceInitialized.current) {
       geminiLiveService.endSession();
       serviceInitialized.current = false;
     }
-    
     onEndCall();
-  };
-
-  const handleUpgrade = () => {
-    navigate('/pricing');
   };
 
   // Helper function to create radial gradient for agents without avatars
@@ -264,11 +184,6 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
-  // If limit is reached, show the limit reached screen
-  if (showLimitReached) {
-    return <CallLimitReached callTimeLimit={callTimeLimit} onUpgrade={handleUpgrade} />;
-  }
-
   return (
     <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
@@ -287,19 +202,9 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
           </p>
         </div>
         
-        <div className="flex items-center space-x-2">
-          {/* Call time remaining indicator */}
-          <div className="flex items-center space-x-1 px-2 py-1 bg-slate-700 rounded-full">
-            <Clock className="w-3 h-3 text-slate-400" />
-            <span className="text-xs text-slate-300">
-              {isLoadingLimit ? 'Loading...' : formatCallTime(callTimeLimit.remaining)}
-            </span>
-          </div>
-          
-          <button className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200">
-            <Settings className="w-6 h-6 text-slate-400" />
-          </button>
-        </div>
+        <button className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200">
+          <Settings className="w-6 h-6 text-slate-400" />
+        </button>
       </div>
 
       {/* Main Call Area */}
@@ -383,28 +288,6 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             </span>
           </div>
         </div>
-        
-        {/* Call Time Limit Indicator */}
-        {!isLoadingLimit && callState.status === 'connected' && (
-          <div className="mb-8 bg-slate-800/50 rounded-lg p-3 border border-slate-700">
-            <div className="flex items-center space-x-2 mb-2">
-              <Clock className="w-4 h-4 text-slate-400" />
-              <span className="text-slate-300 text-sm">Call Time Remaining</span>
-            </div>
-            <div className="w-full bg-slate-700 rounded-full h-2.5">
-              <div 
-                className="bg-gradient-to-r from-[#186799] to-purple-600 h-2.5 rounded-full"
-                style={{ 
-                  width: `${Math.min(100, (callTimeLimit.remaining / callTimeLimit.limit) * 100)}%` 
-                }}
-              ></div>
-            </div>
-            <div className="flex justify-between mt-1 text-xs text-slate-400">
-              <span>{formatCallTime(callTimeLimit.used)} used</span>
-              <span>{formatCallTime(callTimeLimit.remaining)} remaining</span>
-            </div>
-          </div>
-        )}
         
         {/* Response Text */}
         {responseText && callState.status === 'connected' && (

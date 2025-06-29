@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
@@ -17,7 +17,6 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
-import { useCallTimeLimit } from '../../modules/voice/hooks/useCallTimeLimit';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -35,8 +34,6 @@ export default function App() {
     isMuted: false,
     status: 'ended'
   });
-  const callDurationInterval = useRef<number | null>(null);
-  const { callTimeLimit, updateCallTimeUsed } = useCallTimeLimit();
 
   // Load user data when authenticated
   useEffect(() => {
@@ -50,36 +47,6 @@ export default function App() {
       setCurrentView('dashboard');
     }
   }, [user, currentView]);
-
-  // Call duration timer
-  useEffect(() => {
-    if (callState.status === 'connected') {
-      // Set up interval to increment duration
-      callDurationInterval.current = window.setInterval(() => {
-        setCallState(prev => ({
-          ...prev,
-          duration: prev.duration + 1
-        }));
-      }, 1000);
-    } else if (callDurationInterval.current) {
-      window.clearInterval(callDurationInterval.current);
-      callDurationInterval.current = null;
-    }
-    
-    return () => {
-      if (callDurationInterval.current) {
-        window.clearInterval(callDurationInterval.current);
-      }
-    };
-  }, [callState.status]);
-
-  // Check if call limit is reached
-  useEffect(() => {
-    if (callTimeLimit.isLimitReached && callState.status === 'connected') {
-      // End the call if limit is reached during an active call
-      handleEndCall();
-    }
-  }, [callTimeLimit.isLimitReached, callState.status]);
 
   const loadUserData = async () => {
     if (!user || dataLoading) return;
@@ -210,13 +177,6 @@ export default function App() {
   };
 
   const handleCallClick = (contact: AIContact) => {
-    // Check if call time limit is reached before starting call
-    if (callTimeLimit.isLimitReached) {
-      // Navigate to pricing page if limit is reached
-      setCurrentView('pricing');
-      return;
-    }
-    
     setSelectedContact(contact);
     setCurrentView('call');
     setCallState({
@@ -233,11 +193,6 @@ export default function App() {
   };
 
   const handleEndCall = () => {
-    // Update call time usage when call ends
-    if (callState.status === 'connected') {
-      updateCallTimeUsed(callState.duration);
-    }
-    
     setCallState({
       isActive: false,
       duration: 0,
