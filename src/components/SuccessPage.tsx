@@ -55,8 +55,7 @@ export default function SuccessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white flex flex-col">
       {/* Custom CSS for animated gradient */}
-      <style>
-        {`
+      <style jsx>{`
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -77,8 +76,7 @@ export default function SuccessPage() {
           background-size: 400% 400%;
           animation: gradientShift 8s ease-in-out infinite;
         }
-        `}
-      </style>
+      `}</style>
 
       {/* Navigation */}
       <nav className="relative z-50 p-6">
