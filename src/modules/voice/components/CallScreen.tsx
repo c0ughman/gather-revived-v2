@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, AlertCircle } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -16,6 +16,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
+  const [error, setError] = useState<string | null>(null);
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
 
@@ -38,6 +39,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             geminiLiveService.onError((error) => {
               console.error("Gemini Live error:", error);
               setResponseText("I'm having trouble with the connection. Let's try again.");
+              setError(error.message);
             });
             
             geminiLiveService.onStateChange((state) => {
@@ -54,10 +56,12 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             } else {
               console.error("❌ Audio initialization failed");
               setResponseText("Could not access microphone. Please check permissions.");
+              setError("Could not access microphone. Please check browser permissions.");
             }
           } catch (error) {
             console.error("❌ Failed to initialize Gemini Live service:", error);
             setResponseText("Failed to start voice chat. Please try again.");
+            setError(error instanceof Error ? error.message : "Unknown error occurred");
           } finally {
             initializationInProgress.current = false;
           }
@@ -288,6 +292,20 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             </span>
           </div>
         </div>
+        
+        {/* Error Message */}
+        {error && (
+          <div className="mb-8 max-w-md bg-red-900/30 p-4 rounded-lg border border-red-700 flex items-start space-x-3">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-red-300 text-sm font-medium mb-1">Error</p>
+              <p className="text-red-200 text-sm">{error}</p>
+              <p className="text-red-300 text-xs mt-2">
+                Make sure you have a valid Gemini API key in your .env file (VITE_GEMINI_API_KEY).
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Response Text */}
         {responseText && callState.status === 'connected' && (

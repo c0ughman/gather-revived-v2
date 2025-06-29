@@ -41,12 +41,19 @@ class GeminiLiveService {
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
 
-  constructor(config: GeminiLiveConfig) {
-    const apiKey = config.apiKey;
-    if (apiKey) {
-      this.genAI = new GoogleGenAI({ apiKey });
+  constructor(config?: GeminiLiveConfig) {
+    // Get API key from config or environment variable
+    const apiKey = config?.apiKey || import.meta.env.VITE_GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      console.error('❌ Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
     } else {
-      console.warn('Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
+      console.log('✅ Gemini API key found, initializing client');
+      try {
+        this.genAI = new GoogleGenAI({ apiKey });
+      } catch (error) {
+        console.error('❌ Failed to initialize Gemini client:', error);
+      }
     }
   }
 
@@ -94,7 +101,13 @@ class GeminiLiveService {
   public async startSession(contact: AIContact): Promise<void> {
     try {
       if (!this.genAI) {
-        throw new Error("Gemini API not initialized - check your API key");
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error("Gemini API key not found in environment variables. Please add VITE_GEMINI_API_KEY to your .env file");
+        }
+        
+        console.log("🔄 Reinitializing Gemini client with API key");
+        this.genAI = new GoogleGenAI({ apiKey });
       }
 
       // Wait for audio to be fully ready with timeout
@@ -158,8 +171,8 @@ class GeminiLiveService {
 
       const hasNotion = hasNotionSource || hasNotionAction;
       
-              console.log(`🔍 Contact integrations:`, contact.integrations);
-        console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}`);
+      console.log(`🔍 Contact integrations:`, contact.integrations);
+      console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}`);
 
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
