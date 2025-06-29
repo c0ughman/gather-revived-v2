@@ -79,9 +79,36 @@ export const stripeService = {
    * Get current user's subscription data
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
+    // Get the current authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('Error getting user or user not authenticated:', userError);
+      return null;
+    }
+
+    // First, get the user's customer_id from stripe_customers table
+    const { data: customerData, error: customerError } = await supabase
+      .from('stripe_customers')
+      .select('customer_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (customerError) {
+      console.error('Error fetching customer:', customerError);
+      return null;
+    }
+
+    if (!customerData) {
+      // User doesn't have a Stripe customer record yet
+      return null;
+    }
+
+    // Now get the subscription data using the customer_id
     const { data, error } = await supabase
       .from('stripe_user_subscriptions')
       .select('*')
+      .eq('customer_id', customerData.customer_id)
       .maybeSingle();
 
     if (error) {
