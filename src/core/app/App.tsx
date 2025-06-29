@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
@@ -462,6 +462,38 @@ export default function App() {
 
   const handleUpgrade = () => {
     setCurrentView('pricing');
+  };
+
+  // Helper functions for limit modal
+  const getTimeUntilReset = (plan: string, lastResetDate: string): number => {
+    const lastReset = new Date(lastResetDate);
+    const now = new Date();
+    
+    if (plan === 'free') {
+      // Weekly reset for free plan
+      const nextReset = new Date(lastReset);
+      nextReset.setDate(nextReset.getDate() + 7);
+      return Math.max(0, nextReset.getTime() - now.getTime());
+    } else {
+      // Monthly reset for paid plans
+      const nextReset = new Date(lastReset);
+      nextReset.setMonth(nextReset.getMonth() + 1);
+      return Math.max(0, nextReset.getTime() - now.getTime());
+    }
+  };
+
+  const formatTimeUntilReset = (milliseconds: number): string => {
+    const days = Math.floor(milliseconds / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((milliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
   };
 
   // Loading state
