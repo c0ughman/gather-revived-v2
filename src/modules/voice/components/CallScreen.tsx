@@ -16,6 +16,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
 
@@ -29,6 +30,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
           initializationInProgress.current = true;
           try {
             console.log("🚀 Starting service initialization...");
+            setErrorMessage(null);
             
             // Set up event handlers first
             geminiLiveService.onResponse((response) => {
@@ -37,6 +39,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             
             geminiLiveService.onError((error) => {
               console.error("Gemini Live error:", error);
+              setErrorMessage(error.message || "An error occurred with the voice service");
               setResponseText("I'm having trouble with the connection. Let's try again.");
             });
             
@@ -54,10 +57,12 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
               console.log("✅ Service fully initialized");
             } else {
               console.error("❌ Audio initialization failed");
+              setErrorMessage("Could not access microphone. Please check permissions.");
               setResponseText("Could not access microphone. Please check permissions.");
             }
           } catch (error) {
             console.error("❌ Failed to initialize Gemini Live service:", error);
+            setErrorMessage(error.message || "Failed to start voice chat");
             setResponseText("Failed to start voice chat. Please try again.");
           } finally {
             initializationInProgress.current = false;
@@ -289,6 +294,16 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             </span>
           </div>
         </div>
+        
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="mb-8 max-w-md bg-red-900/30 p-4 rounded-lg border border-red-700">
+            <p className="text-red-300 text-sm">Error: {errorMessage}</p>
+            <p className="text-red-400 text-xs mt-2">
+              Try refreshing the page or checking your microphone permissions.
+            </p>
+          </div>
+        )}
         
         {/* Response Text */}
         {responseText && callState.status === 'connected' && (

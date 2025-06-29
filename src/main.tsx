@@ -17,8 +17,9 @@ const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
 window.addEventListener('error', (event) => {
   if (event.error?.message?.includes('removeChild') || 
       event.error?.message?.includes('Node') ||
-      event.error?.message?.includes('Cannot navigate to URL')) {
-    console.warn('DOM manipulation error caught and handled:', event.error);
+      event.error?.message?.includes('Cannot navigate to URL') ||
+      event.error?.message?.includes('WebSocket')) {
+    console.warn('DOM manipulation or WebSocket error caught and handled:', event.error);
     event.preventDefault(); // Prevent the error from breaking the app
     return false;
   }
@@ -27,12 +28,34 @@ window.addEventListener('error', (event) => {
 // Handle unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
   if (event.reason?.message?.includes('Cannot navigate to URL') ||
-      event.reason?.message?.includes('service worker')) {
-    console.warn('Service worker navigation error caught and handled:', event.reason);
+      event.reason?.message?.includes('service worker') ||
+      event.reason?.message?.includes('WebSocket') ||
+      event.reason?.message?.includes('network error')) {
+    console.warn('Service worker or WebSocket error caught and handled:', event.reason);
     event.preventDefault();
     return false;
   }
 });
+
+// WebSocket specific error handling
+const originalWebSocket = window.WebSocket;
+window.WebSocket = function(url, protocols) {
+  const ws = new originalWebSocket(url, protocols);
+  
+  const originalSend = ws.send;
+  ws.send = function(data) {
+    try {
+      return originalSend.call(this, data);
+    } catch (error) {
+      console.warn('WebSocket send error caught and handled:', error);
+      // Don't rethrow to prevent app crashes
+      return false;
+    }
+  };
+  
+  return ws;
+} as any;
+window.WebSocket.prototype = originalWebSocket.prototype;
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

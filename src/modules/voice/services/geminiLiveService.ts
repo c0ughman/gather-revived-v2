@@ -23,6 +23,8 @@ class GeminiLiveService {
   private isListening = false;
   private audioProcessor: ScriptProcessorNode | null = null;
   private autoListenTimeout: number | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
 
   constructor() {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -103,6 +105,7 @@ class GeminiLiveService {
     console.log('✅ Audio is ready, proceeding with session...');
     
     this.currentContact = contact;
+    this.reconnectAttempts = 0;
 
     try {
       // Build system instruction with document context
@@ -163,14 +166,39 @@ class GeminiLiveService {
       // Add general instruction
       systemInstruction += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
 
+      await this.connectWebSocket(systemInstruction);
+
+    } catch (error) {
+      console.error('❌ Failed to start session:', error);
+      if (this.errorCallback) {
+        this.errorCallback(new Error('Failed to start session: ' + error.message));
+      }
+      throw error;
+    }
+  }
+
+  private async connectWebSocket(systemInstruction: string): Promise<void> {
+    try {
       // Create WebSocket connection to Gemini Live API
       const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
+      
+      console.log('🔌 Connecting to WebSocket:', wsUrl.substring(0, wsUrl.indexOf('?')));
+      
+      // Close existing WebSocket if any
+      if (this.ws) {
+        try {
+          this.ws.close();
+        } catch (e) {
+          console.warn('⚠️ Error closing existing WebSocket:', e);
+        }
+        this.ws = null;
+      }
       
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected to Gemini Live API');
-        this.setupSession(contact, systemInstruction);
+        this.setupSession(this.currentContact!, systemInstruction);
       };
 
       this.ws.onmessage = (event) => {
@@ -179,13 +207,27 @@ class GeminiLiveService {
 
       this.ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error);
+        
+        // Log more details about the error
+        console.error('❌ WebSocket error details:', {
+          readyState: this.ws?.readyState,
+          url: wsUrl.substring(0, wsUrl.indexOf('?')),
+          apiKeyLength: this.apiKey.length,
+          hasCallback: !!this.errorCallback
+        });
+        
         if (this.errorCallback) {
           this.errorCallback(new Error('WebSocket connection failed'));
         }
+        
+        // Try to reconnect if appropriate
+        this.attemptReconnect(systemInstruction);
       };
 
       this.ws.onclose = (event) => {
         console.log(`🔌 WebSocket connection closed: ${event.code} ${event.reason}`);
+        console.log(`🔌 WebSocket close details: wasClean=${event.wasClean}, code=${event.code}`);
+        
         this.isSessionActive = false;
         this.setState('idle');
         
@@ -194,11 +236,38 @@ class GeminiLiveService {
           clearTimeout(this.autoListenTimeout);
           this.autoListenTimeout = null;
         }
+        
+        // Try to reconnect if it wasn't a clean close
+        if (!event.wasClean && event.code !== 1000) {
+          this.attemptReconnect(systemInstruction);
+        }
       };
-
     } catch (error) {
-      console.error('❌ Failed to start session:', error);
+      console.error('❌ Failed to connect WebSocket:', error);
       throw error;
+    }
+  }
+
+  private attemptReconnect(systemInstruction: string): void {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+      
+      console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
+      
+      setTimeout(() => {
+        if (this.isSessionActive) {
+          console.log('🔄 Reconnecting WebSocket...');
+          this.connectWebSocket(systemInstruction).catch(err => {
+            console.error('❌ Reconnection failed:', err);
+          });
+        }
+      }, delay);
+    } else {
+      console.error(`❌ Maximum reconnection attempts (${this.maxReconnectAttempts}) reached`);
+      if (this.errorCallback) {
+        this.errorCallback(new Error('Failed to establish a stable connection after multiple attempts'));
+      }
     }
   }
 
@@ -260,13 +329,26 @@ class GeminiLiveService {
 
     console.log('🔧 Final session config:', JSON.stringify(sessionConfig, null, 2));
 
-    // Send session setup
-    this.ws.send(JSON.stringify({
-      setup: sessionConfig
-    }));
-
-    console.log('✅ Live API session opened');
-    this.isSessionActive = true;
+    try {
+      // Send session setup
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          setup: sessionConfig
+        }));
+        console.log('✅ Live API session setup sent');
+        this.isSessionActive = true;
+      } else {
+        console.error('❌ WebSocket not open, cannot send setup');
+        if (this.errorCallback) {
+          this.errorCallback(new Error('WebSocket not open, cannot start session'));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error sending session setup:', error);
+      if (this.errorCallback) {
+        this.errorCallback(new Error('Failed to send session setup: ' + error.message));
+      }
+    }
   }
 
   private handleWebSocketMessage(event: MessageEvent) {
@@ -326,6 +408,7 @@ class GeminiLiveService {
 
     } catch (error) {
       console.error('❌ Error parsing WebSocket message:', error);
+      console.error('Raw message data:', event.data);
     }
   }
 
@@ -380,14 +463,19 @@ class GeminiLiveService {
 
         // Send audio data to Gemini Live API
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: "audio/pcm",
-                data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
-              }]
-            }
-          }));
+          try {
+            this.ws.send(JSON.stringify({
+              realtimeInput: {
+                mediaChunks: [{
+                  mimeType: "audio/pcm",
+                  data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
+                }]
+              }
+            }));
+          } catch (error) {
+            console.error('❌ Error sending audio data:', error);
+            // Don't stop listening on a single error, just log it
+          }
         }
       };
 
@@ -446,19 +534,31 @@ class GeminiLiveService {
     this.stopListening();
     
     if (this.ws) {
-      this.ws.close();
+      try {
+        this.ws.close();
+      } catch (e) {
+        console.warn('⚠️ Error closing WebSocket:', e);
+      }
       this.ws = null;
     }
 
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop());
+      try {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        console.warn('⚠️ Error stopping media tracks:', e);
+      }
       this.mediaStream = null;
     }
 
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close().catch(err => {
-        console.warn('⚠️ Error closing AudioContext:', err);
-      });
+      try {
+        this.audioContext.close().catch(err => {
+          console.warn('⚠️ Error closing AudioContext:', err);
+        });
+      } catch (e) {
+        console.warn('⚠️ Error closing AudioContext:', e);
+      }
       this.audioContext = null;
     }
 
@@ -466,6 +566,7 @@ class GeminiLiveService {
     this.isInitialized = false;
     this.currentContact = null;
     this.setState('idle');
+    this.reconnectAttempts = 0;
     
     console.log('✅ Session ended and resources cleaned up');
   }
