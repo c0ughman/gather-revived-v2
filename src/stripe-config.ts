@@ -12,7 +12,7 @@ export interface StripeProduct {
 export const PRODUCTS: StripeProduct[] = [
   {
     id: 'prod_SaWFAs1WpWiMrM',
-    priceId: 'price_standard',
+    priceId: 'price_1RfLCZCHpOkAgMGGUtW046jz',
     name: 'Standard',
     description: 'Dipping your toes in the water of seamless AI interaction.',
     price: 20,
@@ -27,7 +27,7 @@ export const PRODUCTS: StripeProduct[] = [
   },
   {
     id: 'prod_SaWGBcl0IQpjeY',
-    priceId: 'price_premium',
+    priceId: 'price_1RfLEACHpOkAgMGGl3yIkLiX',
     name: 'Premium',
     description: 'For the real Gather experience, providing very powerful functionality.',
     price: 80,
@@ -44,7 +44,7 @@ export const PRODUCTS: StripeProduct[] = [
   },
   {
     id: 'prod_SaWH26nuYdsChT',
-    priceId: 'price_pro',
+    priceId: 'price_1RfLFJCHpOkAgMGGtGJlOf2I',
     name: 'Pro',
     description: 'For practitioners and professionals looking to maximize their AI use. Including custom integrations and much more.',
     price: 250,
