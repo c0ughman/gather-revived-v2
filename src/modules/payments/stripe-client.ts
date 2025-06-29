@@ -88,6 +88,7 @@ export const stripeClient = {
       const { data, error } = await supabase
         .from('stripe_user_subscriptions')
         .select('*')
+        .limit(1)
         .maybeSingle();
 
       if (error) {
