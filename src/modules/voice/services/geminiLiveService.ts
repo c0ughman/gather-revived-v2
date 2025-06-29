@@ -2,6 +2,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { AIContact } from '../../../core/types/types';
 import { integrationsService } from '../../integrations';
 import { documentService, documentContextService } from '../../fileManagement';
+import { DomainChecker } from '../../../core/utils/domainChecker';
 
 // Configuration for Gemini Live API
 interface GeminiLiveConfig {
@@ -41,19 +42,12 @@ class GeminiLiveService {
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
 
-  constructor(config?: GeminiLiveConfig) {
-    // Get API key from config or environment variable
-    const apiKey = config?.apiKey || import.meta.env.VITE_GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      console.error('❌ Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
+  constructor(config: GeminiLiveConfig) {
+    const apiKey = config.apiKey;
+    if (apiKey) {
+      this.genAI = new GoogleGenAI({ apiKey });
     } else {
-      console.log('✅ Gemini API key found, initializing client');
-      try {
-        this.genAI = new GoogleGenAI({ apiKey });
-      } catch (error) {
-        console.error('❌ Failed to initialize Gemini client:', error);
-      }
+      console.warn('Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
     }
   }
 
@@ -101,13 +95,7 @@ class GeminiLiveService {
   public async startSession(contact: AIContact): Promise<void> {
     try {
       if (!this.genAI) {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-          throw new Error("Gemini API key not found in environment variables. Please add VITE_GEMINI_API_KEY to your .env file");
-        }
-        
-        console.log("🔄 Reinitializing Gemini client with API key");
-        this.genAI = new GoogleGenAI({ apiKey });
+        throw new Error("Gemini API not initialized - check your API key");
       }
 
       // Wait for audio to be fully ready with timeout
@@ -171,8 +159,8 @@ class GeminiLiveService {
 
       const hasNotion = hasNotionSource || hasNotionAction;
       
-      console.log(`🔍 Contact integrations:`, contact.integrations);
-      console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}`);
+              console.log(`🔍 Contact integrations:`, contact.integrations);
+        console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}`);
 
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
@@ -464,7 +452,7 @@ class GeminiLiveService {
               const { domain, variations } = fc.args;
               console.log(`🔍 Checking domain availability for: ${domain}`);
               
-              const result = await this.checkDomainAvailability(domain, variations);
+              const result = await DomainChecker.checkDomainAvailability(domain, variations, this.currentContact || undefined);
               
               functionResponses.push({
                 id: fc.id,
