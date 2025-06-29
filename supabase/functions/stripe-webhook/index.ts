@@ -141,7 +141,7 @@ async function syncCustomerFromStripe(customerId: string) {
       const { error: noSubError } = await supabase.from('stripe_subscriptions').upsert(
         {
           customer_id: customerId,
-          subscription_status: 'not_started',
+          status: 'not_started', // Changed from subscription_status to status
         },
         {
           onConflict: 'customer_id',
