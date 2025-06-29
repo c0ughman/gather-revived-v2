@@ -175,7 +175,7 @@ export default function SignupPage({ onSuccess, onBackToLanding }: SignupPagePro
             <p className="text-slate-400 text-sm">
               Already have an account?{' '}
               <button
-                onClick={onBackToLanding}
+                onClick={() => onBackToLanding()}
                 className="text-[#186799] hover:text-[#1a5a7a] font-medium transition-colors duration-200"
               >
                 Sign In
