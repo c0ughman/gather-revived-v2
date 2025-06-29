@@ -35,6 +35,7 @@ export const PLAN_LIMITS: Record<string, UsageLimits> = {
     maxAgents: 50,
     maxIntegrations: 50,
     maxStorageMB: 50 * 1024, // 50GB
+    maxStorageMB: 50 * 1024, // 50GB
     maxChatTokens: 15000000 // 15M tokens
   },
   pro: {
