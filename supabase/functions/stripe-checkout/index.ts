@@ -177,18 +177,7 @@ serve(async (req) => {
         mode,
         success_url,
         cancel_url,
-        allow_promotion_codes: true,
-        // Add payment_behavior to ensure immediate charging
-        payment_behavior: "default_incomplete",
-        // Set subscription_data to ensure immediate invoicing
-        ...(mode === "subscription"
-          ? {
-              subscription_data: {
-                trial_period_days: 0,
-                billing_cycle_anchor: "now",
-              },
-            }
-          : {}),
+        allow_promotion_codes: true
       });
 
       console.log(`Created checkout session: ${session.id}`);
