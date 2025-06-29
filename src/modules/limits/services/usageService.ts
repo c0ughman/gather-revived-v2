@@ -131,22 +131,35 @@ class UsageService {
     try {
       console.log(`📞 Updating call time usage for user ${userId}: +${additionalMinutes} minutes`);
       
-      const { data, error } = await supabase
+      // First, get current usage
+      const { data: currentUsage, error: fetchError } = await supabase
+        .from('user_usage')
+        .select('call_time_used')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Error fetching current call time usage:', fetchError);
+        return false;
+      }
+      
+      const newCallTime = (currentUsage.call_time_used || 0) + additionalMinutes;
+      
+      // Update with new value
+      const { error: updateError } = await supabase
         .from('user_usage')
         .update({
-          call_time_used: supabase.rpc('increment', { 
-            row_id: userId,
-            increment_amount: additionalMinutes
-          }),
+          call_time_used: newCallTime,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);
       
-      if (error) {
-        console.error('❌ Error updating call time usage:', error);
+      if (updateError) {
+        console.error('❌ Error updating call time usage:', updateError);
         return false;
       }
       
+      console.log(`✅ Call time updated to ${newCallTime} minutes`);
       return true;
     } catch (error) {
       console.error('❌ Error in updateCallTimeUsage:', error);
@@ -161,22 +174,35 @@ class UsageService {
     try {
       console.log(`💬 Updating chat tokens usage for user ${userId}: +${additionalTokens} tokens`);
       
-      const { data, error } = await supabase
+      // First, get current usage
+      const { data: currentUsage, error: fetchError } = await supabase
+        .from('user_usage')
+        .select('chat_tokens_used')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Error fetching current chat tokens usage:', fetchError);
+        return false;
+      }
+      
+      const newTokensUsed = (currentUsage.chat_tokens_used || 0) + additionalTokens;
+      
+      // Update with new value
+      const { error: updateError } = await supabase
         .from('user_usage')
         .update({
-          chat_tokens_used: supabase.rpc('increment', { 
-            row_id: userId,
-            increment_amount: additionalTokens
-          }),
+          chat_tokens_used: newTokensUsed,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);
       
-      if (error) {
-        console.error('❌ Error updating chat tokens usage:', error);
+      if (updateError) {
+        console.error('❌ Error updating chat tokens usage:', updateError);
         return false;
       }
       
+      console.log(`✅ Chat tokens updated to ${newTokensUsed} tokens`);
       return true;
     } catch (error) {
       console.error('❌ Error in updateChatTokensUsage:', error);
@@ -191,22 +217,35 @@ class UsageService {
     try {
       console.log(`💾 Updating storage usage for user ${userId}: +${additionalStorageMB} MB`);
       
-      const { data, error } = await supabase
+      // First, get current usage
+      const { data: currentUsage, error: fetchError } = await supabase
+        .from('user_usage')
+        .select('storage_used')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Error fetching current storage usage:', fetchError);
+        return false;
+      }
+      
+      const newStorageUsed = (currentUsage.storage_used || 0) + additionalStorageMB;
+      
+      // Update with new value
+      const { error: updateError } = await supabase
         .from('user_usage')
         .update({
-          storage_used: supabase.rpc('increment', { 
-            row_id: userId,
-            increment_amount: additionalStorageMB
-          }),
+          storage_used: newStorageUsed,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);
       
-      if (error) {
-        console.error('❌ Error updating storage usage:', error);
+      if (updateError) {
+        console.error('❌ Error updating storage usage:', updateError);
         return false;
       }
       
+      console.log(`✅ Storage updated to ${newStorageUsed} MB`);
       return true;
     } catch (error) {
       console.error('❌ Error in updateStorageUsage:', error);
