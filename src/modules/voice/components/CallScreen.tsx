@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, Zap } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
+import { useLimits } from '../../limits/hooks/useLimits';
+import { CallTimeLimitAlert } from '../../limits/components/CallTimeLimitAlert';
+import { getTimeUntilReset } from '../../../core/types/limits';
+import { useNavigate } from 'react-router-dom';
 
 interface CallScreenProps {
   contact: AIContact;
@@ -18,6 +22,20 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
+  const callDurationInterval = useRef<number | null>(null);
+  const callStartTime = useRef<Date | null>(null);
+  const { 
+    hasExceededCallTime, 
+    updateCallTimeUsage, 
+    plan, 
+    usage 
+  } = useLimits();
+  const navigate = useNavigate();
+
+  // Calculate reset date
+  const resetDate = usage?.lastResetDate 
+    ? getTimeUntilReset(plan, usage.lastResetDate) 
+    : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default to tomorrow
 
   useEffect(() => {
     if (callState.status === 'connecting') {
@@ -51,6 +69,21 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
               await geminiLiveService.startSession(contact);
               serviceInitialized.current = true;
               console.log("✅ Service fully initialized");
+              
+              // Start tracking call duration
+              callStartTime.current = new Date();
+              callDurationInterval.current = window.setInterval(() => {
+                if (callStartTime.current) {
+                  const now = new Date();
+                  const durationSeconds = Math.floor((now.getTime() - callStartTime.current.getTime()) / 1000);
+                  
+                  // Update call duration in parent component
+                  if (durationSeconds % 60 === 0 && durationSeconds > 0) {
+                    // Update usage every minute
+                    updateCallTimeUsage(1);
+                  }
+                }
+              }, 1000);
             } else {
               console.error("❌ Audio initialization failed");
               setResponseText("Could not access microphone. Please check permissions.");
@@ -74,6 +107,12 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
       if (callState.status === 'ended' && serviceInitialized.current) {
         geminiLiveService.endSession();
         serviceInitialized.current = false;
+      }
+      
+      // Clear call duration interval
+      if (callDurationInterval.current) {
+        clearInterval(callDurationInterval.current);
+        callDurationInterval.current = null;
       }
     };
   }, [callState.status, contact.id]);
@@ -160,7 +199,18 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
       geminiLiveService.endSession();
       serviceInitialized.current = false;
     }
+    
+    // Clear call duration interval
+    if (callDurationInterval.current) {
+      clearInterval(callDurationInterval.current);
+      callDurationInterval.current = null;
+    }
+    
     onEndCall();
+  };
+
+  const handleUpgrade = () => {
+    navigate('/pricing');
   };
 
   // Helper function to create radial gradient for agents without avatars
@@ -208,7 +258,16 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
       </div>
 
       {/* Main Call Area */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 relative">
+        {/* Call time limit alert */}
+        {hasExceededCallTime && (
+          <CallTimeLimitAlert 
+            isLimitReached={hasExceededCallTime}
+            resetDate={resetDate}
+            onUpgrade={handleUpgrade}
+          />
+        )}
+        
         {/* Avatar */}
         <div className="relative mb-8">
           <div
@@ -303,13 +362,13 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
           {/* Mute Button */}
           <button
             onClick={handleMicToggle}
-            disabled={callState.status !== 'connected'}
+            disabled={callState.status !== 'connected' || hasExceededCallTime}
             className={`p-4 rounded-full transition-all duration-200 ${
               callState.isMuted
                 ? 'bg-red-600 hover:bg-red-700'
                 : 'bg-slate-700 hover:bg-slate-600'
             } ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
+              (callState.status !== 'connected' || hasExceededCallTime) ? 'opacity-50 cursor-not-allowed' : ''
             } shadow-lg hover:shadow-xl hover:scale-105`}
           >
             {callState.isMuted ? (
@@ -329,9 +388,9 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
 
           {/* Speaker Button */}
           <button
-            disabled={callState.status !== 'connected'}
+            disabled={callState.status !== 'connected' || hasExceededCallTime}
             className={`p-4 rounded-full bg-slate-700 hover:bg-slate-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
+              (callState.status !== 'connected' || hasExceededCallTime) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             <Volume2 className="w-6 h-6 text-white" />

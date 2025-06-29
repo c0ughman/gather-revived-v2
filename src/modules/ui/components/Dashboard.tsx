@@ -3,12 +3,18 @@ import {
   Bot, MessageSquare, Phone, Settings, Sparkles, Users, Zap, Brain, 
   Search, TrendingUp, Bell, Globe, Rss, Newspaper,
   Mic, MessageCircle, Sliders, Grid3x3, Filter, Star, Clock, 
-  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown
+  BarChart3, Bookmark, CheckCircle2, Plus, User, LogOut, ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../payments';
+import { useLimits } from '../../limits/hooks/useLimits';
+import { LimitExceededModal } from '../../limits/components/LimitExceededModal';
+import { LimitProgressBar } from '../../limits/components/LimitProgressBar';
+import { formatTimeUntilReset } from '../../../core/types/limits';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
   contacts: AIContact[];
@@ -30,8 +36,18 @@ export default function Dashboard({
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [integrationSearchQuery, setIntegrationSearchQuery] = useState('');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState<'agents' | 'integrations' | null>(null);
   const { user, signOut } = useAuth();
+  const { 
+    plan, 
+    limits, 
+    usage, 
+    hasExceededAgents,
+    hasExceededIntegrations,
+    isLoading: isLimitsLoading
+  } = useLimits();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -122,8 +138,54 @@ export default function Dashboard({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  const handleCreateAgentClick = () => {
+    if (hasExceededAgents) {
+      setShowLimitModal('agents');
+    } else {
+      onCreateAgent();
+    }
+  };
+
+  const handleUpgrade = () => {
+    navigate('/pricing');
+  };
+
+  // Calculate reset date for limits
+  const resetDate = usage?.lastResetDate 
+    ? new Date(usage.lastResetDate) 
+    : new Date();
+  
+  // For free plan, add 7 days
+  if (plan === 'free') {
+    resetDate.setDate(resetDate.getDate() + 7);
+  } else {
+    // For paid plans, reset daily at midnight
+    resetDate.setHours(24, 0, 0, 0);
+  }
+  
+  const timeUntilReset = formatTimeUntilReset(resetDate);
+
   return (
     <div className="h-full bg-glass-bg overflow-y-auto">
+      {/* Limit Exceeded Modal */}
+      {showLimitModal === 'agents' && (
+        <LimitExceededModal
+          limitType="agents"
+          plan={plan}
+          onClose={() => setShowLimitModal(null)}
+          onUpgrade={handleUpgrade}
+        />
+      )}
+      
+      {showLimitModal === 'integrations' && (
+        <LimitExceededModal
+          limitType="integrations"
+          plan={plan}
+          onClose={() => setShowLimitModal(null)}
+          onUpgrade={handleUpgrade}
+        />
+      )}
+      
       {/* Header Section */}
       <div className="relative overflow-hidden">
         {/* Background gradient */}
@@ -230,6 +292,70 @@ export default function Dashboard({
                 </div>
               </div>
             </div>
+            
+            {/* Usage Limits */}
+            {!isLimitsLoading && usage && (
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-6 border border-slate-700/50 mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-white">Usage Limits</h2>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-slate-400">
+                      {plan === 'free' ? 'Weekly' : 'Daily'} Reset: {timeUntilReset}
+                    </span>
+                    <button
+                      onClick={handleUpgrade}
+                      className="px-3 py-1 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full text-xs transition-colors duration-200"
+                    >
+                      Upgrade
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-6">
+                  <LimitProgressBar
+                    current={usage.callTimeUsedMinutes}
+                    max={limits.callTimeMinutes}
+                    label="Call Time"
+                    unit="min"
+                  />
+                  
+                  <LimitProgressBar
+                    current={usage.chatTokensUsed}
+                    max={Math.floor(limits.maxChatTokens / 30)} // Daily limit
+                    label="Daily Messages"
+                    unit="tokens"
+                  />
+                  
+                  <LimitProgressBar
+                    current={usage.storageUsedMB}
+                    max={limits.maxStorageMB}
+                    label="Storage"
+                    unit="MB"
+                  />
+                  
+                  <LimitProgressBar
+                    current={usage.agentsCreated}
+                    max={limits.maxAgents}
+                    label="AI Agents"
+                  />
+                </div>
+                
+                {plan === 'free' && (
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <div className="flex items-center space-x-2 text-slate-400 text-sm">
+                      <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                      <span>Free plan limits: 10min calls/week, 4 agents, 100MB storage, and limited messages.</span>
+                      <button
+                        onClick={handleUpgrade}
+                        className="text-[#186799] hover:text-[#1a5a7a] font-medium"
+                      >
+                        Upgrade now
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -244,7 +370,7 @@ export default function Dashboard({
               </h2>
               {contacts.length > 0 && (
                 <button
-                  onClick={onCreateAgent}
+                  onClick={handleCreateAgentClick}
                   className="flex items-center space-x-2 px-4 py-2 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200"
                 >
                   <Plus className="w-4 h-4" />
@@ -263,7 +389,7 @@ export default function Dashboard({
                   Start by creating a personalized AI assistant. Choose from our templates or build your own from scratch.
                 </p>
                 <button
-                  onClick={onCreateAgent}
+                  onClick={handleCreateAgentClick}
                   className="px-6 py-3 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 text-white rounded-full font-semibold transition-all duration-200 transform hover:scale-105"
                 >
                   Create Your First Agent
@@ -446,14 +572,14 @@ export default function Dashboard({
               {filteredIntegrations.map((integration) => (
                 <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
                   <div className="flex items-start space-x-4">
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0"
-                      style={{ backgroundColor: integration.color }}
+                    <div
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: integration.color + '20', color: integration.color }}
                     >
                       {getIconForIntegration(integration.icon)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white mb-2">{integration.name}</h3>
+                      <h3 className="font-semibold text-white">{integration.name}</h3>
                       <p className="text-slate-400 text-sm mb-3 line-clamp-2">{integration.description}</p>
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${
                         integration.category === 'source' 
