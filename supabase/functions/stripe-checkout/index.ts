@@ -194,7 +194,6 @@ Deno.serve(async (req) => {
       // Set subscription_data to ensure immediate invoicing for subscriptions
       ...(mode === 'subscription' ? {
         subscription_data: {
-          trial_period_days: 0,
           billing_cycle_anchor: 'now',
         }
       } : {})
