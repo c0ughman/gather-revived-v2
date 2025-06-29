@@ -96,6 +96,7 @@ export const stripeClient = {
         return null;
       }
 
+      // Query the view with user_id filter to ensure we only get the current user's subscription
       const { data, error } = await supabase
         .from('stripe_user_subscriptions')
         .select('*')

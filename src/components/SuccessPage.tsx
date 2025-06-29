@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, ArrowRight, MessageCircle } from 'lucide-react';
+import { CheckCircle, ArrowRight, MessageCircle, Loader2 } from 'lucide-react';
 import { getProductByPriceId } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
 import { supabase } from '../modules/database/lib/supabase';
@@ -113,7 +113,7 @@ export default function SuccessPage() {
 
       {/* Success Content */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-8 text-center">
+        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-600 shadow-lg p-8 text-center">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
