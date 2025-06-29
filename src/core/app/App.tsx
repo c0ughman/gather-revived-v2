@@ -43,7 +43,7 @@ export default function App() {
 
   useEffect(() => {
     if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
-      setCurrentView('pricing');
+      setCurrentView('dashboard');
     }
   }, [user, currentView]);
 
@@ -146,7 +146,7 @@ export default function App() {
   };
 
   const handleSignupSuccess = () => {
-    setCurrentView('pricing');
+    setCurrentView('dashboard');
   };
 
   const handleBackToLanding = () => {
@@ -400,7 +400,7 @@ export default function App() {
     );
   }
 
-  // If not authenticated, show landing page, signup page, or login page based on currentView
+  // If not authenticated, show landing page or signup page based on currentView
   if (!user) {
     if (currentView === 'signup') {
       return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} onSignIn={handleSignIn} />;

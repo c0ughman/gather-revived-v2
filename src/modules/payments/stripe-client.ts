@@ -84,17 +84,34 @@ export const stripeClient = {
    * Get current user's subscription data
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
-    const { data, error } = await supabase
-      .from('stripe_user_subscriptions')
-      .select('*')
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('stripe_user_subscriptions')
+        .select('*')
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching subscription:', error);
+      if (error) {
+        console.error('Error fetching subscription:', error);
+        
+        // Try the direct table if the view doesn't exist
+        const { data: directData, error: directError } = await supabase
+          .from('stripe_subscriptions')
+          .select('*')
+          .maybeSingle();
+          
+        if (directError) {
+          console.error('Error fetching from direct table:', directError);
+          return null;
+        }
+        
+        return directData;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getUserSubscription:', error);
       return null;
     }
-
-    return data;
   },
 
   /**
