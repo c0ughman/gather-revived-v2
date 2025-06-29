@@ -41,6 +41,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
             });
             
             geminiLiveService.onStateChange((state) => {
+              console.log(`🔄 Service state changed to: ${state}`);
               setServiceState(state);
             });
             
