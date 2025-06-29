@@ -22,13 +22,27 @@ export function useSubscription() {
     const fetchSubscription = async () => {
       try {
         console.log('Fetching subscription status');
+        
+        // Try to get from user profile first (most reliable)
         const subscription = await stripeClient.getUserSubscription();
+        
+        if (!subscription) {
+          setStatus({
+            isLoading: false,
+            isActive: false,
+            subscription: null,
+            plan: 'free',
+            error: null
+          });
+          return;
+        }
         
         const isActive = subscription?.subscription_status === 'active' || 
                          subscription?.subscription_status === 'trialing';
         
-        // Determine plan based on price_id
+        // Determine plan based on price_id or from user profile
         let plan = 'free';
+        
         if (subscription?.price_id) {
           switch (subscription.price_id) {
             case 'price_1RfLCZCHpOkAgMGGUtW046jz':
