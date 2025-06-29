@@ -190,8 +190,8 @@ export default function Dashboard({
               </div>
               <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-xl bg-green-600/20">
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <div className="p-2 rounded-xl bg-green-600/10">
+                    <CheckCircle2 className="w-5 h-5 text-green-300" />
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-white">{stats.activeAgents}</div>
@@ -201,8 +201,8 @@ export default function Dashboard({
               </div>
               <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-xl bg-purple-600/20">
-                    <Grid3x3 className="w-5 h-5 text-purple-400" />
+                  <div className="p-2 rounded-xl bg-purple-600/10">
+                    <Grid3x3 className="w-5 h-5 text-purple-300" />
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-white">{stats.totalIntegrations}</div>
@@ -212,8 +212,8 @@ export default function Dashboard({
               </div>
               <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-xl bg-orange-600/20">
-                    <Zap className="w-5 h-5 text-orange-400" />
+                  <div className="p-2 rounded-xl bg-orange-600/10">
+                    <Zap className="w-5 h-5 text-orange-300" />
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-white">{stats.activeIntegrations}</div>
@@ -450,7 +450,7 @@ export default function Dashboard({
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${
                         integration.category === 'source' 
                           ? 'bg-[#186799]/20 text-[#186799]' 
-                          : 'bg-green-600/20 text-green-400'
+                          : 'bg-green-600/10 text-green-300'
                       }`}>
                         {integration.category}
                       </span>
