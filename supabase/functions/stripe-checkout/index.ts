@@ -148,31 +148,20 @@ Deno.serve(async (req) => {
       customerId = customer.customer_id;
 
       if (mode === 'subscription') {
-        // Verify subscription exists for existing customer
-        const { data: subscription, error: getSubscriptionError } = await supabase
+        // Use upsert to handle existing subscription records
+        const { error: upsertSubscriptionError } = await supabase
           .from('stripe_subscriptions')
-          .select('status')
-          .eq('customer_id', customerId)
-          .maybeSingle();
-
-        if (getSubscriptionError) {
-          console.error('Failed to fetch subscription information from the database', getSubscriptionError);
-
-          return corsResponse({ error: 'Failed to fetch subscription information' }, 500);
-        }
-
-        if (!subscription) {
-          // Create subscription record for existing customer if missing
-          const { error: createSubscriptionError } = await supabase.from('stripe_subscriptions').insert({
+          .upsert({
             customer_id: customerId,
             status: 'not_started',
+          }, {
+            onConflict: 'customer_id'
           });
 
-          if (createSubscriptionError) {
-            console.error('Failed to create subscription record for existing customer', createSubscriptionError);
+        if (upsertSubscriptionError) {
+          console.error('Failed to upsert subscription record for existing customer', upsertSubscriptionError);
 
-            return corsResponse({ error: 'Failed to create subscription record for existing customer' }, 500);
-          }
+          return corsResponse({ error: 'Failed to create or update subscription record for existing customer' }, 500);
         }
       }
     }
