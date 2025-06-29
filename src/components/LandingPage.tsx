@@ -3,9 +3,10 @@ import { ArrowRight, Sparkles, Zap, Brain, Users, MessageCircle, Play, Check, St
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onSignUp: () => void;
 }
 
-export default function LandingPage({ onGetStarted }: LandingPageProps) {
+export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
@@ -128,7 +129,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             </span>
           </div>
           <button
-            onClick={onGetStarted}
+            onClick={onSignUp}
             className="px-6 py-3 animated-gradient-bg hover:opacity-90 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl text-white"
           >
             Get Started Free
@@ -162,7 +163,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
-                onClick={onGetStarted}
+                onClick={onSignUp}
                 className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Building Your Team</span>
@@ -388,7 +389,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
-                onClick={onGetStarted}
+                onClick={onSignUp}
                 className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
                 <span>Start Your Free Trial</span>
