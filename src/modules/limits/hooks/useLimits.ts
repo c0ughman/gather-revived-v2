@@ -90,20 +90,34 @@ export function useLimits() {
         throw new Error(`Failed to count agents: ${agentError.message}`)
       }
 
-      // Count integrations
-      const { count: integrationCount, error: integrationError } = await supabase
-        .from('agent_integrations')
-        .select('agent_id', { count: 'exact', head: true })
-        .in('agent_id', 
-          supabase
-            .from('user_agents')
-            .select('id')
-            .eq('user_id', user.id)
-        )
+      // First, get the agent IDs for the current user
+      const { data: userAgents, error: userAgentsError } = await supabase
+        .from('user_agents')
+        .select('id')
+        .eq('user_id', user.id)
 
-      if (integrationError) {
-        console.error('Error counting integrations:', integrationError)
-        // Don't throw here, just log and continue with 0
+      if (userAgentsError) {
+        console.error('Error fetching user agents:', userAgentsError)
+        throw new Error(`Failed to fetch user agents: ${userAgentsError.message}`)
+      }
+
+      // Extract agent IDs into an array
+      const agentIds = userAgents?.map(agent => agent.id) || []
+
+      // Count integrations using the array of agent IDs
+      let integrationCount = 0
+      if (agentIds.length > 0) {
+        const { count, error: integrationError } = await supabase
+          .from('agent_integrations')
+          .select('agent_id', { count: 'exact', head: true })
+          .in('agent_id', agentIds)
+
+        if (integrationError) {
+          console.error('Error counting integrations:', integrationError)
+          // Don't throw here, just log and continue with 0
+        } else {
+          integrationCount = count || 0
+        }
       }
 
       const planId = profile?.preferences?.plan_id || usageData?.plan_id || 'free'
