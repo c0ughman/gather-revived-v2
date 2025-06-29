@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { stripeClient, SubscriptionData } from '../stripe-client';
+import { supabase } from '../../database/lib/supabase';
 
 export interface SubscriptionStatus {
   isLoading: boolean;
@@ -21,6 +22,7 @@ export function useSubscription() {
   useEffect(() => {
     const fetchSubscription = async () => {
       try {
+        // First try to get subscription from Stripe data
         const subscription = await stripeClient.getUserSubscription();
         const isActive = subscription?.subscription_status === 'active' || 
                          subscription?.subscription_status === 'trialing';
@@ -38,6 +40,19 @@ export function useSubscription() {
             case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
               plan = 'pro';
               break;
+          }
+        }
+        
+        // If no subscription from Stripe, check user profile
+        if (!subscription) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('plan, subscription_tier, subscription_plan')
+            .single();
+            
+          if (profile) {
+            // Use the most specific plan field available
+            plan = profile.plan || profile.subscription_plan || profile.subscription_tier || 'free';
           }
         }
         
