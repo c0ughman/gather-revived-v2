@@ -198,7 +198,25 @@ class GeminiLiveService {
       
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected to Gemini Live API');
-        this.setupSession(this.currentContact!, systemInstruction);
+        
+        // Add a small delay to ensure the WebSocket connection is truly stable
+        // This prevents race conditions where onopen fires but the connection
+        // immediately closes or becomes unstable
+        setTimeout(() => {
+          // Double-check that the WebSocket is still valid and open
+          if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentContact) {
+            console.log('🔄 WebSocket confirmed stable, setting up session...');
+            this.setupSession(this.currentContact, systemInstruction);
+          } else {
+            console.error('❌ WebSocket became invalid after onopen event');
+            const wsState = this.ws ? this.ws.readyState : 'null';
+            console.error(`❌ WebSocket state: ${wsState}, Contact: ${!!this.currentContact}`);
+            
+            if (this.errorCallback) {
+              this.errorCallback(new Error('WebSocket connection became unstable immediately after opening'));
+            }
+          }
+        }, 50); // Small delay to allow event loop to process any immediate state changes
       };
 
       this.ws.onmessage = (event) => {
@@ -272,7 +290,15 @@ class GeminiLiveService {
   }
 
   private setupSession(contact: AIContact, systemInstruction: string) {
-    if (!this.ws) return;
+    // Additional safety check before proceeding
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot setup session - WebSocket not open');
+      console.error(`❌ WebSocket state: ${this.ws ? this.ws.readyState : 'null'}`);
+      if (this.errorCallback) {
+        this.errorCallback(new Error('WebSocket not open, cannot start session'));
+      }
+      return;
+    }
 
     // Define tools based on contact integrations
     const tools: any[] = [];
@@ -330,7 +356,7 @@ class GeminiLiveService {
     console.log('🔧 Final session config:', JSON.stringify(sessionConfig, null, 2));
 
     try {
-      // Send session setup
+      // Final check before sending
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           setup: sessionConfig
@@ -338,7 +364,8 @@ class GeminiLiveService {
         console.log('✅ Live API session setup sent');
         this.isSessionActive = true;
       } else {
-        console.error('❌ WebSocket not open, cannot send setup');
+        console.error('❌ WebSocket not open at final send check');
+        console.error(`❌ WebSocket state at send: ${this.ws ? this.ws.readyState : 'null'}`);
         if (this.errorCallback) {
           this.errorCallback(new Error('WebSocket not open, cannot start session'));
         }
