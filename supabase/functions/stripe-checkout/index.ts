@@ -191,9 +191,6 @@ Deno.serve(async (req) => {
       success_url,
       cancel_url,
       allow_promotion_codes: true,
-      payment_intent_data: {
-        setup_future_usage: 'off_session',
-      },
     });
 
     console.log(`Created checkout session ${session.id} for customer ${customerId}`);
