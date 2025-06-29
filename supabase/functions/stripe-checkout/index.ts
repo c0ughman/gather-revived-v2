@@ -170,6 +170,7 @@ Deno.serve(async (req) => {
 
         // Create subscription record if it doesn't exist
         if (!subscription) {
+          // Insert without ON CONFLICT clause
           const { error: createSubscriptionError } = await supabase
             .from('stripe_subscriptions')
             .insert({
@@ -179,7 +180,13 @@ Deno.serve(async (req) => {
 
           if (createSubscriptionError) {
             console.error('Failed to create subscription record', createSubscriptionError);
-            return corsResponse({ error: 'Failed to create subscription record' }, 500);
+            
+            // Check if it's a duplicate key error, which means the record already exists
+            if (createSubscriptionError.message.includes('duplicate key')) {
+              console.log('Subscription record already exists, continuing...');
+            } else {
+              return corsResponse({ error: 'Failed to create subscription record' }, 500);
+            }
           }
         }
       }
@@ -199,6 +206,15 @@ Deno.serve(async (req) => {
       success_url,
       cancel_url,
       allow_promotion_codes: true,
+      // Add payment_behavior to ensure immediate charging
+      payment_behavior: 'default_incomplete',
+      // Set subscription_data to ensure immediate invoicing
+      ...(mode === 'subscription' ? {
+        subscription_data: {
+          trial_period_days: 0,
+          billing_cycle_anchor: 'now',
+        }
+      } : {})
     });
 
     console.log(`Created checkout session ${session.id} for customer ${customerId}`);
