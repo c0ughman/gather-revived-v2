@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, MessageCircle } from 'lucide-react';
-import { getProductByPriceId } from '../stripe-config';
-import { stripeClient } from '../modules/payments/stripe-client';
+import { stripeService } from '../services/stripe';
 
 export default function SuccessPage() {
   const [searchParams] = useSearchParams();
@@ -14,15 +13,25 @@ export default function SuccessPage() {
     const planParam = searchParams.get('plan');
     setPlan(planParam);
 
-    // Get subscription details
+    // Get subscription details if no plan parameter
     const getSubscription = async () => {
       try {
-        const subscription = await stripeClient.getUserSubscription();
+        const subscription = await stripeService.getUserSubscription();
         if (subscription?.price_id) {
-          const product = getProductByPriceId(subscription.price_id);
-          if (product) {
-            setPlan(product.name.toLowerCase());
+          // Map price ID to plan name
+          let planName = 'premium'; // Default
+          switch (subscription.price_id) {
+            case 'price_1RfLCZCHpOkAgMGGUtW046jz':
+              planName = 'standard';
+              break;
+            case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
+              planName = 'premium';
+              break;
+            case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
+              planName = 'pro';
+              break;
           }
+          setPlan(planName);
         }
       } catch (error) {
         console.error('Error fetching subscription:', error);

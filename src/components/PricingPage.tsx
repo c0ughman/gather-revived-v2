@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
 import { PRODUCTS } from '../stripe-config';
-import { stripeClient } from '../modules/payments/stripe-client';
+import { stripeService } from '../services/stripe';
 
 interface PricingPageProps {
   onSelectPlan: (plan: string) => void;
@@ -15,7 +15,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
     try {
       setIsLoading(planName);
       
-      await stripeClient.redirectToCheckout({
+      await stripeService.redirectToCheckout({
         priceId,
         mode: 'subscription',
         successUrl: `${window.location.origin}/success?plan=${planName}`,
