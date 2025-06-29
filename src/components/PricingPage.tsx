@@ -1,5 +1,7 @@
-import React from 'react';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
+import { PRODUCTS } from '../stripe-config';
+import { stripeClient } from '../modules/payments/stripe-client';
 
 interface PricingPageProps {
   onSelectPlan: (plan: string) => void;
@@ -7,47 +9,28 @@ interface PricingPageProps {
 }
 
 export default function PricingPage({ onSelectPlan, onStayFree }: PricingPageProps) {
-  const products = [
-    {
-      name: 'Standard',
-      description: 'Dipping your toes in the water of seamless AI interaction.',
-      price: 20,
-      features: [
-        'Call time: 20min / day',
-        'Agents: 7',
-        'All Integrations',
-        'Storage: 5GB',
-        'Chat Tokens: 4M'
-      ]
-    },
-    {
-      name: 'Premium',
-      description: 'For the real Gather experience, providing very powerful functionality.',
-      price: 80,
-      features: [
-        'Call time: 100min / day',
-        'Agents: up to 50',
-        'All Integrations',
-        'Storage: 50GB',
-        'Chat Tokens: 15M',
-        'Priority support'
-      ],
-      popular: true
-    },
-    {
-      name: 'Pro',
-      description: 'For practitioners and professionals looking to maximize their AI use. Including custom integrations and much more.',
-      price: 250,
-      features: [
-        'Call time: Unlimited*',
-        'Agents: Unlimited*',
-        'Custom Integrations',
-        'Storage: Unlimited*',
-        'Chat Tokens: Unlimited*',
-        'Dedicated account manager'
-      ]
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+
+  const handleSelectPlan = async (priceId: string, planName: string) => {
+    try {
+      setIsLoading(planName);
+      console.log(`Initiating checkout for plan: ${planName}, priceId: ${priceId}`);
+      
+      await stripeClient.redirectToCheckout({
+        priceId,
+        mode: 'subscription',
+        successUrl: `${window.location.origin}/success?plan=${planName}`,
+        cancelUrl: `${window.location.origin}/pricing`,
+      });
+      
+      // Note: The page will redirect, so we won't reach this point
+      onSelectPlan(planName);
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      setIsLoading(null);
+      alert('There was an error redirecting to checkout. Please try again.');
     }
-  ];
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
@@ -102,9 +85,9 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       {/* Pricing Cards */}
       <div className="max-w-7xl mx-auto px-4 pb-20">
         <div className="grid md:grid-cols-3 gap-8">
-          {products.map((product) => (
+          {PRODUCTS.map((product) => (
             <div 
-              key={product.name}
+              key={product.id}
               className={`${
                 product.popular 
                   ? "bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20" 
@@ -139,7 +122,8 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                 </div>
                 
                 <button 
-                  onClick={() => onSelectPlan(product.name.toLowerCase())}
+                  onClick={() => handleSelectPlan(product.priceId, product.name.toLowerCase())}
+                  disabled={isLoading !== null}
                   className={`w-full py-3 px-4 rounded-lg ${
                     product.name === 'Standard' 
                       ? "border border-slate-600 text-white hover:bg-slate-700" 
@@ -148,13 +132,22 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                       : "border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40"
                   } transition-colors duration-200 mb-6`}
                 >
-                  {product.name === 'Premium' ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <span>Choose Premium</span>
-                      <ArrowRight className="w-4 h-4" />
+                  {isLoading === product.name.toLowerCase() ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      <span>Processing...</span>
                     </div>
                   ) : (
-                    product.name === 'Pro' ? 'Choose Pro' : 'Choose Standard'
+                    <>
+                      {product.name === 'Premium' ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <span>Choose Premium</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        product.name === 'Pro' ? 'Choose Pro' : 'Choose Standard'
+                      )}
+                    </>
                   )}
                 </button>
                 
@@ -195,6 +188,11 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold text-white mb-3">What happens if I reach my usage limits?</h3>
             <p className="text-slate-300">You'll receive a notification when you're approaching your limits. Once reached, you can continue using existing features but won't be able to create new agents or upload additional documents until the next billing cycle or until you upgrade your plan.</p>
+          </div>
+          
+          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold text-white mb-3">Is there a free trial for paid plans?</h3>
+            <p className="text-slate-300">Yes, all paid plans come with a 14-day free trial. You can cancel anytime during the trial period and won't be charged.</p>
           </div>
           
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
