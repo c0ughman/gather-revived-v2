@@ -5,7 +5,7 @@ import { useAuth } from '../modules/auth/hooks/useAuth';
 interface SignupPageProps {
   onSuccess: () => void;
   onBackToLanding: () => void;
-  onSignIn: () => void; // New prop for sign in navigation
+  onSignIn: () => void;
 }
 
 export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: SignupPageProps) {

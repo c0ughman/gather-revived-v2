@@ -59,14 +59,22 @@ Deno.serve(async (req) => {
       return corsResponse({ error }, 400);
     }
 
-    const authHeader = req.headers.get('Authorization')!;
+    // Get the authorization header and extract the token
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return corsResponse({ error: 'Authorization header is required' }, 401);
+    }
+    
     const token = authHeader.replace('Bearer ', '');
+    
+    // Verify the token and get the user
     const {
       data: { user },
       error: getUserError,
     } = await supabase.auth.getUser(token);
 
     if (getUserError) {
+      console.error('Auth error:', getUserError);
       return corsResponse({ error: 'Failed to authenticate user' }, 401);
     }
 
