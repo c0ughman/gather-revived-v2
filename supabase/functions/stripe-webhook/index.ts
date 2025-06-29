@@ -136,22 +136,24 @@ async function syncCustomerFromStripe(customerId: string) {
 
     if (subscriptions.data.length === 0) {
       console.info(`No active subscriptions found for customer: ${customerId}`);
-      const { error: noSubError } = await supabase.from('stripe_subscriptions').upsert(
-        {
-          customer_id: customerId,
-          subscription_id: null,
-          status: 'not_started',
-          price_id: null,
-          current_period_start: null,
-          current_period_end: null,
-          cancel_at_period_end: false,
-          payment_method_brand: null,
-          payment_method_last4: null,
-        },
-        {
-          onConflict: 'customer_id',
-        }
-      );
+      
+      // Prepare data for no subscription case
+      const noSubData = {
+        customer_id: customerId,
+        subscription_id: null,
+        status: 'not_started',
+        price_id: null,
+        current_period_start: null,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        payment_method_brand: null,
+        payment_method_last4: null,
+      };
+      
+      console.info('Upserting empty subscription data:', noSubData);
+      
+      // Removed onConflict parameter - let the database handle it based on existing constraints
+      const { error: noSubError } = await supabase.from('stripe_subscriptions').upsert(noSubData);
 
       if (noSubError) {
         console.error('Error updating subscription status for no active subscriptions:', noSubError);
@@ -182,12 +184,8 @@ async function syncCustomerFromStripe(customerId: string) {
 
     console.info('Upserting subscription data:', upsertData);
 
-    const { error: subError } = await supabase.from('stripe_subscriptions').upsert(
-      upsertData,
-      {
-        onConflict: 'customer_id',
-      }
-    );
+    // Removed onConflict parameter - let the database handle it based on existing constraints
+    const { error: subError } = await supabase.from('stripe_subscriptions').upsert(upsertData);
 
     if (subError) {
       console.error('Error syncing subscription:', subError);
