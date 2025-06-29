@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Users, Search, Home, Plus, MoreHorizontal } from 'lucide-react';
+import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 
@@ -24,6 +24,15 @@ export default function ContactSidebar({
   const [activeFilter, setActiveFilter] = useState('All');
   const { user } = useAuth();
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'busy': return 'bg-yellow-500';
+      case 'offline': return 'bg-gray-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
   const createAgentGradient = (color: string) => {
     const hex = color.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
@@ -41,117 +50,11 @@ export default function ContactSidebar({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
-  const getComplexityIndicators = (contact: AIContact) => {
-    const indicators = [];
-    
-    // Count documents (blue dots)
-    const documentCount = contact.documents?.length || 0;
-    for (let i = 0; i < Math.min(documentCount, 7); i++) {
-      indicators.push({ type: 'document', color: '#3b82f6' });
-    }
-    
-    // Count source integrations (green dots)
-    const sourceIntegrations = contact.integrations?.filter(integration => {
-      const sourceIds = ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'];
-      return sourceIds.includes(integration.integrationId) && integration.config.enabled;
-    }) || [];
-    
-    for (let i = 0; i < Math.min(sourceIntegrations.length, 7); i++) {
-      indicators.push({ type: 'source', color: '#10b981' });
-    }
-    
-    // Count action integrations (red dots)
-    const actionIntegrations = contact.integrations?.filter(integration => {
-      const actionIds = ['api-request-tool', 'domain-checker-tool', 'zapier-webhook', 'n8n-webhook', 'webhook-trigger', 'google-sheets', 'notion-oauth-action'];
-      return actionIds.includes(integration.integrationId) && integration.config.enabled;
-    }) || [];
-    
-    for (let i = 0; i < Math.min(actionIntegrations.length, 7); i++) {
-      indicators.push({ type: 'action', color: '#ef4444' });
-    }
-    
-    return {
-      indicators: indicators.slice(0, 7),
-      hasMore: indicators.length > 7,
-      counts: {
-        documents: documentCount,
-        sources: sourceIntegrations.length,
-        actions: actionIntegrations.length,
-        total: documentCount + sourceIntegrations.length + actionIntegrations.length
-      }
-    };
-  };
-
-  const renderComplexityIndicators = (contact: AIContact) => {
-    const { indicators, hasMore, counts } = getComplexityIndicators(contact);
-    
-    if (indicators.length === 0) return null;
-    
-    // Calculate positions in a circular pattern
-    const calculatePosition = (index: number, total: number) => {
-      // Start from bottom right (90 degrees) and go counterclockwise
-      const startAngle = 90;
-      const angleStep = 180 / (total + (hasMore ? 0 : -1));
-      const angle = startAngle - index * angleStep;
-      
-      // Convert angle to radians
-      const radians = (angle * Math.PI) / 180;
-      
-      // Calculate position on circle
-      const radius = 8;
-      
-      // Calculate position (right = 0, bottom = 90 degrees)
-      const x = Math.cos(radians) * radius;
-      const y = Math.sin(radians) * radius;
-      
-      // Convert to CSS positioning
-      // Bottom right corner is our origin (0,0)
-      return {
-        right: `${radius - x}px`,
-        bottom: `${radius - y}px`
-      };
-    };
-    
-    return (
-      <div className="absolute inset-0 overflow-hidden">
-        {indicators.map((indicator, index) => {
-          const position = calculatePosition(index, indicators.length + (hasMore ? 1 : 0));
-          return (
-            <div
-              key={index}
-              className="w-3 h-3 rounded-full border border-slate-800 absolute"
-              style={{
-                backgroundColor: indicator.color,
-                boxShadow: `0 0 6px ${indicator.color}40`,
-                right: position.right,
-                bottom: position.bottom,
-                transform: 'translate(50%, 50%)'
-              }}
-            />
-          );
-        })}
-        
-        {/* "More" indicator */}
-        {hasMore && (
-          <div
-            className="w-3 h-3 rounded-full border border-slate-800 bg-slate-600 flex items-center justify-center absolute"
-            style={{
-              ...calculatePosition(indicators.length, indicators.length + 1),
-              transform: 'translate(50%, 50%)'
-            }}
-          >
-            <MoreHorizontal className="w-2 h-2 text-white" />
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filters = ['All', 'Complex', 'Simple', 'Favorites'];
+  const filters = ['All', 'Online', 'Favorites', 'Groups'];
 
   return (
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
@@ -238,69 +141,62 @@ export default function ContactSidebar({
           </div>
         ) : (
           <div className="space-y-1">
-            {filteredContacts.map((contact) => {
-              const { indicators, hasMore, counts } = getComplexityIndicators(contact);
-              const complexityLevel = counts.total > 8 ? 'High' : counts.total > 4 ? 'Medium' : counts.total > 0 ? 'Low' : 'Basic';
-              
-              return (
-                <div
-                  key={contact.id}
-                  className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
-                  onClick={() => onChatClick(contact)}
-                >
-                  <div className="flex items-center space-x-3">
-                    {/* Avatar with Complexity Indicators */}
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden">
-                        {contact.avatar ? (
-                          <img
-                            src={contact.avatar}
-                            alt={contact.name}
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div
-                            className="w-full h-full rounded-lg"
-                            style={{ background: createAgentGradient(contact.color) }}
-                          />
-                        )}
-                      </div>
-                      
-                      {/* Complexity Indicators */}
-                      {renderComplexityIndicators(contact)}
+            {filteredContacts.map((contact) => (
+              <div
+                key={contact.id}
+                className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
+                onClick={() => onChatClick(contact)}
+              >
+                <div className="flex items-center space-x-3">
+                  {/* Avatar */}
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden">
+                      {contact.avatar ? (
+                        <img
+                          src={contact.avatar}
+                          alt={contact.name}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-lg"
+                          style={{ background: createAgentGradient(contact.color) }}
+                        />
+                      )}
                     </div>
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-800 ${getStatusColor(contact.status)}`}></div>
+                  </div>
 
-                    {/* Contact Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
-                        <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
-                      </div>
-                      <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
-                        {contact.description.length > 40 
-                          ? `${contact.description.substring(0, 40)}...` 
-                          : contact.description
-                        }
-                      </p>
+                  {/* Contact Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
+                      <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
                     </div>
+                    <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
+                      {contact.description.length > 40 
+                        ? `${contact.description.substring(0, 40)}...` 
+                        : contact.description
+                      }
+                    </p>
+                  </div>
 
-                    {/* Action Buttons - Show on Hover */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCallClick(contact);
-                        }}
-                        className="p-1.5 rounded-full bg-slate-600 hover:bg-slate-500 transition-colors duration-200"
-                        title="Start Call"
-                      >
-                        <Phone className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
+                  {/* Action Buttons - Show on Hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCallClick(contact);
+                      }}
+                      className="p-1.5 rounded-full bg-slate-600 hover:bg-slate-500 transition-colors duration-200"
+                      title="Start Call"
+                    >
+                      <Phone className="w-4 h-4 text-white" />
+                    </button>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -308,7 +204,7 @@ export default function ContactSidebar({
       {/* Footer */}
       <div className="p-4 border-t border-slate-700">
         <p className="text-center text-slate-400 text-sm font-inter">
-          {contacts.length} AI assistant{contacts.length !== 1 ? 's' : ''} available
+          {contacts.filter(c => c.status === 'online').length} AI assistants online
         </p>
       </div>
     </div>
