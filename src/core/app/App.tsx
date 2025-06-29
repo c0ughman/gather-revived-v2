@@ -39,9 +39,6 @@ export default function App() {
     }
   }, [user]);
 
-  // Show landing page if not authenticated
-  const showLandingPage = !loading && !user;
-
   useEffect(() => {
     if (user && (currentView === 'landing' || currentView === 'signup')) {
       setCurrentView('dashboard');
@@ -366,16 +363,7 @@ export default function App() {
     setCurrentView('settings');
   };
 
-  // Show landing page for non-authenticated users
-  if (showLandingPage) {
-    return <LandingPage onGetStarted={handleGetStarted} onSignUp={handleSignUp} />;
-  }
-
-  // Show signup page
-  if (currentView === 'signup') {
-    return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
-  }
-
+  // Loading state
   if (loading || dataLoading) {
     return (
       <div className="h-screen bg-glass-bg flex items-center justify-center">
@@ -394,17 +382,16 @@ export default function App() {
     );
   }
 
+  // If not authenticated, show landing page or signup page based on currentView
   if (!user) {
-    return (
-      <Router>
-        <Routes>
-          <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
-          <Route path="*" element={<AuthScreen />} />
-        </Routes>
-      </Router>
-    );
+    if (currentView === 'signup') {
+      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
+    } else {
+      return <LandingPage onGetStarted={handleGetStarted} onSignUp={handleSignUp} />;
+    }
   }
 
+  // If authenticated, show the main app
   return (
     <Router>
       <Routes>
