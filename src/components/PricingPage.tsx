@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Clock } from 'lucide-react';
 import { PRODUCTS } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
+import { formatCallTimeWithUnits } from '../modules/voice/utils/formatCallTime';
+import { PLAN_LIMITS } from '../modules/voice/types/voice';
 
 interface PricingPageProps {
   onSelectPlan: (plan: string) => void;
@@ -30,6 +32,19 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       setIsLoading(null);
       alert('There was an error redirecting to checkout. Please try again.');
     }
+  };
+
+  // Format call time limits for display
+  const formatCallTimeLimit = (plan: string) => {
+    const limits = PLAN_LIMITS[plan.toLowerCase()];
+    if (!limits) return '';
+    
+    if (plan.toLowerCase() === 'pro') {
+      return 'Unlimited*';
+    }
+    
+    const dailyMinutes = Math.floor(limits.callTime.daily / 60);
+    return `${dailyMinutes} min / day`;
   };
 
   return (
@@ -80,6 +95,45 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         <p className="text-xl text-slate-300 max-w-3xl mx-auto">
           Select the plan that best fits your needs and start building your AI dream team today.
         </p>
+      </div>
+
+      {/* Free Plan Card */}
+      <div className="max-w-7xl mx-auto px-4 pb-8">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 p-8 max-w-md mx-auto">
+          <h3 className="text-2xl font-bold text-white mb-2">Free Plan</h3>
+          <p className="text-slate-400 mb-4">Get started with basic AI capabilities.</p>
+          
+          <div className="mt-6 mb-6">
+            <span className="text-4xl font-bold text-white">$0</span>
+            <span className="text-slate-400 ml-2">/month</span>
+          </div>
+          
+          <div className="space-y-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <Clock className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <span className="text-slate-300">Call time: {formatCallTimeLimit('free')}</span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <span className="text-slate-300">Agents: 3</span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <span className="text-slate-300">Basic Integrations: 2</span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <span className="text-slate-300">Storage: 100MB</span>
+            </div>
+          </div>
+          
+          <button 
+            onClick={onStayFree}
+            className="w-full py-3 px-4 border border-slate-600 text-white hover:bg-slate-700 rounded-lg transition-colors duration-200 mb-6"
+          >
+            Continue with Free Plan
+          </button>
+        </div>
       </div>
 
       {/* Pricing Cards */}
@@ -152,7 +206,12 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                 </button>
                 
                 <div className="space-y-4">
-                  {product.features?.map((feature, index) => (
+                  <div className="flex items-start space-x-3">
+                    <Clock className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-slate-300">Call time: {formatCallTimeLimit(product.name)}</span>
+                  </div>
+                  
+                  {product.features?.filter(f => !f.startsWith('Call time:')).map((feature, index) => (
                     <div key={index} className="flex items-start space-x-3">
                       <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                       <span className="text-slate-300">{feature}</span>
@@ -163,16 +222,6 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
             </div>
           ))}
         </div>
-        
-        {/* Free Plan Link */}
-        <div className="text-center mt-10">
-          <button 
-            onClick={onStayFree}
-            className="text-slate-400 hover:text-slate-300 text-sm transition-colors duration-200"
-          >
-            I'll stay with the lite version for now
-          </button>
-        </div>
       </div>
 
       {/* FAQ Section */}
@@ -181,13 +230,13 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         
         <div className="space-y-6">
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold text-white mb-3">Can I upgrade or downgrade my plan later?</h3>
-            <p className="text-slate-300">Yes, you can change your plan at any time. When upgrading, you'll be charged the prorated amount for the remainder of your billing cycle. When downgrading, the new rate will apply at the start of your next billing cycle.</p>
+            <h3 className="text-xl font-semibold text-white mb-3">What happens if I reach my usage limits?</h3>
+            <p className="text-slate-300">When you reach your call time limit, ongoing calls will be ended and you'll be prompted to upgrade your plan. For other limits like storage or agents, you'll be notified when you're approaching your limit and given the option to upgrade.</p>
           </div>
           
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold text-white mb-3">What happens if I reach my usage limits?</h3>
-            <p className="text-slate-300">You'll receive a notification when you're approaching your limits. Once reached, you can continue using existing features but won't be able to create new agents or upload additional documents until the next billing cycle or until you upgrade your plan.</p>
+            <h3 className="text-xl font-semibold text-white mb-3">Can I upgrade or downgrade my plan later?</h3>
+            <p className="text-slate-300">Yes, you can change your plan at any time. When upgrading, you'll be charged the prorated amount for the remainder of your billing cycle. When downgrading, the new rate will apply at the start of your next billing cycle.</p>
           </div>
           
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
