@@ -31,7 +31,7 @@ export default function SignupPage({ onSuccess, onBackToLanding }: SignupPagePro
         return;
       }
 
-      const { data, error } = await signUp(formData.email, formData.password);
+      const { data, error } = await signUp(formData.email, formData.password, formData.name);
       
       if (error) {
         setError(error.message);

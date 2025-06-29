@@ -39,10 +39,15 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
+      options: {
+        data: {
+          name: name // Store name in user metadata
+        }
+      }
     })
     return { data, error }
   }

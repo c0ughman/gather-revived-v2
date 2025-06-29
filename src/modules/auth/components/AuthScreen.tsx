@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 
 export default function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false)
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,15 +25,17 @@ export default function AuthScreen() {
       if (isSignUp) {
         if (password !== confirmPassword) {
           setError('Passwords do not match')
+          setLoading(false)
           return
         }
         if (password.length < 6) {
           setError('Password must be at least 6 characters')
+          setLoading(false)
           return
         }
 
         console.log('🚀 Starting sign up process...')
-        const { data, error } = await signUp(email, password)
+        const { data, error } = await signUp(email, password, name)
         
         if (error) {
           console.error('❌ Sign up error:', error)
@@ -42,6 +45,7 @@ export default function AuthScreen() {
           setMessage('Account created successfully! Welcome to Gather!')
           
           // Clear form
+          setName('')
           setEmail('')
           setPassword('')
           setConfirmPassword('')
@@ -116,6 +120,27 @@ export default function AuthScreen() {
         {/* Auth Form */}
         <div className="bg-glass-panel glass-effect rounded-2xl border border-slate-700 p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Name Field (Sign Up Only) */}
+            {isSignUp && (
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
@@ -236,6 +261,7 @@ export default function AuthScreen() {
                   setIsSignUp(!isSignUp)
                   setError(null)
                   setMessage(null)
+                  setName('')
                   setEmail('')
                   setPassword('')
                   setConfirmPassword('')
