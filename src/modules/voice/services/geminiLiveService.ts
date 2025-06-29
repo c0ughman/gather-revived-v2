@@ -199,7 +199,7 @@ class GeminiLiveService {
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected to Gemini Live API');
         
-        // Add a small delay to ensure the WebSocket connection is truly stable
+        // Increased delay to ensure the WebSocket connection is truly stable
         // This prevents race conditions where onopen fires but the connection
         // immediately closes or becomes unstable
         setTimeout(() => {
@@ -216,7 +216,7 @@ class GeminiLiveService {
               this.errorCallback(new Error('WebSocket connection became unstable immediately after opening'));
             }
           }
-        }, 50); // Small delay to allow event loop to process any immediate state changes
+        }, 500); // Increased delay from 50ms to 500ms for better stability
       };
 
       this.ws.onmessage = (event) => {
