@@ -60,13 +60,13 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       {/* Pricing Cards */}
       <div className="max-w-7xl mx-auto px-4 pb-20">
         <div className="grid md:grid-cols-3 gap-8">
-          {/* Free Plan */}
+          {/* Standard Plan */}
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]">
             <div className="p-8">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Free</h3>
-                  <p className="text-slate-400 mb-4">Perfect for getting started</p>
+                  <h3 className="text-2xl font-bold text-white mb-2">Standard</h3>
+                  <p className="text-slate-400 mb-4">For individual professionals</p>
                 </div>
                 <div className="p-2 rounded-lg bg-slate-700/50">
                   <Star className="w-5 h-5 text-slate-400" />
@@ -74,43 +74,43 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
               </div>
               
               <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$0</span>
+                <span className="text-4xl font-bold text-white">$20</span>
                 <span className="text-slate-400 ml-2">/month</span>
               </div>
               
               <button 
-                onClick={() => onSelectPlan('free')}
+                onClick={() => onSelectPlan('standard')}
                 className="w-full py-3 px-4 rounded-lg border border-slate-600 text-white hover:bg-slate-700 transition-colors duration-200 mb-6"
               >
-                Get Started Free
+                Get Started
               </button>
               
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">3 AI agents</span>
+                  <span className="text-slate-300">Call time: 20min / day</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">5 integrations</span>
+                  <span className="text-slate-300">Agents: 7</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">100MB document storage</span>
+                  <span className="text-slate-300">Integrations: All Integrations</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">10 minutes of voice calls/month</span>
+                  <span className="text-slate-300">Storage: 5GB</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Basic support</span>
+                  <span className="text-slate-300">Chat Tokens: 4M</span>
                 </div>
               </div>
             </div>
           </div>
           
-          {/* Pro Plan */}
+          {/* Premium Plan */}
           <div className="bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20">
             <div className="bg-[#186799] text-white text-center py-2 text-sm font-medium">
               MOST POPULAR
@@ -118,7 +118,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
             <div className="p-8">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
+                  <h3 className="text-2xl font-bold text-white mb-2">Premium</h3>
                   <p className="text-slate-300 mb-4">For professionals and teams</p>
                 </div>
                 <div className="p-2 rounded-lg bg-[#186799]/30">
@@ -127,57 +127,53 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
               </div>
               
               <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$29</span>
+                <span className="text-4xl font-bold text-white">$80</span>
                 <span className="text-slate-300 ml-2">/month</span>
               </div>
               
               <button 
-                onClick={() => onSelectPlan('pro')}
+                onClick={() => onSelectPlan('premium')}
                 className="w-full py-3 px-4 rounded-lg bg-[#186799] text-white hover:bg-[#1a5a7a] transition-colors duration-200 mb-6 flex items-center justify-center space-x-2"
               >
-                <span>Choose Pro</span>
+                <span>Choose Premium</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
               
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300"><strong>Unlimited</strong> AI agents</span>
+                  <span className="text-slate-300">Call time: 100min / day</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300"><strong>Unlimited</strong> integrations</span>
+                  <span className="text-slate-300">Agents: up to 50</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">5GB document storage</span>
+                  <span className="text-slate-300">Integrations: All Integrations</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">5 hours of voice calls/month</span>
+                  <span className="text-slate-300">Storage: 50GB</span>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Chat Tokens: 15M</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-300">Priority support</span>
                 </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Advanced analytics</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Team collaboration</span>
-                </div>
               </div>
             </div>
           </div>
           
-          {/* Enterprise Plan */}
+          {/* Pro Plan */}
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]">
             <div className="p-8">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
+                  <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
                   <p className="text-slate-400 mb-4">For large organizations</p>
                 </div>
                 <div className="p-2 rounded-lg bg-purple-900/30">
@@ -186,12 +182,12 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
               </div>
               
               <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$99</span>
+                <span className="text-4xl font-bold text-white">$250</span>
                 <span className="text-slate-400 ml-2">/month</span>
               </div>
               
               <button 
-                onClick={() => onSelectPlan('enterprise')}
+                onClick={() => onSelectPlan('pro')}
                 className="w-full py-3 px-4 rounded-lg border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40 transition-colors duration-200 mb-6"
               >
                 Contact Sales
@@ -200,31 +196,27 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Everything in Pro, plus:</span>
+                  <span className="text-slate-300">Call time: Unlimited*</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Unlimited document storage</span>
+                  <span className="text-slate-300">Agents: Unlimited*</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Unlimited voice calls</span>
+                  <span className="text-slate-300">Integrations: Custom</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Custom AI model training</span>
+                  <span className="text-slate-300">Storage: Unlimited*</span>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Chat Tokens: Unlimited*</span>
                 </div>
                 <div className="flex items-start space-x-3">
                   <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-300">Dedicated account manager</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">SSO & advanced security</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Custom integrations</span>
                 </div>
               </div>
             </div>
@@ -263,8 +255,8 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
           </div>
           
           <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold text-white mb-3">Do you offer refunds?</h3>
-            <p className="text-slate-300">We offer a 30-day money-back guarantee for all paid plans. If you're not satisfied with our service, contact our support team within 30 days of your purchase for a full refund.</p>
+            <h3 className="text-xl font-semibold text-white mb-3">What does "Unlimited*" mean?</h3>
+            <p className="text-slate-300">Unlimited plans are subject to fair usage policies. While we don't impose hard limits, we monitor usage patterns and may contact you if your usage significantly exceeds typical enterprise requirements.</p>
           </div>
         </div>
       </div>
