@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, MessageCircle, Loader2 } from 'lucide-react';
 import { getProductByPriceId } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
-import { supabase } from '../modules/database/lib/supabase';
 
 export default function SuccessPage() {
   const [searchParams] = useSearchParams();
@@ -11,6 +10,7 @@ export default function SuccessPage() {
   const [plan, setPlan] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
+  const [subscriptionChecked, setSubscriptionChecked] = useState(false);
 
   useEffect(() => {
     const planParam = searchParams.get('plan');
@@ -26,16 +26,22 @@ export default function SuccessPage() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         const subscription = await stripeClient.getUserSubscription();
+        console.log('Subscription data:', subscription);
+        
         if (subscription?.price_id) {
           const product = getProductByPriceId(subscription.price_id);
           if (product) {
             setPlan(product.name.toLowerCase());
+            console.log(`Found subscription for plan: ${product.name}`);
           }
         }
+        
         setIsLoading(false);
+        setSubscriptionChecked(true);
       } catch (error) {
         console.error('Error fetching subscription:', error);
         setIsLoading(false);
+        setSubscriptionChecked(true);
       }
     };
 
@@ -43,9 +49,10 @@ export default function SuccessPage() {
       getSubscription();
     } else {
       setIsLoading(false);
+      setSubscriptionChecked(true);
     }
 
-    // Countdown to redirect
+    // Countdown to redirect - only start after subscription is checked
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -65,6 +72,7 @@ export default function SuccessPage() {
     // Clear any previous subscription data to ensure fresh state
     localStorage.removeItem('subscription_data');
     localStorage.removeItem('subscription_status');
+    localStorage.removeItem('stripe_subscription');
   }, []);
 
   const handleContinue = () => {
@@ -113,9 +121,13 @@ export default function SuccessPage() {
 
       {/* Success Content */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-600 shadow-lg p-8 text-center">
+        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-8 text-center">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-500" />
+            {isLoading ? (
+              <Loader2 className="w-10 h-10 text-green-500 animate-spin" />
+            ) : (
+              <CheckCircle className="w-10 h-10 text-green-500" />
+            )}
           </div>
           
           <h1 className="text-3xl font-bold mb-4">
@@ -124,7 +136,10 @@ export default function SuccessPage() {
           
           <p className="text-xl text-slate-300 mb-6">
             {isLoading ? (
-              <span>Processing your subscription...</span>
+              <span className="flex items-center justify-center space-x-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Processing your subscription...</span>
+              </span>
             ) : plan ? (
               `Thank you for subscribing to our ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`
             ) : (
@@ -145,7 +160,7 @@ export default function SuccessPage() {
           </button>
           
           <p className="text-sm text-slate-500 mt-4">
-            Redirecting in {countdown} seconds...
+            {subscriptionChecked ? `Redirecting in ${countdown} seconds...` : 'Verifying subscription...'}
           </p>
         </div>
       </div>
