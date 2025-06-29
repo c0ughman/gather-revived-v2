@@ -6,6 +6,7 @@ import CallScreen from '../../modules/voice/components/CallScreen';
 import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
+import PricingPage from '../../components/PricingPage';
 import { Dashboard, ContactSidebar, SettingsSidebar, SettingsScreen } from '../../modules/ui';
 import { ChatScreen } from '../../modules/chat';
 import { AIContact, Message, CallState } from '../types/types';
@@ -15,7 +16,7 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-type ViewType = 'landing' | 'signup' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent';
+type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'login';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -40,8 +41,8 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user && (currentView === 'landing' || currentView === 'signup')) {
-      setCurrentView('dashboard');
+    if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
+      setCurrentView('pricing');
     }
   }, [user, currentView]);
 
@@ -139,12 +140,28 @@ export default function App() {
     setCurrentView('signup');
   };
 
+  const handleSignIn = () => {
+    setCurrentView('login');
+  };
+
   const handleSignupSuccess = () => {
-    setCurrentView('dashboard');
+    setCurrentView('pricing');
   };
 
   const handleBackToLanding = () => {
     setCurrentView('landing');
+  };
+
+  const handleSelectPlan = (plan: string) => {
+    // Here you would implement the logic to set the user's plan
+    console.log(`Selected plan: ${plan}`);
+    // For now, just redirect to dashboard
+    setCurrentView('dashboard');
+  };
+
+  const handleStayFree = () => {
+    // User chooses to stay with the free plan
+    setCurrentView('dashboard');
   };
 
   const handleChatClick = (contact: AIContact) => {
@@ -386,9 +403,16 @@ export default function App() {
   if (!user) {
     if (currentView === 'signup') {
       return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
+    } else if (currentView === 'login') {
+      return <AuthScreen />;
     } else {
       return <LandingPage onGetStarted={handleGetStarted} onSignUp={handleSignUp} />;
     }
+  }
+
+  // Show pricing page after signup
+  if (currentView === 'pricing') {
+    return <PricingPage onSelectPlan={handleSelectPlan} onStayFree={handleStayFree} />;
   }
 
   // If authenticated, show the main app
