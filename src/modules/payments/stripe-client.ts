@@ -98,7 +98,19 @@ export const stripeClient = {
 
       console.log(`Fetching subscription for user: ${user.id}`);
 
-      // Query the view with user_id filter to ensure we only get the current user's subscription
+      // First try to get from user_profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('preferences')
+        .eq('id', user.id)
+        .single();
+
+      if (!profileError && profileData?.preferences?.subscription) {
+        console.log('Found subscription in user profile:', profileData.preferences.subscription);
+        return profileData.preferences.subscription;
+      }
+
+      // If not in profile, try the view with user_id filter
       const { data, error } = await supabase
         .from('stripe_user_subscriptions')
         .select('*')
@@ -110,9 +122,59 @@ export const stripeClient = {
         throw error;
       }
 
+      // If we found a subscription in the view, save it to the user profile for future use
+      if (data) {
+        console.log('Found subscription in view, saving to profile:', data);
+        await this.saveSubscriptionToProfile(user.id, data);
+      }
+
       return data;
     } catch (error) {
       console.error('Error in getUserSubscription:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Save subscription data to user profile
+   */
+  async saveSubscriptionToProfile(userId: string, subscription: SubscriptionData): Promise<void> {
+    try {
+      console.log('Saving subscription to user profile:', subscription);
+      
+      // Get current profile
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('preferences')
+        .eq('id', userId)
+        .single();
+      
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', profileError);
+        throw profileError;
+      }
+      
+      // Prepare preferences object
+      const preferences = profile?.preferences || {};
+      preferences.subscription = subscription;
+      
+      // Update or create profile
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: userId,
+          preferences: preferences,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('Error saving subscription to profile:', error);
+        throw error;
+      }
+      
+      console.log('Subscription saved to user profile successfully');
+    } catch (error) {
+      console.error('Error in saveSubscriptionToProfile:', error);
       throw error;
     }
   },

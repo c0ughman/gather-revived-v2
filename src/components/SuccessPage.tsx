@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, MessageCircle, Loader2 } from 'lucide-react';
 import { getProductByPriceId } from '../stripe-config';
 import { stripeClient } from '../modules/payments/stripe-client';
+import { supabase } from '../modules/database/lib/supabase';
 
 export default function SuccessPage() {
   const [searchParams] = useSearchParams();
@@ -11,61 +12,118 @@ export default function SuccessPage() {
   const [countdown, setCountdown] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const planParam = searchParams.get('plan');
     setPlan(planParam);
 
-    // Get subscription details
-    const getSubscription = async () => {
+    // Get subscription details and save to user profile
+    const getAndSaveSubscription = async () => {
       try {
         setIsLoading(true);
-        console.log('Fetching subscription details');
+        console.log('Fetching and saving subscription details');
         
         // Wait a moment to ensure webhook has processed
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
         
-        const subscription = await stripeClient.getUserSubscription();
-        console.log('Subscription data:', subscription);
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
         
-        if (subscription?.price_id) {
-          const product = getProductByPriceId(subscription.price_id);
-          if (product) {
-            setPlan(product.name.toLowerCase());
-            console.log(`Found subscription for plan: ${product.name}`);
+        if (userError || !user) {
+          console.error('Error getting user:', userError);
+          setError('Unable to verify user. Please try refreshing the page.');
+          setIsLoading(false);
+          setSubscriptionChecked(true);
+          return;
+        }
+        
+        console.log(`Getting subscription for user: ${user.id}`);
+        
+        // Get subscription from Supabase view
+        const { data: subscriptionData, error: subscriptionError } = await supabase
+          .from('stripe_user_subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (subscriptionError) {
+          console.error('Error fetching subscription:', subscriptionError);
+          setError('Unable to verify subscription. Your account may still be updated shortly.');
+          setIsLoading(false);
+          setSubscriptionChecked(true);
+          return;
+        }
+        
+        if (subscriptionData) {
+          console.log('Found subscription:', subscriptionData);
+          
+          // Save to user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('preferences')
+            .eq('id', user.id)
+            .single();
+          
+          const preferences = profile?.preferences || {};
+          preferences.subscription = subscriptionData;
+          preferences.plan = planParam || 'unknown';
+          
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .upsert({
+              id: user.id,
+              preferences: preferences,
+              updated_at: new Date().toISOString()
+            });
+          
+          if (updateError) {
+            console.error('Error saving subscription to profile:', updateError);
+          } else {
+            console.log('Subscription saved to user profile');
           }
+          
+          // Set plan from subscription data
+          if (subscriptionData.price_id) {
+            const product = getProductByPriceId(subscriptionData.price_id);
+            if (product) {
+              setPlan(product.name.toLowerCase());
+              console.log(`Setting plan to: ${product.name}`);
+            }
+          }
+        } else {
+          console.log('No subscription found, using plan from URL:', planParam);
         }
         
         setIsLoading(false);
         setSubscriptionChecked(true);
       } catch (error) {
-        console.error('Error fetching subscription:', error);
+        console.error('Error processing subscription:', error);
+        setError('An error occurred while processing your subscription.');
         setIsLoading(false);
         setSubscriptionChecked(true);
       }
     };
 
-    if (!planParam) {
-      getSubscription();
-    } else {
-      setIsLoading(false);
-      setSubscriptionChecked(true);
-    }
+    // Start the subscription check process
+    getAndSaveSubscription();
 
     // Countdown to redirect - only start after subscription is checked
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          navigate('/');
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (subscriptionChecked) {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            navigate('/');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, subscriptionChecked]);
 
   // Clear localStorage on successful payment
   useEffect(() => {
@@ -150,6 +208,13 @@ export default function SuccessPage() {
           <p className="text-slate-400 mb-8">
             Your account has been successfully upgraded. You now have access to all the features included in your plan.
           </p>
+          
+          {error && (
+            <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg mb-6">
+              <p className="text-red-300 text-sm">{error}</p>
+              <p className="text-red-400 text-xs mt-1">Don't worry, your payment was successful. You may need to refresh the app to see your subscription.</p>
+            </div>
+          )}
           
           <button
             onClick={handleContinue}
