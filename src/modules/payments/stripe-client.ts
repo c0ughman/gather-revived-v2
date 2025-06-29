@@ -88,9 +88,18 @@ export const stripeClient = {
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
     try {
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('Error getting user:', userError);
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('stripe_user_subscriptions')
         .select('*')
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
