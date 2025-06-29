@@ -110,10 +110,9 @@ Deno.serve(async (req) => {
       if (createCustomerError) {
         console.error('Failed to save customer information in the database', createCustomerError);
 
-        // Try to clean up both the Stripe customer and subscription record
+        // Try to clean up the Stripe customer
         try {
           await stripe.customers.del(newCustomer.id);
-          await supabase.from('stripe_subscriptions').delete().eq('customer_id', newCustomer.id);
         } catch (deleteError) {
           console.error('Failed to clean up after customer mapping error:', deleteError);
         }
@@ -121,76 +120,11 @@ Deno.serve(async (req) => {
         return corsResponse({ error: 'Failed to create customer mapping' }, 500);
       }
 
-      if (mode === 'subscription') {
-        const { error: createSubscriptionError } = await supabase.from('stripe_subscriptions').insert({
-          customer_id: newCustomer.id,
-          status: 'not_started',
-        });
-
-        if (createSubscriptionError) {
-          console.error('Failed to save subscription in the database', createSubscriptionError);
-
-          // Try to clean up the Stripe customer since we couldn't create the subscription
-          try {
-            await stripe.customers.del(newCustomer.id);
-          } catch (deleteError) {
-            console.error('Failed to delete Stripe customer after subscription creation error:', deleteError);
-          }
-
-          return corsResponse({ error: 'Unable to save the subscription in the database' }, 500);
-        }
-      }
-
       customerId = newCustomer.id;
 
-      console.log(`Successfully set up new customer ${customerId} with subscription record`);
+      console.log(`Successfully set up new customer ${customerId}`);
     } else {
       customerId = customer.customer_id;
-
-      if (mode === 'subscription') {
-        // Check if subscription record already exists
-        const { data: existingSubscription, error: checkSubscriptionError } = await supabase
-          .from('stripe_subscriptions')
-          .select('id, status')
-          .eq('customer_id', customerId)
-          .is('deleted_at', null)
-          .maybeSingle();
-
-        if (checkSubscriptionError) {
-          console.error('Failed to check existing subscription record', checkSubscriptionError);
-          return corsResponse({ error: 'Failed to check existing subscription record' }, 500);
-        }
-
-        if (!existingSubscription) {
-          // Create new subscription record if none exists
-          const { error: createSubscriptionError } = await supabase
-            .from('stripe_subscriptions')
-            .insert({
-              customer_id: customerId,
-              status: 'not_started',
-            });
-
-          if (createSubscriptionError) {
-            console.error('Failed to create subscription record for existing customer', createSubscriptionError);
-            return corsResponse({ error: 'Failed to create subscription record for existing customer' }, 500);
-          }
-        } else {
-          // Update existing subscription record if needed
-          const { error: updateSubscriptionError } = await supabase
-            .from('stripe_subscriptions')
-            .update({
-              status: 'not_started',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('customer_id', customerId)
-            .is('deleted_at', null);
-
-          if (updateSubscriptionError) {
-            console.error('Failed to update existing subscription record', updateSubscriptionError);
-            return corsResponse({ error: 'Failed to update existing subscription record' }, 500);
-          }
-        }
-      }
     }
 
     // create Checkout Session
