@@ -127,7 +127,6 @@ async function handleEvent(event: Stripe.Event) {
 // based on the excellent https://github.com/t3dotgg/stripe-recommendations
 async function syncCustomerFromStripe(customerId: string) {
   try {
-    // fetch latest subscription data from Stripe
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       limit: 1,
@@ -142,48 +141,59 @@ async function syncCustomerFromStripe(customerId: string) {
           customer_id: customerId,
           subscription_id: null,
           status: 'not_started',
+          price_id: null,
+          current_period_start: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+          payment_method_brand: null,
+          payment_method_last4: null,
         },
         {
           onConflict: 'customer_id',
-        },
+        }
       );
 
       if (noSubError) {
-        console.error('Error updating subscription status:', noSubError);
+        console.error('Error updating subscription status for no active subscriptions:', noSubError);
         throw new Error('Failed to update subscription status in database');
       }
       return;
     }
 
-    // assumes that a customer can only have a single subscription
     const subscription = subscriptions.data[0];
 
-    // store subscription state
+    const upsertData = {
+      customer_id: customerId,
+      subscription_id: subscription.id,
+      price_id: subscription.items.data[0].price.id,
+      current_period_start: subscription.current_period_start,
+      current_period_end: subscription.current_period_end,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      payment_method_brand:
+        subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
+          ? subscription.default_payment_method.card?.brand ?? null
+          : null,
+      payment_method_last4:
+        subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
+          ? subscription.default_payment_method.card?.last4 ?? null
+          : null,
+      status: subscription.status,
+    };
+
+    console.info('Upserting subscription data:', upsertData);
+
     const { error: subError } = await supabase.from('stripe_subscriptions').upsert(
-      {
-        customer_id: customerId,
-        subscription_id: subscription.id,
-        price_id: subscription.items.data[0].price.id,
-        current_period_start: subscription.current_period_start,
-        current_period_end: subscription.current_period_end,
-        cancel_at_period_end: subscription.cancel_at_period_end,
-        ...(subscription.default_payment_method && typeof subscription.default_payment_method !== 'string'
-          ? {
-              payment_method_brand: subscription.default_payment_method.card?.brand ?? null,
-              payment_method_last4: subscription.default_payment_method.card?.last4 ?? null,
-            }
-          : {}),
-        status: subscription.status,
-      },
+      upsertData,
       {
         onConflict: 'customer_id',
-      },
+      }
     );
 
     if (subError) {
       console.error('Error syncing subscription:', subError);
       throw new Error('Failed to sync subscription in database');
     }
+
     console.info(`Successfully synced subscription for customer: ${customerId}`);
   } catch (error) {
     console.error(`Failed to sync subscription for customer ${customerId}:`, error);
