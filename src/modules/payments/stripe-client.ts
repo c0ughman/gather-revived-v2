@@ -39,29 +39,62 @@ export const stripeClient = {
    * Create a Stripe checkout session
    */
   async createCheckoutSession(options: CheckoutOptions): Promise<CheckoutResponse> {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !sessionData.session) {
-      throw new Error('You must be logged in to make a purchase');
+    // Try to get session
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+
+    if (!session || error) {
+      // Fallback: force refresh
+      const {
+        data: refreshedSession,
+        error: refreshError
+      } = await supabase.auth.refreshSession();
+
+      if (refreshError || !refreshedSession.session) {
+        console.error('Unable to get valid session', refreshError);
+        throw new Error('You must be logged in to make a purchase');
+      }
+
+      return await this._postCheckout(refreshedSession.session.access_token, options);
     }
+
+    return await this._postCheckout(session.access_token, options);
+  },
+
+  /**
+   * Private helper to send fetch to the Edge Function
+   */
+  async _postCheckout(token: string, options: CheckoutOptions): Promise<CheckoutResponse> {
+    console.log('[Access Token]', token); // Debug: ensure token is valid
 
     const response = await fetch(`${supabaseUrl}/functions/v1/stripe-checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sessionData.session.access_token}`,
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
         price_id: options.priceId,
         success_url: options.successUrl,
         cancel_url: options.cancelUrl,
-        mode: options.mode,
-      }),
+        mode: options.mode
+      })
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create checkout session');
+      let errorMessage = 'Failed to create checkout session';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        console.error('Failed to parse error JSON', e);
+        errorMessage = await response.text();
+      }
+
+      console.error('[Stripe Checkout Error]', errorMessage);
+      throw new Error(errorMessage);
     }
 
     return await response.json();
@@ -88,7 +121,6 @@ export const stripeClient = {
       const { data, error } = await supabase
         .from('stripe_user_subscriptions')
         .select('*')
-        .limit(1)
         .maybeSingle();
 
       if (error) {
@@ -108,7 +140,10 @@ export const stripeClient = {
    */
   async hasActiveSubscription(): Promise<boolean> {
     const subscription = await this.getUserSubscription();
-    return subscription?.subscription_status === 'active' || subscription?.subscription_status === 'trialing';
+    return (
+      subscription?.subscription_status === 'active' ||
+      subscription?.subscription_status === 'trialing'
+    );
   },
 
   /**
@@ -116,16 +151,16 @@ export const stripeClient = {
    */
   async getCurrentPlan(): Promise<string> {
     const subscription = await this.getUserSubscription();
-    
-    if (!subscription || !subscription.subscription_id) {
+
+    if (!subscription || !subscription.subscription_id) return 'free';
+
+    if (
+      subscription.subscription_status !== 'active' &&
+      subscription.subscription_status !== 'trialing'
+    ) {
       return 'free';
     }
-    
-    if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
-      return 'free';
-    }
-    
-    // Map price_id to plan name
+
     switch (subscription.price_id) {
       case 'price_1RfLCZCHpOkAgMGGUtW046jz':
         return 'standard';
@@ -142,18 +177,34 @@ export const stripeClient = {
    * Create a portal session for managing subscription
    */
   async createPortalSession(): Promise<string> {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !sessionData.session) {
-      throw new Error('You must be logged in to access the customer portal');
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+
+    if (!session || error) {
+      const {
+        data: refreshedSession,
+        error: refreshError
+      } = await supabase.auth.refreshSession();
+
+      if (refreshError || !refreshedSession.session) {
+        throw new Error('You must be logged in to access the customer portal');
+      }
+
+      return await this._postPortal(refreshedSession.session.access_token);
     }
 
+    return await this._postPortal(session.access_token);
+  },
+
+  async _postPortal(token: string): Promise<string> {
     const response = await fetch(`${supabaseUrl}/functions/v1/stripe-portal`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sessionData.session.access_token}`,
-      },
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (!response.ok) {
