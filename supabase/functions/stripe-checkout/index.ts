@@ -191,6 +191,12 @@ Deno.serve(async (req) => {
       success_url,
       cancel_url,
       allow_promotion_codes: true,
+      // Set subscription_data to ensure immediate invoicing for subscriptions
+      ...(mode === 'subscription' ? {
+        subscription_data: {
+          billing_cycle_anchor: 'now',
+        }
+      } : {})
     });
 
     console.log(`Created checkout session ${session.id} for customer ${customerId}`);
