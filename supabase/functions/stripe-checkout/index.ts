@@ -191,9 +191,7 @@ Deno.serve(async (req) => {
       success_url,
       cancel_url,
       allow_promotion_codes: true,
-      // Add payment_behavior to ensure immediate charging
-      payment_behavior: 'default_incomplete',
-      // Set subscription_data to ensure immediate invoicing
+      // Set subscription_data to ensure immediate invoicing for subscriptions
       ...(mode === 'subscription' ? {
         subscription_data: {
           trial_period_days: 0,
