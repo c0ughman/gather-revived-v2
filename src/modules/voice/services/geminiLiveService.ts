@@ -22,6 +22,7 @@ class GeminiLiveService {
   private currentContact: AIContact | null = null;
   private isListening = false;
   private audioProcessor: ScriptProcessorNode | null = null;
+  private autoListenTimeout: number | null = null;
 
   constructor() {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -148,15 +149,15 @@ class GeminiLiveService {
       }
 
       if (hasWebhookTool) {
-        systemInstruction += '\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🪝\nYou can trigger workflows when users ask to activate, start, or execute processes.';
+        systemInstruction += '\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🔧\nYou can trigger workflows when users ask to activate, start, or execute processes.';
       }
 
       if (hasGoogleSheets) {
-        systemInstruction += '\n\n📊 GOOGLE SHEETS ACCESS AVAILABLE 📊\nYou can read and modify Google Sheets data when users ask about spreadsheet operations.';
+        systemInstruction += '\n\n📊 GOOGLE SHEETS ACCESS AVAILABLE 🔧\nYou can read and modify Google Sheets data when users ask about spreadsheet operations.';
       }
 
       if (hasNotion) {
-        systemInstruction += '\n\n📝 NOTION INTEGRATION AVAILABLE 📝\nYou can access and manage Notion content when users ask about their workspace.';
+        systemInstruction += '\n\n📝 NOTION INTEGRATION AVAILABLE 🔧\nYou can access and manage Notion content when users ask about their workspace.';
       }
 
       // Add general instruction
@@ -183,10 +184,16 @@ class GeminiLiveService {
         }
       };
 
-      this.ws.onclose = () => {
-        console.log('🔌 WebSocket connection closed');
+      this.ws.onclose = (event) => {
+        console.log(`🔌 WebSocket connection closed: ${event.code} ${event.reason}`);
         this.isSessionActive = false;
         this.setState('idle');
+        
+        // Clear any pending auto-listen timeout
+        if (this.autoListenTimeout) {
+          clearTimeout(this.autoListenTimeout);
+          this.autoListenTimeout = null;
+        }
       };
 
     } catch (error) {
@@ -271,9 +278,12 @@ class GeminiLiveService {
         this.setState('idle');
         
         // Automatically start listening after session is ready
-        setTimeout(() => {
-          this.startListening();
-        }, 500);
+        this.autoListenTimeout = window.setTimeout(() => {
+          console.log('🔄 Auto-starting listening after setup...');
+          this.startListening().catch(err => {
+            console.error('❌ Auto-listen failed:', err);
+          });
+        }, 1000);
         return;
       }
 
@@ -288,11 +298,14 @@ class GeminiLiveService {
           this.setState('idle');
           
           // Automatically start listening again after response
-          setTimeout(() => {
+          this.autoListenTimeout = window.setTimeout(() => {
+            console.log('🔄 Auto-restarting listening after response...');
             if (this.isSessionActive && !this.isListening) {
-              this.startListening();
+              this.startListening().catch(err => {
+                console.error('❌ Auto-restart listen failed:', err);
+              });
             }
-          }, 500);
+          }, 1000);
         }
       }
 
@@ -317,8 +330,18 @@ class GeminiLiveService {
   }
 
   async startListening(): Promise<void> {
-    if (!this.isSessionActive || !this.audioContext || !this.mediaStream || this.isListening) {
-      console.log('⚠️ Cannot start listening - session not ready or already listening');
+    if (!this.isSessionActive) {
+      console.warn('⚠️ Cannot start listening - session not active');
+      return;
+    }
+    
+    if (!this.audioContext || !this.mediaStream) {
+      console.error('❌ Audio context or media stream not available');
+      return;
+    }
+    
+    if (this.isListening) {
+      console.log('⚠️ Already listening, ignoring duplicate start request');
       return;
     }
 
@@ -326,6 +349,16 @@ class GeminiLiveService {
       console.log('🎤 Starting to listen...');
       this.isListening = true;
       this.setState('listening');
+
+      // Clear any existing processor
+      if (this.audioProcessor) {
+        try {
+          this.audioProcessor.disconnect();
+        } catch (e) {
+          console.warn('⚠️ Error disconnecting previous processor:', e);
+        }
+        this.audioProcessor = null;
+      }
 
       // Create audio processing pipeline
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
@@ -346,14 +379,16 @@ class GeminiLiveService {
         }
 
         // Send audio data to Gemini Live API
-        this.ws.send(JSON.stringify({
-          realtimeInput: {
-            mediaChunks: [{
-              mimeType: "audio/pcm",
-              data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
-            }]
-          }
-        }));
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [{
+                mimeType: "audio/pcm",
+                data: btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
+              }]
+            }
+          }));
+        }
       };
 
       source.connect(this.audioProcessor);
@@ -372,14 +407,27 @@ class GeminiLiveService {
   }
 
   stopListening(): void {
-    if (!this.isListening) return;
+    if (!this.isListening) {
+      console.log('⚠️ Not currently listening, ignoring stop request');
+      return;
+    }
 
     console.log('🛑 Stopping listening...');
     this.isListening = false;
 
     if (this.audioProcessor) {
-      this.audioProcessor.disconnect();
+      try {
+        this.audioProcessor.disconnect();
+      } catch (e) {
+        console.warn('⚠️ Error disconnecting processor:', e);
+      }
       this.audioProcessor = null;
+    }
+
+    // Clear any pending auto-listen timeout
+    if (this.autoListenTimeout) {
+      clearTimeout(this.autoListenTimeout);
+      this.autoListenTimeout = null;
     }
 
     this.setState('idle');
@@ -388,6 +436,12 @@ class GeminiLiveService {
 
   endSession(): void {
     console.log('🔚 Ending Gemini Live session...');
+    
+    // Clear any pending auto-listen timeout
+    if (this.autoListenTimeout) {
+      clearTimeout(this.autoListenTimeout);
+      this.autoListenTimeout = null;
+    }
     
     this.stopListening();
     
@@ -401,8 +455,10 @@ class GeminiLiveService {
       this.mediaStream = null;
     }
 
-    if (this.audioContext) {
-      this.audioContext.close();
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close().catch(err => {
+        console.warn('⚠️ Error closing AudioContext:', err);
+      });
       this.audioContext = null;
     }
 
@@ -411,7 +467,7 @@ class GeminiLiveService {
     this.currentContact = null;
     this.setState('idle');
     
-    console.log('✅ Session ended');
+    console.log('✅ Session ended and resources cleaned up');
   }
 
   getCurrentState(): ServiceState {
