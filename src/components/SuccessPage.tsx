@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, MessageCircle, Loader2 } from 'lucide-react';
-import { getProductByPriceId } from '../stripe-config';
-import { stripeClient } from '../modules/payments/stripe-client';
 import { supabase } from '../modules/database/lib/supabase';
 
 export default function SuccessPage() {
@@ -11,21 +9,17 @@ export default function SuccessPage() {
   const [plan, setPlan] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
-  const [subscriptionChecked, setSubscriptionChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const planParam = searchParams.get('plan');
     setPlan(planParam);
 
-    // Get subscription details and save to user profile
-    const getAndSaveSubscription = async () => {
+    // Save plan to user profile
+    const saveSubscriptionToProfile = async () => {
       try {
         setIsLoading(true);
-        console.log('Fetching and saving subscription details');
-        
-        // Wait a moment to ensure webhook has processed
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.log('Saving subscription details to user profile');
         
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -34,96 +28,73 @@ export default function SuccessPage() {
           console.error('Error getting user:', userError);
           setError('Unable to verify user. Please try refreshing the page.');
           setIsLoading(false);
-          setSubscriptionChecked(true);
           return;
         }
         
-        console.log(`Getting subscription for user: ${user.id}`);
+        // Get current profile
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('preferences')
+          .eq('id', user.id)
+          .single();
         
-        // Get subscription from Supabase view
-        const { data: subscriptionData, error: subscriptionError } = await supabase
-          .from('stripe_user_subscriptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (subscriptionError) {
-          console.error('Error fetching subscription:', subscriptionError);
-          setError('Unable to verify subscription. Your account may still be updated shortly.');
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Error fetching user profile:', profileError);
+          setError('Unable to access your profile. Please try refreshing the page.');
           setIsLoading(false);
-          setSubscriptionChecked(true);
           return;
         }
         
-        if (subscriptionData) {
-          console.log('Found subscription:', subscriptionData);
-          
-          // Save to user profile
-          const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('preferences')
-            .eq('id', user.id)
-            .single();
-          
-          const preferences = profile?.preferences || {};
-          preferences.subscription = subscriptionData;
-          preferences.plan = planParam || 'unknown';
-          
-          const { error: updateError } = await supabase
-            .from('user_profiles')
-            .upsert({
-              id: user.id,
-              preferences: preferences,
-              updated_at: new Date().toISOString()
-            });
-          
-          if (updateError) {
-            console.error('Error saving subscription to profile:', updateError);
-          } else {
-            console.log('Subscription saved to user profile');
-          }
-          
-          // Set plan from subscription data
-          if (subscriptionData.price_id) {
-            const product = getProductByPriceId(subscriptionData.price_id);
-            if (product) {
-              setPlan(product.name.toLowerCase());
-              console.log(`Setting plan to: ${product.name}`);
-            }
-          }
+        // Prepare preferences object
+        const preferences = profile?.preferences || {};
+        
+        // Set plan from URL parameter
+        if (planParam) {
+          preferences.plan = planParam;
+          console.log(`Setting plan to: ${planParam}`);
+        }
+        
+        // Update profile
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            id: user.id,
+            preferences: preferences,
+            updated_at: new Date().toISOString()
+          });
+        
+        if (updateError) {
+          console.error('Error updating user profile:', updateError);
+          setError('Unable to update your profile. Your subscription may still be processed.');
         } else {
-          console.log('No subscription found, using plan from URL:', planParam);
+          console.log('Plan saved to user profile successfully');
         }
         
         setIsLoading(false);
-        setSubscriptionChecked(true);
       } catch (error) {
-        console.error('Error processing subscription:', error);
-        setError('An error occurred while processing your subscription.');
+        console.error('Error saving plan to profile:', error);
+        setError('An error occurred while updating your profile.');
         setIsLoading(false);
-        setSubscriptionChecked(true);
       }
     };
 
-    // Start the subscription check process
-    getAndSaveSubscription();
+    // Save plan to profile
+    saveSubscriptionToProfile();
 
-    // Countdown to redirect - only start after subscription is checked
+    // Countdown to redirect
     const timer = setInterval(() => {
-      if (subscriptionChecked) {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            navigate('/');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate('/');
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [searchParams, navigate, subscriptionChecked]);
+  }, [searchParams, navigate]);
 
   // Clear localStorage on successful payment
   useEffect(() => {
@@ -196,7 +167,7 @@ export default function SuccessPage() {
             {isLoading ? (
               <span className="flex items-center justify-center space-x-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Processing your subscription...</span>
+                <span>Finalizing your subscription...</span>
               </span>
             ) : plan ? (
               `Thank you for subscribing to our ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`
@@ -225,7 +196,7 @@ export default function SuccessPage() {
           </button>
           
           <p className="text-sm text-slate-500 mt-4">
-            {subscriptionChecked ? `Redirecting in ${countdown} seconds...` : 'Verifying subscription...'}
+            Redirecting in {countdown} seconds...
           </p>
         </div>
       </div>

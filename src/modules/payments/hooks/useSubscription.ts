@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { stripeClient, SubscriptionData } from '../stripe-client';
+import { supabase } from '../../database/lib/supabase';
 
 export interface SubscriptionStatus {
   isLoading: boolean;
@@ -23,10 +24,11 @@ export function useSubscription() {
       try {
         console.log('Fetching subscription status');
         
-        // Try to get from user profile first (most reliable)
-        const subscription = await stripeClient.getUserSubscription();
+        // Get the current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
         
-        if (!subscription) {
+        if (userError || !user) {
+          console.error('Error getting user:', userError);
           setStatus({
             isLoading: false,
             isActive: false,
@@ -37,30 +39,37 @@ export function useSubscription() {
           return;
         }
         
+        // Get subscription info directly from user_profiles.preferences
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('preferences')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError);
+          setStatus({
+            isLoading: false,
+            isActive: false,
+            subscription: null,
+            plan: 'free',
+            error: profileError.message
+          });
+          return;
+        }
+        
+        // Get subscription and plan from preferences
+        const subscription = profile?.preferences?.subscription;
+        const plan = profile?.preferences?.plan || 'free';
+        
+        // Determine if subscription is active
         const isActive = subscription?.subscription_status === 'active' || 
                          subscription?.subscription_status === 'trialing';
-        
-        // Determine plan based on price_id or from user profile
-        let plan = 'free';
-        
-        if (subscription?.price_id) {
-          switch (subscription.price_id) {
-            case 'price_1RfLCZCHpOkAgMGGUtW046jz':
-              plan = 'standard';
-              break;
-            case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
-              plan = 'premium';
-              break;
-            case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
-              plan = 'pro';
-              break;
-          }
-        }
         
         setStatus({
           isLoading: false,
           isActive,
-          subscription,
+          subscription: subscription || null,
           plan,
           error: null
         });

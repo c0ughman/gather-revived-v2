@@ -84,7 +84,7 @@ export const stripeClient = {
   },
 
   /**
-   * Get current user's subscription data
+   * Get current user's subscription data from user_profiles.preferences
    */
   async getUserSubscription(): Promise<SubscriptionData | null> {
     try {
@@ -98,48 +98,24 @@ export const stripeClient = {
 
       console.log(`Fetching subscription for user: ${user.id}`);
 
-      // First try to get from user_profiles
-      try {
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('preferences')
-          .eq('id', user.id)
-          .single();
+      // Get subscription from user_profiles.preferences
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('preferences')
+        .eq('id', user.id)
+        .single();
 
-        if (!profileError && profileData?.preferences?.subscription) {
-          console.log('Found subscription in user profile:', profileData.preferences.subscription);
-          return profileData.preferences.subscription;
-        }
-      } catch (profileError) {
-        console.warn('Error fetching from user profile:', profileError);
-        // Continue to try other methods
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        return null;
       }
 
-      // If not in profile, try the view with user_id filter
-      try {
-        const { data, error } = await supabase
-          .from('stripe_user_subscriptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error fetching subscription:', error);
-          throw error;
-        }
-
-        // If we found a subscription in the view, save it to the user profile for future use
-        if (data) {
-          console.log('Found subscription in view, saving to profile:', data);
-          await this.saveSubscriptionToProfile(user.id, data);
-        }
-
-        return data;
-      } catch (viewError) {
-        console.warn('Error fetching from view:', viewError);
+      if (profileData?.preferences?.subscription) {
+        console.log('Found subscription in user profile:', profileData.preferences.subscription);
+        return profileData.preferences.subscription;
       }
 
-      // If all else fails, create a default subscription object
+      // If no subscription found, return default
       const defaultSubscription = {
         user_id: user.id,
         customer_id: null,
@@ -152,9 +128,6 @@ export const stripeClient = {
         payment_method_brand: null,
         payment_method_last4: null
       };
-
-      // Save the default subscription to the profile
-      await this.saveSubscriptionToProfile(user.id, defaultSubscription);
       
       return defaultSubscription;
     } catch (error) {
@@ -164,78 +137,46 @@ export const stripeClient = {
   },
 
   /**
-   * Save subscription data to user profile
+   * Check if user has an active subscription
    */
-  async saveSubscriptionToProfile(userId: string, subscription: SubscriptionData): Promise<void> {
+  async hasActiveSubscription(): Promise<boolean> {
     try {
-      console.log('Saving subscription to user profile:', subscription);
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      // Get current profile
+      if (userError || !user) {
+        console.error('Error getting user:', userError);
+        return false;
+      }
+
+      // Get plan directly from user_profiles.preferences
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('preferences')
-        .eq('id', userId)
+        .eq('id', user.id)
         .single();
       
-      if (profileError && profileError.code !== 'PGRST116') {
+      if (profileError) {
         console.error('Error fetching user profile:', profileError);
-        throw profileError;
+        return false;
       }
-      
-      // Prepare preferences object
-      const preferences = profile?.preferences || {};
-      preferences.subscription = subscription;
-      
-      // Determine plan from price_id
-      if (subscription.price_id) {
-        switch (subscription.price_id) {
-          case 'price_1RfLCZCHpOkAgMGGUtW046jz':
-            preferences.plan = 'standard';
-            break;
-          case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
-            preferences.plan = 'premium';
-            break;
-          case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
-            preferences.plan = 'pro';
-            break;
-          default:
-            preferences.plan = 'free';
-        }
-      } else {
-        preferences.plan = 'free';
+
+      // Check if subscription is active
+      const subscription = profile?.preferences?.subscription;
+      if (subscription) {
+        return subscription.subscription_status === 'active' || 
+               subscription.subscription_status === 'trialing';
       }
-      
-      // Update or create profile
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: userId,
-          preferences: preferences,
-          updated_at: new Date().toISOString()
-        });
-      
-      if (error) {
-        console.error('Error saving subscription to profile:', error);
-        throw error;
-      }
-      
-      console.log('Subscription saved to user profile successfully');
+
+      return false;
     } catch (error) {
-      console.error('Error in saveSubscriptionToProfile:', error);
-      // Don't throw here - we want to continue even if saving fails
+      console.error('Error in hasActiveSubscription:', error);
+      return false;
     }
   },
 
   /**
-   * Check if user has an active subscription
-   */
-  async hasActiveSubscription(): Promise<boolean> {
-    const subscription = await this.getUserSubscription();
-    return subscription?.subscription_status === 'active' || subscription?.subscription_status === 'trialing';
-  },
-
-  /**
-   * Get the user's current plan based on subscription
+   * Get the user's current plan based on user_profiles.preferences
    */
   async getCurrentPlan(): Promise<string> {
     try {
@@ -247,39 +188,20 @@ export const stripeClient = {
         return 'free';
       }
       
-      // Try to get plan from user profile first (most reliable)
+      // Get plan directly from user_profiles.preferences
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('preferences')
         .eq('id', user.id)
         .single();
       
-      if (!profileError && profile?.preferences?.plan) {
-        return profile.preferences.plan;
-      }
-      
-      // Fall back to subscription check
-      const subscription = await this.getUserSubscription();
-      
-      if (!subscription || !subscription.subscription_id) {
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
         return 'free';
       }
       
-      if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
-        return 'free';
-      }
-      
-      // Map price_id to plan name
-      switch (subscription.price_id) {
-        case 'price_1RfLCZCHpOkAgMGGUtW046jz':
-          return 'standard';
-        case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
-          return 'premium';
-        case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
-          return 'pro';
-        default:
-          return 'free';
-      }
+      // Return the plan from preferences, or default to free
+      return profile?.preferences?.plan || 'free';
     } catch (error) {
       console.error('Error in getCurrentPlan:', error);
       return 'free';
