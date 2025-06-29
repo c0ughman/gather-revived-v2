@@ -78,20 +78,22 @@ export function useLimits() {
         // Count agents and integrations
         const { data: agents, error: agentsError } = await supabase
           .from('user_agents')
-          .select('count')
+          .select('*', { count: 'exact' })
           .eq('user_id', user.id);
         
         if (agentsError) {
           console.error('Error counting agents:', agentsError);
         }
         
-        const agentCount = agents?.[0]?.count || 0;
+        const agentCount = agents?.length || 0;
         
         // Count integrations
         const { data: integrations, error: integrationsError } = await supabase
           .from('agent_integrations')
           .select('agent_id')
-          .in('agent_id', supabase.from('user_agents').select('id').eq('user_id', user.id));
+          .in('agent_id', 
+            (await supabase.from('user_agents').select('id').eq('user_id', user.id)).data?.map(agent => agent.id) || []
+          );
         
         if (integrationsError) {
           console.error('Error counting integrations:', integrationsError);
