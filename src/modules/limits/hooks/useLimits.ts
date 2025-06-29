@@ -1,36 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../database/lib/supabase'
 import { useAuth } from '../../auth/hooks/useAuth'
-import type { UserUsage, PlanLimits } from '../../../core/types/limits'
-
-const PLAN_LIMITS: Record<string, PlanLimits> = {
-  free: {
-    callTimeMinutes: 60,
-    maxAgents: 3,
-    maxIntegrations: 2,
-    storageGB: 1,
-    chatTokens: 50000
-  },
-  pro: {
-    callTimeMinutes: 600,
-    maxAgents: 25,
-    maxIntegrations: 10,
-    storageGB: 10,
-    chatTokens: 500000
-  },
-  enterprise: {
-    callTimeMinutes: -1, // unlimited
-    maxAgents: -1, // unlimited
-    maxIntegrations: -1, // unlimited
-    storageGB: -1, // unlimited
-    chatTokens: -1 // unlimited
-  }
-}
+import { PLAN_LIMITS, type UsageStats, type UsageLimits } from '../../../core/types/limits'
 
 export function useLimits() {
   const { user } = useAuth()
-  const [usage, setUsage] = useState<UserUsage | null>(null)
-  const [limits, setLimits] = useState<PlanLimits | null>(null)
+  const [usage, setUsage] = useState<UsageStats | null>(null)
+  const [limits, setLimits] = useState<UsageLimits | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -123,13 +99,12 @@ export function useLimits() {
       const planId = profile?.preferences?.plan_id || usageData?.plan_id || 'free'
       const planLimits = PLAN_LIMITS[planId] || PLAN_LIMITS.free
 
-      const currentUsage: UserUsage = {
-        callTimeUsed: usageData?.call_time_used || 0,
+      const currentUsage: UsageStats = {
+        callTimeUsedMinutes: usageData?.call_time_used || 0,
         agentsCreated: agentCount || 0,
         integrationsActive: integrationCount || 0,
-        storageUsed: usageData?.storage_used || 0,
-        chatTokensUsed: usageData?.chat_tokens_used || 0,
-        planId
+        storageUsedMB: Math.ceil((usageData?.storage_used || 0) / (1024 * 1024)), // Convert bytes to MB
+        chatTokensUsed: usageData?.chat_tokens_used || 0
       }
 
       setUsage(currentUsage)
@@ -147,7 +122,7 @@ export function useLimits() {
     fetchLimits()
   }, [user])
 
-  const checkLimit = (type: keyof PlanLimits): { exceeded: boolean; percentage: number } => {
+  const checkLimit = (type: keyof UsageLimits): { exceeded: boolean; percentage: number } => {
     if (!usage || !limits) {
       return { exceeded: false, percentage: 0 }
     }
@@ -160,7 +135,7 @@ export function useLimits() {
     let used = 0
     switch (type) {
       case 'callTimeMinutes':
-        used = usage.callTimeUsed
+        used = usage.callTimeUsedMinutes
         break
       case 'maxAgents':
         used = usage.agentsCreated
@@ -168,10 +143,10 @@ export function useLimits() {
       case 'maxIntegrations':
         used = usage.integrationsActive
         break
-      case 'storageGB':
-        used = Math.ceil(usage.storageUsed / (1024 * 1024 * 1024)) // Convert bytes to GB
+      case 'maxStorageMB':
+        used = usage.storageUsedMB
         break
-      case 'chatTokens':
+      case 'maxChatTokens':
         used = usage.chatTokensUsed
         break
     }
@@ -183,7 +158,7 @@ export function useLimits() {
     }
   }
 
-  const canPerformAction = (type: keyof PlanLimits): boolean => {
+  const canPerformAction = (type: keyof UsageLimits): boolean => {
     const { exceeded } = checkLimit(type)
     return !exceeded
   }
