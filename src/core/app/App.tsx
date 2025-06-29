@@ -17,9 +17,6 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
-import { useLimits } from '../../modules/limits/hooks/useLimits';
-import { usageService } from '../../modules/limits/services/usageService';
-import { LimitExceededModal } from '../../modules/limits/components/LimitExceededModal';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -37,16 +34,6 @@ export default function App() {
     isMuted: false,
     status: 'ended'
   });
-  const [showLimitModal, setShowLimitModal] = useState<'callTime' | 'chatTokens' | 'storage' | 'agents' | 'integrations' | null>(null);
-  const { 
-    hasExceededCallTime, 
-    hasExceededChatTokens, 
-    hasExceededAgents,
-    plan,
-    usage
-  } = useLimits();
-  const callDurationInterval = useRef<number | null>(null);
-  const callStartTime = useRef<Date | null>(null);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -180,12 +167,6 @@ export default function App() {
   };
 
   const handleChatClick = (contact: AIContact) => {
-    // Check if chat token limit is exceeded
-    if (hasExceededChatTokens) {
-      setShowLimitModal('chatTokens');
-      return;
-    }
-    
     setSelectedContact(contact);
     setCurrentView('chat');
     
@@ -196,12 +177,6 @@ export default function App() {
   };
 
   const handleCallClick = (contact: AIContact) => {
-    // Check if call time limit is exceeded
-    if (hasExceededCallTime) {
-      setShowLimitModal('callTime');
-      return;
-    }
-    
     setSelectedContact(contact);
     setCurrentView('call');
     setCallState({
@@ -214,27 +189,10 @@ export default function App() {
     // Simulate call connection
     setTimeout(() => {
       setCallState(prev => ({ ...prev, status: 'connected' }));
-      
-      // Start tracking call duration
-      callStartTime.current = new Date();
-      callDurationInterval.current = window.setInterval(() => {
-        if (callStartTime.current) {
-          const now = new Date();
-          const durationSeconds = Math.floor((now.getTime() - callStartTime.current.getTime()) / 1000);
-          
-          setCallState(prev => ({ ...prev, duration: durationSeconds }));
-        }
-      }, 1000);
     }, 2000);
   };
 
   const handleEndCall = () => {
-    // Clear call duration interval
-    if (callDurationInterval.current) {
-      clearInterval(callDurationInterval.current);
-      callDurationInterval.current = null;
-    }
-    
     setCallState({
       isActive: false,
       duration: 0,
@@ -275,23 +233,11 @@ export default function App() {
   };
 
   const handleCreateAgent = () => {
-    // Check if agent limit is exceeded
-    if (hasExceededAgents) {
-      setShowLimitModal('agents');
-      return;
-    }
-    
     setCurrentView('create-agent');
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
     if (!selectedContact) return;
-
-    // Check if chat token limit is exceeded
-    if (hasExceededChatTokens) {
-      setShowLimitModal('chatTokens');
-      return;
-    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -314,12 +260,6 @@ export default function App() {
       const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
       const chatHistory = [...contactMessages, userMessage];
 
-      // Estimate tokens in the message
-      const estimatedTokens = usageService.estimateTokens(content);
-      
-      // Update token usage
-      await usageService.updateChatTokensUsage(user!.id, estimatedTokens);
-
       // Generate AI response using the enhanced service
       const response = await geminiService.generateResponse(
         selectedContact,
@@ -327,12 +267,6 @@ export default function App() {
         chatHistory,
         conversationDocuments
       );
-
-      // Estimate tokens in the response
-      const responseTokens = usageService.estimateTokens(response);
-      
-      // Update token usage for response
-      await usageService.updateChatTokensUsage(user!.id, responseTokens);
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -404,12 +338,6 @@ export default function App() {
 
         console.log('✅ Updated existing contact in Supabase');
       } else {
-        // Check if agent limit is exceeded
-        if (hasExceededAgents) {
-          setShowLimitModal('agents');
-          return;
-        }
-        
         // Create new contact in Supabase
         const newAgent = await supabaseService.createUserAgent(user.id, contact);
         contact.id = newAgent.id; // Update with the database ID
@@ -439,12 +367,6 @@ export default function App() {
   };
 
   const handleCreateNewAgent = () => {
-    // Check if agent limit is exceeded
-    if (hasExceededAgents) {
-      setShowLimitModal('agents');
-      return;
-    }
-    
     const newAgent: AIContact = {
       id: `temp_${Date.now()}`, // Temporary ID, will be replaced when saved
       name: 'New AI Assistant',
@@ -458,10 +380,6 @@ export default function App() {
     
     setSelectedContact(newAgent);
     setCurrentView('settings');
-  };
-
-  const handleUpgrade = () => {
-    setCurrentView('pricing');
   };
 
   // Loading state
@@ -505,20 +423,8 @@ export default function App() {
       <Routes>
         <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
         <Route path="/success" element={<SuccessPage />} />
-        <Route path="/pricing" element={<PricingPage onSelectPlan={handleSelectPlan} onStayFree={handleStayFree} />} />
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
-            {/* Limit Exceeded Modal */}
-            {showLimitModal && (
-              <LimitExceededModal
-                limitType={showLimitModal}
-                plan={plan}
-                onClose={() => setShowLimitModal(null)}
-                onUpgrade={handleUpgrade}
-                resetTime={usage?.lastResetDate ? formatTimeUntilReset(getTimeUntilReset(plan, usage.lastResetDate)) : undefined}
-              />
-            )}
-            
             {/* Left Sidebar - Contacts */}
             <div className="w-80 border-r border-slate-700">
               <ContactSidebar

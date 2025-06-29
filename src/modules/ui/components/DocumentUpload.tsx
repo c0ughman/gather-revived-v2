@@ -1,10 +1,7 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Upload, File, X, AlertCircle, CheckCircle, FileText, Code, Database, FileImage, Presentation, Sheet } from 'lucide-react';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import { documentService } from '../../fileManagement/services/documentService';
-import { useLimits } from '../../limits/hooks/useLimits';
-import { StorageLimitAlert } from '../../limits/components/StorageLimitAlert';
-import { useNavigate } from 'react-router-dom';
 
 interface DocumentUploadProps {
   onDocumentUploaded: (document: DocumentInfo) => void;
@@ -15,8 +12,6 @@ interface DocumentUploadProps {
 export default function DocumentUpload({ onDocumentUploaded, onError, className = '' }: DocumentUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { hasExceededStorage, updateStorageUsage, canUploadFile } = useLimits();
-  const navigate = useNavigate();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -46,14 +41,6 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Check storage limit before processing
-    for (const file of files) {
-      if (!canUploadFile(file.size)) {
-        onError(`Storage limit reached. You cannot upload ${file.name} (${Math.round(file.size / 1024)}KB).`);
-        return;
-      }
-    }
-
     setIsProcessing(true);
     
     for (const file of files) {
@@ -61,11 +48,6 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
         console.log(`📁 Processing file: ${file.name} (${Math.round(file.size / 1024)}KB)`);
         const document = await documentService.processFile(file);
         console.log(`✅ Successfully processed: ${file.name}`);
-        
-        // Update storage usage
-        const fileSizeMB = file.size / (1024 * 1024);
-        await updateStorageUsage(fileSizeMB);
-        
         onDocumentUploaded(document);
       } catch (error) {
         console.error(`❌ Failed to process ${file.name}:`, error);
@@ -76,20 +58,11 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
     setIsProcessing(false);
   };
 
-  const handleUpgrade = () => {
-    navigate('/pricing');
-  };
-
   const supportedExtensions = documentService.getSupportedExtensions();
   const acceptString = supportedExtensions.map(ext => `.${ext}`).join(',');
 
   return (
     <div className={className}>
-      <StorageLimitAlert 
-        isLimitReached={hasExceededStorage} 
-        onUpgrade={handleUpgrade} 
-      />
-      
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -98,7 +71,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
           isDragOver
             ? 'border-[#186799] bg-[#186799] bg-opacity-10'
             : 'border-slate-600 hover:border-slate-500'
-        } ${isProcessing ? 'opacity-50 pointer-events-none' : ''} ${hasExceededStorage ? 'opacity-50 pointer-events-none' : ''}`}
+        } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
       >
         <input
           type="file"
@@ -106,7 +79,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
           onChange={handleFileSelect}
           accept={acceptString}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          disabled={isProcessing || hasExceededStorage}
+          disabled={isProcessing}
         />
         
         <div className="text-center">
@@ -123,9 +96,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
           </h3>
           
           <p className="text-slate-400 text-sm mb-4">
-            {hasExceededStorage 
-              ? 'Storage limit reached. Upgrade to add more documents.' 
-              : 'Drag and drop files here, or click to select'}
+            Drag and drop files here, or click to select
           </p>
         </div>
       </div>

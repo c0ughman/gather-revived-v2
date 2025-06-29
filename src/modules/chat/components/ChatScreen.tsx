@@ -1,12 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, AlertCircle, Zap } from 'lucide-react';
+import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone } from 'lucide-react';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
-import { useLimits } from '../../limits/hooks/useLimits';
-import { ChatLimitAlert } from '../../limits/components/ChatLimitAlert';
-import { getTimeUntilReset } from '../../../core/types/limits';
-import { useNavigate } from 'react-router-dom';
 
 interface ChatScreenProps {
   contact: AIContact;
@@ -35,18 +31,6 @@ export default function ChatScreen({
   const [pendingDocuments, setPendingDocuments] = useState<DocumentInfo[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { 
-    hasExceededChatTokens, 
-    updateChatTokensUsage, 
-    plan, 
-    usage 
-  } = useLimits();
-  const navigate = useNavigate();
-
-  // Calculate reset date
-  const resetDate = usage?.lastResetDate 
-    ? getTimeUntilReset(plan, usage.lastResetDate) 
-    : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default to tomorrow
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,13 +57,7 @@ export default function ChatScreen({
   }, [messages]);
 
   const handleSend = () => {
-    if ((inputValue.trim() || pendingDocuments.length > 0) && !hasExceededChatTokens) {
-      // Estimate tokens in the message
-      const estimatedTokens = Math.ceil(inputValue.length / 4);
-      
-      // Update token usage
-      updateChatTokensUsage(estimatedTokens);
-      
+    if (inputValue.trim() || pendingDocuments.length > 0) {
       onSendMessage(inputValue.trim(), pendingDocuments.length > 0 ? pendingDocuments : undefined);
       setInputValue('');
       setPendingDocuments([]);
@@ -89,7 +67,7 @@ export default function ChatScreen({
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !hasExceededChatTokens) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -106,10 +84,6 @@ export default function ChatScreen({
 
   const handleRemoveDocument = (documentId: string) => {
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
-  };
-
-  const handleUpgrade = () => {
-    navigate('/pricing');
   };
 
   // Helper function to create radial gradient for agents without avatars
@@ -284,13 +258,6 @@ export default function ChatScreen({
       {/* Messages Area - Scrollable with padding for fixed input */}
       <div className="flex-1 overflow-y-auto pt-20 pb-32">
         <div className="p-4">
-          {/* Chat limit alert */}
-          <ChatLimitAlert 
-            isLimitReached={hasExceededChatTokens}
-            resetDate={resetDate}
-            onUpgrade={handleUpgrade}
-          />
-          
           {messages.length === 0 && (
             <div className="text-center py-8">
               <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
@@ -437,12 +404,11 @@ export default function ChatScreen({
             {/* File Upload Button - Inside input */}
             <button
               onClick={() => setShowDocumentUpload(!showDocumentUpload)}
-              disabled={hasExceededChatTokens}
               className={`ml-4 p-2 rounded-full transition-colors duration-200 ${
                 showDocumentUpload || pendingDocuments.length > 0
                   ? 'text-[#186799] hover:text-[#1a5a7a]'
                   : 'text-slate-400 hover:text-slate-300'
-              } ${hasExceededChatTokens ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
               title="Upload conversation documents"
             >
               <Paperclip className="w-4 h-4" />
@@ -459,15 +425,15 @@ export default function ChatScreen({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={hasExceededChatTokens ? 'Daily message limit reached' : `Message ${contact.name}...`}
-              disabled={isTyping || hasExceededChatTokens}
+              placeholder={`Message ${contact.name}...`}
+              disabled={isTyping}
               className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
             />
             
             {/* Send Button - Inside input */}
             <button
               onClick={handleSend}
-              disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping || hasExceededChatTokens}
+              disabled={(!inputValue.trim() && pendingDocuments.length === 0) || isTyping}
               className="mr-4 p-2 bg-[#186799] hover:bg-[#1a5a7a] disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 flex items-center justify-center"
             >
               {isTyping ? (
@@ -496,15 +462,6 @@ export default function ChatScreen({
                   📚 {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
                 </span>
               )}
-            </div>
-          )}
-          
-          {/* Chat limit message */}
-          {hasExceededChatTokens && (
-            <div className="mt-2 text-center">
-              <span className="text-red-400 text-xs">
-                Daily message limit reached. Upgrade for unlimited messaging.
-              </span>
             </div>
           )}
         </div>

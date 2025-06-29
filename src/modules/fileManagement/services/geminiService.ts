@@ -4,8 +4,6 @@ import { DocumentInfo } from '../types/documents';
 import { integrationsService } from '../../integrations';
 import { getIntegrationById } from '../../integrations';
 import { documentService } from './documentService';
-import { usageService } from '../../limits/services/usageService';
-import { supabase } from '../../database/lib/supabase';
 
 class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -396,15 +394,6 @@ ${contact.name}:`;
           
           const finalResult = await model.generateContent(followUpPrompt);
           const finalResponse = finalResult.response.text();
-          
-          // Estimate tokens in the final response
-          const responseTokens = usageService.estimateTokens(finalResponse);
-          
-          // Update token usage for final response
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await usageService.updateChatTokensUsage(user.id, responseTokens);
-          }
           
           console.log('✅ Final response generated');
           return finalResponse;
