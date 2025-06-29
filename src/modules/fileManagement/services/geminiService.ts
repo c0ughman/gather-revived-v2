@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../types/documents';
 import { integrationsService } from '../../integrations';
-import { getIntegrationById } from '../../integrations';
+import { getIntegrationById } from '../../integrations/data/integrations';
 import { documentService } from './documentService';
 
 class GeminiService {
@@ -36,6 +36,14 @@ class GeminiService {
 
       const hasWebhookTool = contact.integrations?.some(
         integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
+      );
+
+      const hasZapierWebhook = contact.integrations?.some(
+        integration => integration.integrationId === 'zapier-webhook' && integration.config.enabled
+      );
+
+      const hasN8nWebhook = contact.integrations?.some(
+        integration => integration.integrationId === 'n8n-webhook' && integration.config.enabled
       );
 
       const hasGoogleSheets = contact.integrations?.some(
@@ -95,6 +103,34 @@ class GeminiService {
             type: "object",
             properties: {
               action: { type: "string", description: "The action the user wants to perform (e.g., 'activate marketing', 'trigger workflow', 'send notification')" }
+            },
+            required: ["action"]
+          }
+        });
+      }
+
+      if (hasZapierWebhook) {
+        functionDeclarations.push({
+          name: "trigger_zapier_zap",
+          description: "Trigger a Zapier Zap based on natural language commands. Use when user asks to automate, trigger, start, or execute a task that matches a configured Zap.",
+          parameters: {
+            type: "object",
+            properties: {
+              action: { type: "string", description: "The action the user wants to perform (e.g., 'send to Slack', 'add to CRM', 'create calendar event')" }
+            },
+            required: ["action"]
+          }
+        });
+      }
+
+      if (hasN8nWebhook) {
+        functionDeclarations.push({
+          name: "trigger_n8n_workflow",
+          description: "Trigger an n8n workflow based on natural language commands. Use when user asks to process, analyze, generate, sync, or monitor something that matches a configured workflow.",
+          parameters: {
+            type: "object",
+            properties: {
+              action: { type: "string", description: "The action the user wants to perform (e.g., 'process customer data', 'generate report', 'sync data')" }
             },
             required: ["action"]
           }
@@ -265,6 +301,94 @@ ${contact.name}:`;
                       confirmationMessage: 'Action completed successfully! The webhook was triggered despite a technical response issue.',
                       corsBlocked: true,
                       note: 'The webhook request was sent successfully, but the browser blocked the response due to CORS policy.'
+                    }
+                  }
+                });
+              } else {
+                functionResponses.push({
+                  name: call.name,
+                  response: { success: false, error: errorMessage }
+                });
+              }
+            }
+          }
+
+          if (call.name === 'trigger_zapier_zap') {
+            const args = call.args as any || {};
+            const { action } = args;
+            
+            try {
+              console.log(`⚡ Triggering Zapier Zap for action: ${action}`);
+              
+              const result = await this.triggerZapierZap(action, contact, userMessage);
+              
+              functionResponses.push({
+                name: call.name,
+                response: { success: true, data: result }
+              });
+            } catch (error) {
+              console.error('❌ Zapier Zap trigger failed:', error);
+              
+              const errorMessage = error instanceof Error ? error.message : 'Zapier Zap trigger failed';
+              const isLikelyCorsBlocedWebhook = errorMessage.includes('Load failed') || 
+                                               errorMessage.includes('CORS') || 
+                                               errorMessage.includes('Access-Control-Allow-Origin');
+              
+              if (isLikelyCorsBlocedWebhook) {
+                functionResponses.push({
+                  name: call.name,
+                  response: {
+                    success: true,
+                    data: {
+                      action: action || 'zap action',
+                      description: 'Zap triggered (CORS blocked response)',
+                      confirmationMessage: 'Zap triggered successfully! The automation is now running.',
+                      corsBlocked: true,
+                      note: 'The Zap request was sent successfully, but the browser blocked the response due to CORS policy.'
+                    }
+                  }
+                });
+              } else {
+                functionResponses.push({
+                  name: call.name,
+                  response: { success: false, error: errorMessage }
+                });
+              }
+            }
+          }
+
+          if (call.name === 'trigger_n8n_workflow') {
+            const args = call.args as any || {};
+            const { action } = args;
+            
+            try {
+              console.log(`🔄 Triggering n8n workflow for action: ${action}`);
+              
+              const result = await this.triggerN8nWorkflow(action, contact, userMessage);
+              
+              functionResponses.push({
+                name: call.name,
+                response: { success: true, data: result }
+              });
+            } catch (error) {
+              console.error('❌ n8n workflow trigger failed:', error);
+              
+              const errorMessage = error instanceof Error ? error.message : 'n8n workflow trigger failed';
+              const isLikelyCorsBlocedWebhook = errorMessage.includes('Load failed') || 
+                                               errorMessage.includes('CORS') || 
+                                               errorMessage.includes('Access-Control-Allow-Origin');
+              
+              if (isLikelyCorsBlocedWebhook) {
+                functionResponses.push({
+                  name: call.name,
+                  response: {
+                    success: true,
+                    data: {
+                      action: action || 'workflow action',
+                      description: 'Workflow triggered (CORS blocked response)',
+                      confirmationMessage: 'Workflow triggered successfully! The automation is now running.',
+                      corsBlocked: true,
+                      note: 'The workflow request was sent successfully, but the browser blocked the response due to CORS policy.'
                     }
                   }
                 });
@@ -558,6 +682,118 @@ ${contact.name}:`;
   }
 
   /**
+   * Trigger a Zapier Zap based on natural language action
+   */
+  private async triggerZapierZap(action: string, contact?: AIContact, userMessage?: string): Promise<any> {
+    try {
+      const zapierIntegrations = contact?.integrations?.filter(
+        integration => integration.integrationId === 'zapier-webhook' && integration.config.enabled
+      ) || [];
+
+      if (zapierIntegrations.length === 0) {
+        throw new Error('No Zapier integrations configured for this contact');
+      }
+
+      const selectedZap = this.findBestMatchingIntegration(action, zapierIntegrations);
+
+      if (!selectedZap) {
+        throw new Error(`No suitable Zap found for action: ${action}`);
+      }
+
+      const config = selectedZap.config;
+      const { webhookUrl, zapName, description, payload, confirmationMessage, triggerKeywords } = config.settings;
+
+      console.log(`⚡ Triggering Zapier Zap: ${zapName}`);
+
+      // Prepare payload with dynamic variables
+      let processedPayload = payload || '{}';
+      processedPayload = processedPayload
+        .replace(/{{timestamp}}/g, new Date().toISOString())
+        .replace(/{{user_message}}/g, userMessage || action)
+        .replace(/{{contact_name}}/g, contact?.name || 'AI Assistant');
+
+      // Parse headers - Zapier typically doesn't need special headers
+      const headers = { 'Content-Type': 'application/json' };
+
+      const result = await integrationsService.executeWebhookTriggerTool(
+        webhookUrl,
+        processedPayload,
+        headers,
+        userMessage || action,
+        contact?.name
+      );
+
+      return {
+        action,
+        zapName,
+        description,
+        confirmationMessage: confirmationMessage || `${zapName} triggered successfully!`,
+        result
+      };
+
+    } catch (error) {
+      console.error('❌ Zapier Zap trigger failed:', error);
+      throw new Error(`Zapier Zap trigger failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Trigger an n8n workflow based on natural language action
+   */
+  private async triggerN8nWorkflow(action: string, contact?: AIContact, userMessage?: string): Promise<any> {
+    try {
+      const n8nIntegrations = contact?.integrations?.filter(
+        integration => integration.integrationId === 'n8n-webhook' && integration.config.enabled
+      ) || [];
+
+      if (n8nIntegrations.length === 0) {
+        throw new Error('No n8n integrations configured for this contact');
+      }
+
+      const selectedWorkflow = this.findBestMatchingIntegration(action, n8nIntegrations);
+
+      if (!selectedWorkflow) {
+        throw new Error(`No suitable n8n workflow found for action: ${action}`);
+      }
+
+      const config = selectedWorkflow.config;
+      const { webhookUrl, workflowName, description, payload, confirmationMessage, triggerKeywords } = config.settings;
+
+      console.log(`🔄 Triggering n8n workflow: ${workflowName}`);
+
+      // Prepare payload with dynamic variables
+      let processedPayload = payload || '{}';
+      processedPayload = processedPayload
+        .replace(/{{timestamp}}/g, new Date().toISOString())
+        .replace(/{{user_message}}/g, userMessage || action)
+        .replace(/{{contact_name}}/g, contact?.name || 'AI Assistant');
+
+      // Parse headers - n8n typically doesn't need special headers
+      const headers = { 'Content-Type': 'application/json' };
+
+      const result = await integrationsService.executeWebhookTriggerTool(
+        webhookUrl,
+        processedPayload,
+        headers,
+        userMessage || action,
+        contact?.name
+      );
+
+      return {
+        action,
+        workflowName,
+        description,
+        confirmationMessage: confirmationMessage || `${workflowName} triggered successfully!`,
+        result
+      };
+
+    } catch (error) {
+      console.error('❌ n8n workflow trigger failed:', error);
+      throw new Error(`n8n workflow trigger failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * Find the best matching webhook based on action and description
    */
   private findBestMatchingWebhook(action: string, webhookIntegrations: any[]): any {
@@ -588,6 +824,38 @@ ${contact.name}:`;
     return webhookIntegrations[0];
   }
 
+  /**
+   * Find the best matching integration based on action and description
+   * Used for both Zapier and n8n integrations
+   */
+  private findBestMatchingIntegration(action: string, integrations: any[]): any {
+    const actionLower = action.toLowerCase();
+    
+    for (const integration of integrations) {
+      const description = (integration.config.settings.description || '').toLowerCase();
+      const keywords = (integration.config.settings.triggerKeywords || '').toLowerCase().split(',').map((k: string) => k.trim());
+      
+      const descriptionWords = description.split(/\s+/);
+      const actionWords = actionLower.split(/\s+/);
+      
+      const hasDescriptionMatch = descriptionWords.some((word: string) => 
+        word.length > 2 && actionWords.some(actionWord => actionWord.includes(word))
+      );
+      
+      const hasKeywordMatch = keywords.some((keyword: string) => 
+        keyword.length > 0 && actionLower.includes(keyword)
+      );
+      
+      if (hasDescriptionMatch || hasKeywordMatch) {
+        console.log(`✅ Matched integration: ${description}`);
+        return integration;
+      }
+    }
+
+    console.log(`⚠️ No exact match found for "${action}", using first integration`);
+    return integrations[0];
+  }
+
   private buildContactContext(contact: AIContact, documents: DocumentInfo[]): string {
     let context = `You are ${contact.name}. ${contact.description}`;
     
@@ -616,6 +884,14 @@ ${contact.name}:`;
 
     const hasWebhookTool = contact.integrations?.some(
       integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
+    );
+
+    const hasZapierWebhook = contact.integrations?.some(
+      integration => integration.integrationId === 'zapier-webhook' && integration.config.enabled
+    );
+
+    const hasN8nWebhook = contact.integrations?.some(
+      integration => integration.integrationId === 'n8n-webhook' && integration.config.enabled
     );
 
     const hasGoogleSheets = contact.integrations?.some(
@@ -651,6 +927,42 @@ ${contact.name}:`;
         webhookIntegrations.forEach((webhook, index) => {
           const description = webhook.config.settings.description || 'Webhook action';
           context += `\n${index + 1}. ${description}`;
+        });
+      }
+    }
+
+    if (hasZapierWebhook) {
+      context += '\n\n⚡ ZAPIER ZAPS AVAILABLE ⚡';
+      context += '\nYou HAVE the trigger_zapier_zap function. Use it when users ask to automate, send, create, or perform tasks that match your configured Zaps.';
+      
+      const zapierIntegrations = contact.integrations?.filter(
+        integration => integration.integrationId === 'zapier-webhook' && integration.config.enabled
+      ) || [];
+      
+      if (zapierIntegrations.length > 0) {
+        context += '\n\nAvailable Zapier Zaps:';
+        zapierIntegrations.forEach((zap, index) => {
+          const zapName = zap.config.settings.zapName || 'Zap';
+          const description = zap.config.settings.description || 'Zapier automation';
+          context += `\n${index + 1}. ${zapName}: ${description}`;
+        });
+      }
+    }
+
+    if (hasN8nWebhook) {
+      context += '\n\n🔄 N8N WORKFLOWS AVAILABLE 🔄';
+      context += '\nYou HAVE the trigger_n8n_workflow function. Use it when users ask to process, analyze, generate, sync, or monitor data that matches your configured workflows.';
+      
+      const n8nIntegrations = contact.integrations?.filter(
+        integration => integration.integrationId === 'n8n-webhook' && integration.config.enabled
+      ) || [];
+      
+      if (n8nIntegrations.length > 0) {
+        context += '\n\nAvailable n8n workflows:';
+        n8nIntegrations.forEach((workflow, index) => {
+          const workflowName = workflow.config.settings.workflowName || 'Workflow';
+          const description = workflow.config.settings.description || 'n8n automation';
+          context += `\n${index + 1}. ${workflowName}: ${description}`;
         });
       }
     }

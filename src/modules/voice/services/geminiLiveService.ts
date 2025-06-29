@@ -121,6 +121,14 @@ class GeminiLiveService {
         integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
       );
 
+      const hasZapierWebhook = contact.integrations?.some(
+        integration => integration.integrationId === 'zapier-webhook' && integration.config.enabled
+      );
+
+      const hasN8nWebhook = contact.integrations?.some(
+        integration => integration.integrationId === 'n8n-webhook' && integration.config.enabled
+      );
+
       const hasGoogleSheets = contact.integrations?.some(
         integration => integration.integrationId === 'google-sheets' && integration.config.enabled
       );
@@ -149,6 +157,14 @@ class GeminiLiveService {
 
       if (hasWebhookTool) {
         systemInstruction += '\n\n🪝 WEBHOOK TRIGGERS AVAILABLE 🪝\nYou can trigger workflows when users ask to activate, start, or execute processes.';
+      }
+
+      if (hasZapierWebhook) {
+        systemInstruction += '\n\n⚡ ZAPIER ZAPS AVAILABLE ⚡\nYou can trigger Zapier Zaps when users ask to automate, send, create, or perform tasks.';
+      }
+
+      if (hasN8nWebhook) {
+        systemInstruction += '\n\n🔄 N8N WORKFLOWS AVAILABLE 🔄\nYou can trigger n8n workflows when users ask to process, analyze, generate, sync, or monitor data.';
       }
 
       if (hasGoogleSheets) {
