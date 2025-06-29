@@ -395,12 +395,12 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
                 onClick={onSignUp}
                 className="group px-8 py-4 animated-gradient-bg hover:opacity-90 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl flex items-center space-x-3 text-white"
               >
-                <span>Start Your Free Trial</span>
+                <span>Get Started Free</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               
               <div className="text-slate-400 text-sm">
-                No credit card required • 14-day free trial
+                No credit card required
               </div>
             </div>
           </div>
