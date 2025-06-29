@@ -148,20 +148,47 @@ Deno.serve(async (req) => {
       customerId = customer.customer_id;
 
       if (mode === 'subscription') {
-        // Use upsert to handle existing subscription records
-        const { error: upsertSubscriptionError } = await supabase
+        // Check if subscription record already exists
+        const { data: existingSubscription, error: checkSubscriptionError } = await supabase
           .from('stripe_subscriptions')
-          .upsert({
-            customer_id: customerId,
-            status: 'not_started',
-          }, {
-            onConflict: 'customer_id'
-          });
+          .select('id, status')
+          .eq('customer_id', customerId)
+          .is('deleted_at', null)
+          .maybeSingle();
 
-        if (upsertSubscriptionError) {
-          console.error('Failed to upsert subscription record for existing customer', upsertSubscriptionError);
+        if (checkSubscriptionError) {
+          console.error('Failed to check existing subscription record', checkSubscriptionError);
+          return corsResponse({ error: 'Failed to check existing subscription record' }, 500);
+        }
 
-          return corsResponse({ error: 'Failed to create or update subscription record for existing customer' }, 500);
+        if (!existingSubscription) {
+          // Create new subscription record if none exists
+          const { error: createSubscriptionError } = await supabase
+            .from('stripe_subscriptions')
+            .insert({
+              customer_id: customerId,
+              status: 'not_started',
+            });
+
+          if (createSubscriptionError) {
+            console.error('Failed to create subscription record for existing customer', createSubscriptionError);
+            return corsResponse({ error: 'Failed to create subscription record for existing customer' }, 500);
+          }
+        } else {
+          // Update existing subscription record if needed
+          const { error: updateSubscriptionError } = await supabase
+            .from('stripe_subscriptions')
+            .update({
+              status: 'not_started',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('customer_id', customerId)
+            .is('deleted_at', null);
+
+          if (updateSubscriptionError) {
+            console.error('Failed to update existing subscription record', updateSubscriptionError);
+            return corsResponse({ error: 'Failed to update existing subscription record' }, 500);
+          }
         }
       }
     }
