@@ -45,6 +45,8 @@ export const stripeClient = {
       throw new Error('You must be logged in to make a purchase');
     }
 
+    console.log('Creating checkout session with access token');
+    
     const response = await fetch(`${supabaseUrl}/functions/v1/stripe-checkout`, {
       method: 'POST',
       headers: {
@@ -60,8 +62,9 @@ export const stripeClient = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create checkout session');
+      const errorText = await response.text();
+      console.error('Checkout error:', response.status, errorText);
+      throw new Error(errorText || 'Failed to create checkout session');
     }
 
     return await response.json();
@@ -147,6 +150,8 @@ export const stripeClient = {
       throw new Error('You must be logged in to access the customer portal');
     }
 
+    console.log('Creating portal session with access token');
+    
     const response = await fetch(`${supabaseUrl}/functions/v1/stripe-portal`, {
       method: 'POST',
       headers: {
@@ -156,8 +161,9 @@ export const stripeClient = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create portal session');
+      const errorText = await response.text();
+      console.error('Portal error:', response.status, errorText);
+      throw new Error(errorText || 'Failed to create portal session');
     }
 
     const { url } = await response.json();
