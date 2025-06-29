@@ -20,7 +20,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         priceId,
         mode: 'subscription',
         successUrl: `${window.location.origin}/success?plan=${planName}`,
-        cancelUrl: `${window.location.origin}/pricing`,
+        cancelUrl: `${window.location.origin}/`,
       });
       
       // Note: The page will redirect, so we won't reach this point

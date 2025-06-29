@@ -129,11 +129,11 @@ export const stripeClient = {
     
     // Map price_id to plan name
     switch (subscription.price_id) {
-      case 'price_standard':
+      case 'price_1RfLCZCHpOkAgMGGUtW046jz':
         return 'standard';
-      case 'price_premium':
+      case 'price_1RfLEACHpOkAgMGGl3yIkLiX':
         return 'premium';
-      case 'price_pro':
+      case 'price_1RfLFJCHpOkAgMGGtGJlOf2I':
         return 'pro';
       default:
         return 'free';
