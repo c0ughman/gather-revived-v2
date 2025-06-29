@@ -17,7 +17,7 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success';
+type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -42,7 +42,7 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user && (currentView === 'landing' || currentView === 'signup')) {
+    if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
       setCurrentView('pricing');
     }
   }, [user, currentView]);
@@ -139,6 +139,10 @@ export default function App() {
 
   const handleSignUp = () => {
     setCurrentView('signup');
+  };
+
+  const handleSignIn = () => {
+    setCurrentView('login');
   };
 
   const handleSignupSuccess = () => {
@@ -396,10 +400,12 @@ export default function App() {
     );
   }
 
-  // If not authenticated, show landing page or signup page based on currentView
+  // If not authenticated, show landing page, signup page, or login page based on currentView
   if (!user) {
     if (currentView === 'signup') {
-      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
+      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} onSignIn={handleSignIn} />;
+    } else if (currentView === 'login') {
+      return <AuthScreen onBackToLanding={handleBackToLanding} />;
     } else {
       return <LandingPage onGetStarted={handleGetStarted} onSignUp={handleSignUp} />;
     }
