@@ -8,6 +8,7 @@ import {
 import { AIContact } from '../../../core/types/types';
 import { sourceIntegrations, actionIntegrations } from '../../integrations/data/integrations';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { SubscriptionBadge, ManageSubscriptionButton } from '../../payments';
 
 interface DashboardProps {
   contacts: AIContact[];
@@ -134,43 +135,50 @@ export default function Dashboard({
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'Emmanuel'}</h1>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
+                    <SubscriptionBadge />
+                  </div>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
                 </div>
                 
                 {/* Profile Dropdown */}
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                    className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors duration-200"
-                  >
-                    <User className="w-5 h-5 text-white" />
-                  </button>
+                <div className="flex items-center space-x-3">
+                  <ManageSubscriptionButton />
                   
-                  {showProfileDropdown && (
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50">
-                      <div className="p-2">
-                        <div className="px-3 py-2 border-b border-slate-600 mb-2">
-                          <p className="text-white text-sm font-medium">{user?.email?.split('@')[0]}</p>
-                          <p className="text-slate-400 text-xs">{user?.email}</p>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                      className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors duration-200"
+                    >
+                      <User className="w-5 h-5 text-white" />
+                    </button>
+                    
+                    {showProfileDropdown && (
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50">
+                        <div className="p-2">
+                          <div className="px-3 py-2 border-b border-slate-600 mb-2">
+                            <p className="text-white text-sm font-medium">{user?.email?.split('@')[0]}</p>
+                            <p className="text-slate-400 text-xs">{user?.email}</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await signOut();
+                                setShowProfileDropdown(false);
+                              } catch (error) {
+                                console.error('Error signing out:', error);
+                              }
+                            }}
+                            className="w-full flex items-center space-x-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors duration-200 text-sm"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
                         </div>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await signOut();
-                              setShowProfileDropdown(false);
-                            } catch (error) {
-                              console.error('Error signing out:', error);
-                            }
-                          }}
-                          className="w-full flex items-center space-x-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors duration-200 text-sm"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>Sign Out</span>
-                        </button>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

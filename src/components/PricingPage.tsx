@@ -1,5 +1,7 @@
-import React from 'react';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2 } from 'lucide-react';
+import { PRODUCTS } from '../stripe-config';
+import { stripeClient } from '../modules/payments/stripe-client';
 
 interface PricingPageProps {
   onSelectPlan: (plan: string) => void;
@@ -7,6 +9,28 @@ interface PricingPageProps {
 }
 
 export default function PricingPage({ onSelectPlan, onStayFree }: PricingPageProps) {
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+
+  const handleSelectPlan = async (priceId: string, planName: string) => {
+    try {
+      setIsLoading(planName);
+      
+      await stripeClient.redirectToCheckout({
+        priceId,
+        mode: 'subscription',
+        successUrl: `${window.location.origin}/success?plan=${planName}`,
+        cancelUrl: `${window.location.origin}/pricing`,
+      });
+      
+      // Note: The page will redirect, so we won't reach this point
+      onSelectPlan(planName);
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      setIsLoading(null);
+      alert('There was an error redirecting to checkout. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
@@ -60,167 +84,83 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       {/* Pricing Cards */}
       <div className="max-w-7xl mx-auto px-4 pb-20">
         <div className="grid md:grid-cols-3 gap-8">
-          {/* Standard Plan */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]">
-            <div className="p-8">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Standard</h3>
-                  <p className="text-slate-400 mb-4">For individual professionals</p>
+          {PRODUCTS.map((product) => (
+            <div 
+              key={product.id}
+              className={`${
+                product.popular 
+                  ? "bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20" 
+                  : "bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]"
+              }`}
+            >
+              {product.popular && (
+                <div className="bg-[#186799] text-white text-center py-2 text-sm font-medium">
+                  MOST POPULAR
                 </div>
-                <div className="p-2 rounded-lg bg-slate-700/50">
-                  <Star className="w-5 h-5 text-slate-400" />
+              )}
+              <div className="p-8">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
+                    <p className="text-slate-400 mb-4">{product.description}</p>
+                  </div>
+                  <div className={`p-2 rounded-lg ${
+                    product.name === 'Standard' ? 'bg-slate-700/50' : 
+                    product.name === 'Premium' ? 'bg-[#186799]/30' : 
+                    'bg-purple-900/30'
+                  }`}>
+                    {product.name === 'Standard' ? <Star className="w-5 h-5 text-slate-400" /> : 
+                     product.name === 'Premium' ? <Zap className="w-5 h-5 text-[#186799]" /> : 
+                     <Shield className="w-5 h-5 text-purple-400" />}
+                  </div>
                 </div>
-              </div>
-              
-              <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$20</span>
-                <span className="text-slate-400 ml-2">/month</span>
-              </div>
-              
-              <button 
-                onClick={() => onSelectPlan('standard')}
-                className="w-full py-3 px-4 rounded-lg border border-slate-600 text-white hover:bg-slate-700 transition-colors duration-200 mb-6"
-              >
-                Get Started
-              </button>
-              
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Call time: 20min / day</span>
+                
+                <div className="mt-6 mb-6">
+                  <span className="text-4xl font-bold text-white">${product.price}</span>
+                  <span className="text-slate-400 ml-2">/month</span>
                 </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Agents: 7</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Integrations: All Integrations</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Storage: 5GB</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Chat Tokens: 4M</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Premium Plan */}
-          <div className="bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20">
-            <div className="bg-[#186799] text-white text-center py-2 text-sm font-medium">
-              MOST POPULAR
-            </div>
-            <div className="p-8">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Premium</h3>
-                  <p className="text-slate-300 mb-4">For professionals and teams</p>
-                </div>
-                <div className="p-2 rounded-lg bg-[#186799]/30">
-                  <Zap className="w-5 h-5 text-[#186799]" />
-                </div>
-              </div>
-              
-              <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$80</span>
-                <span className="text-slate-300 ml-2">/month</span>
-              </div>
-              
-              <button 
-                onClick={() => onSelectPlan('premium')}
-                className="w-full py-3 px-4 rounded-lg bg-[#186799] text-white hover:bg-[#1a5a7a] transition-colors duration-200 mb-6 flex items-center justify-center space-x-2"
-              >
-                <span>Choose Premium</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-              
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Call time: 100min / day</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Agents: up to 50</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Integrations: All Integrations</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Storage: 50GB</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Chat Tokens: 15M</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Priority support</span>
+                
+                <button 
+                  onClick={() => handleSelectPlan(product.priceId, product.name.toLowerCase())}
+                  disabled={isLoading !== null}
+                  className={`w-full py-3 px-4 rounded-lg ${
+                    product.name === 'Standard' 
+                      ? "border border-slate-600 text-white hover:bg-slate-700" 
+                      : product.name === 'Premium'
+                      ? "bg-[#186799] text-white hover:bg-[#1a5a7a] flex items-center justify-center space-x-2" 
+                      : "border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40"
+                  } transition-colors duration-200 mb-6`}
+                >
+                  {isLoading === product.name.toLowerCase() ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      <span>Processing...</span>
+                    </div>
+                  ) : (
+                    <>
+                      {product.name === 'Premium' ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <span>Choose Premium</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        product.name === 'Pro' ? 'Contact Sales' : 'Get Started'
+                      )}
+                    </>
+                  )}
+                </button>
+                
+                <div className="space-y-4">
+                  {product.features?.map((feature, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-300">{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
-          
-          {/* Pro Plan */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]">
-            <div className="p-8">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
-                  <p className="text-slate-400 mb-4">For large organizations</p>
-                </div>
-                <div className="p-2 rounded-lg bg-purple-900/30">
-                  <Shield className="w-5 h-5 text-purple-400" />
-                </div>
-              </div>
-              
-              <div className="mt-6 mb-6">
-                <span className="text-4xl font-bold text-white">$250</span>
-                <span className="text-slate-400 ml-2">/month</span>
-              </div>
-              
-              <button 
-                onClick={() => onSelectPlan('pro')}
-                className="w-full py-3 px-4 rounded-lg border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40 transition-colors duration-200 mb-6"
-              >
-                Contact Sales
-              </button>
-              
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Call time: Unlimited*</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Agents: Unlimited*</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Integrations: Custom</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Storage: Unlimited*</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Chat Tokens: Unlimited*</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Dedicated account manager</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
         
         {/* Free Plan Link */}
