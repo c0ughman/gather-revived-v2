@@ -202,10 +202,10 @@ export default function CallScreen({
   };
 
   // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-3/4 ml-1/4";
+  const mainContentClass = showSidebar ? "w-3/4" : "w-full";
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col">
+    <div className={`h-full bg-glass-bg flex flex-col ${mainContentClass}`}>
       {/* Header */}
       <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
         <button
@@ -231,7 +231,7 @@ export default function CallScreen({
       </div>
 
       {/* Main Call Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
+      <div className="flex-1 flex flex-col items-center justify-center px-8">
         {/* Avatar */}
         <div className="relative mb-8">
           <div
@@ -297,10 +297,7 @@ export default function CallScreen({
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
           <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed">
-            {contact.description.length > 80 
-              ? `${contact.description.substring(0, 80)}...` 
-              : contact.description
-            }
+            {contact.description}
           </p>
         </div>
 
