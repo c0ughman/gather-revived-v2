@@ -65,7 +65,7 @@ export default function SignupPage({ onSuccess, onBackToLanding }: SignupPagePro
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 flex">
       {/* Left Side - Signup Form */}
       <div className="w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
@@ -175,7 +175,7 @@ export default function SignupPage({ onSuccess, onBackToLanding }: SignupPagePro
             <p className="text-slate-400 text-sm">
               Already have an account?{' '}
               <button
-                onClick={() => onBackToLanding()}
+                onClick={onBackToLanding}
                 className="text-[#186799] hover:text-[#1a5a7a] font-medium transition-colors duration-200"
               >
                 Sign In

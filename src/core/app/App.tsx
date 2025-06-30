@@ -151,7 +151,7 @@ export default function App() {
   };
 
   const handleBackToLanding = () => {
-    setCurrentView('landing');
+    setCurrentView('login'); // Changed from 'landing' to 'login'
   };
 
   const handleSelectPlan = (plan: string) => {
