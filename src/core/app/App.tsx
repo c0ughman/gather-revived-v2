@@ -867,4 +867,18 @@ export default function App() {
                 <div className={`p-4 rounded-lg border ${
                   oauthMessage.includes('✅') 
                     ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
-                    : 'bg-red-
+                    : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
+                }`}>
+                  <p className="text-sm font-medium">{oauthMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Main Content */}
+            {renderMainContent()}
+          </div>
+        } />
+      </Routes>
+    </Router>
+  );
+}
