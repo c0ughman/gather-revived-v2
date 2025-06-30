@@ -259,7 +259,7 @@ class IntegrationsService {
   }
 
   /**
-   * Execute webhook trigger tool
+   * Execute webhook trigger tool - Now using Supabase Edge Function to avoid CORS issues
    */
   async executeWebhookTriggerTool(
     webhookUrl: string,
@@ -286,28 +286,39 @@ class IntegrationsService {
         payloadObj = {};
       }
 
-      const options: RequestInit = {
+      // Get Supabase URL from environment
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('VITE_SUPABASE_URL is not defined in environment variables');
+      }
+
+      // Use Supabase Edge Function as a proxy to avoid CORS issues
+      const proxyUrl = `${supabaseUrl}/functions/v1/trigger-external-webhook`;
+      
+      const response = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...headers
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify(payloadObj)
-      };
-
-      const response = await fetch(webhookUrl, options);
+        body: JSON.stringify({
+          webhookUrl,
+          payload: payloadObj,
+          headers
+        })
+      });
       
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch (e) {
-        responseData = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Webhook proxy failed: ${response.status} ${errorText}`);
       }
 
+      const result = await response.json();
+      
       return {
-        success: response.ok,
-        status: response.status,
-        data: responseData
+        success: result.success,
+        status: result.status,
+        data: result.data
       };
     } catch (error) {
       console.error(`❌ Webhook trigger failed: ${error.message}`);

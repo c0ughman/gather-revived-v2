@@ -715,6 +715,7 @@ ${contact.name}:`;
       // Parse headers - Zapier typically doesn't need special headers
       const headers = { 'Content-Type': 'application/json' };
 
+      // Use the proxy service to avoid CORS issues
       const result = await integrationsService.executeWebhookTriggerTool(
         webhookUrl,
         processedPayload,

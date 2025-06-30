@@ -57,6 +57,7 @@ supabase db push
 # Deploy Edge Functions
 echo "🚀 Deploying Edge Functions..."
 supabase functions deploy notion-oauth
+supabase functions deploy trigger-external-webhook
 
 echo "✅ Deployment complete!"
 echo ""
@@ -71,4 +72,4 @@ echo "🔍 To view function logs:"
 echo "supabase functions logs notion-oauth"
 echo ""
 echo "🛠️ To update the function:"
-echo "supabase functions deploy notion-oauth" 
+echo "supabase functions deploy notion-oauth"
