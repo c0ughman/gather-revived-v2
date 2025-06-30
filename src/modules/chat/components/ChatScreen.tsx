@@ -469,9 +469,7 @@ export default function ChatScreen({
                   {totalConversationDocuments} conversation document{totalConversationDocuments > 1 ? 's' : ''} available
                 </span>
               )}
-              {permanentDocuments > 0 && (
-
-              )}
+              
             </div>
           )}
         </div>
