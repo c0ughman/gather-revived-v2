@@ -3,6 +3,7 @@ import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlu
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
+import { getIntegrationById } from '../../integrations/data/integrations';
 
 interface ChatScreenProps {
   contact: AIContact;
@@ -86,6 +87,9 @@ export default function ChatScreen({
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
   };
 
+  // Get active integrations
+  const activeIntegrations = contact.integrations?.filter(i => i.status === 'active') || [];
+
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
     // Convert hex to RGB
@@ -146,13 +150,36 @@ export default function ChatScreen({
     );
   };
 
+  // Get document color based on file type
+  const getDocumentColor = (doc: DocumentInfo) => {
+    const extension = doc.name.toLowerCase().split('.').pop();
+    
+    if (extension === 'pdf' || doc.type.includes('pdf')) {
+      return 'bg-red-700/80 text-red-100'; // PDF - red
+    } else if (['xlsx', 'xls', 'csv'].includes(extension || '') || doc.type.includes('spreadsheet') || doc.type.includes('excel') || doc.type.includes('csv')) {
+      return 'bg-green-700/80 text-green-100'; // Excel/spreadsheet - green
+    } else if (['docx', 'doc'].includes(extension || '') || doc.type.includes('word') || doc.type.includes('document')) {
+      return 'bg-blue-700/80 text-blue-100'; // Word/document - blue
+    } else {
+      return 'bg-slate-700/80 text-slate-300'; // Default - gray
+    }
+  };
+
+  // Get integration color
+  const getIntegrationColor = (integration: any) => {
+    const integrationDef = getIntegrationById(integration.integrationId);
+    if (integrationDef) {
+      // Convert hex color to tailwind-compatible background with opacity
+      const color = integrationDef.color.replace('#', '');
+      return `bg-[#${color}]/80 text-[#${color.substring(0, 2)}ffff]`;
+    }
+    return 'bg-slate-700/80 text-slate-300'; // Default
+  };
+
   // Count total documents available to this AI
   const permanentDocuments = contact.documents?.length || 0;
   const totalConversationDocuments = conversationDocuments.length;
   const pendingDocumentsCount = pendingDocuments.length;
-
-  // Get active integrations
-  const activeIntegrations = contact.integrations?.filter(i => i.status === 'active') || [];
 
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
@@ -262,7 +289,7 @@ export default function ChatScreen({
       <div className="fixed top-[72px] left-1/4 right-1/4 z-10 px-4 py-2">
         <div className="flex flex-wrap gap-2 justify-center">
           {conversationDocuments.slice(0, 3).map((doc) => (
-            <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+            <span key={doc.id} className={`px-2 py-1 ${getDocumentColor(doc)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
               {doc.name}
             </span>
           ))}
@@ -273,7 +300,7 @@ export default function ChatScreen({
           )}
           
           {activeIntegrations.slice(0, 3).map((integration) => (
-            <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+            <span key={integration.id} className={`px-2 py-1 ${getIntegrationColor(integration)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
               {integration.name}
             </span>
           ))}
@@ -315,7 +342,7 @@ export default function ChatScreen({
               {/* Document and Integration Pills */}
               <div className="flex flex-wrap justify-center gap-2 mb-4">
                 {contact.documents && contact.documents.slice(0, 5).map((doc) => (
-                  <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                  <span key={doc.id} className={`px-2 py-1 ${getDocumentColor(doc)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
                     {doc.name}
                   </span>
                 ))}
@@ -326,7 +353,7 @@ export default function ChatScreen({
                 )}
                 
                 {activeIntegrations.slice(0, 5).map((integration) => (
-                  <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                  <span key={integration.id} className={`px-2 py-1 ${getIntegrationColor(integration)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
                     {integration.name}
                   </span>
                 ))}
@@ -546,7 +573,7 @@ export default function ChatScreen({
             </div>
             <div className="flex flex-wrap gap-2">
               {conversationDocuments.slice(0, 5).map((doc) => (
-                <div key={doc.id} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
+                <div key={doc.id} className={`text-xs ${getDocumentColor(doc)} px-2 py-1 rounded-full`}>
                   {doc.name}
                 </div>
               ))}
