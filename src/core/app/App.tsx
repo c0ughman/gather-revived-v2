@@ -430,7 +430,7 @@ export default function App() {
         <Route path="/success" element={<SuccessPage />} />
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
-            {/* Left Sidebar - Contacts */}
+            {/* Left Sidebar - Contacts - 25% width */}
             <div className="w-1/4 border-r border-slate-700">
               <ContactSidebar
                 contacts={contacts}
