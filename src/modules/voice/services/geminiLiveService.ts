@@ -2,7 +2,6 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { AIContact } from '../../../core/types/types';
 import { integrationsService } from '../../integrations';
 import { documentService, documentContextService } from '../../fileManagement';
-import { DomainChecker } from '../../../core/utils/domainChecker';
 
 // Configuration for Gemini Live API
 interface GeminiLiveConfig {
@@ -473,7 +472,7 @@ class GeminiLiveService {
               const { domain, variations } = fc.args;
               console.log(`🔍 Checking domain availability for: ${domain}`);
               
-              const result = await DomainChecker.checkDomainAvailability(domain, variations, this.currentContact || undefined);
+              const result = await this.checkDomainAvailability(domain, variations);
               
               functionResponses.push({
                 id: fc.id,
