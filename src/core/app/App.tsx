@@ -17,7 +17,6 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
-import { X } from 'lucide-react';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -83,6 +82,7 @@ export default function App() {
         avatar: agent.avatar_url,
         status: agent.status as 'online' | 'busy' | 'offline',
         lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
+        total_messages: agent.total_messages,
         integrations: agent.agent_integrations?.map((integration: any) => ({
           id: integration.id,
           integrationId: integration.template_id,
@@ -239,7 +239,7 @@ export default function App() {
   };
 
   const handleToggleSidebar = () => {
-    setShowSidebar(!showSidebar);
+    setShowSidebar(prev => !prev);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -410,7 +410,7 @@ export default function App() {
   // If not authenticated, show landing page or signup page based on currentView
   if (!user) {
     if (currentView === 'signup') {
-      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} />;
+      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} onSignIn={handleSignIn} />;
     } else if (currentView === 'login') {
       return <AuthScreen />;
     } else {
@@ -432,7 +432,7 @@ export default function App() {
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
             {/* Left Sidebar - Contacts */}
-            <div className="w-1/4 border-r border-slate-700">
+            <div className="w-80 border-r border-slate-700">
               <ContactSidebar
                 contacts={contacts}
                 onChatClick={handleChatClick}
@@ -473,17 +473,15 @@ export default function App() {
                 )}
                 
                 {currentView === 'call' && selectedContact && (
-                  <div className={showSidebar ? "w-3/4" : "w-full"}>
-                    <CallScreen
-                      contact={selectedContact}
-                      callState={callState}
-                      onBack={handleBack}
-                      onEndCall={handleEndCall}
-                      onToggleMute={handleToggleMute}
-                      showSidebar={showSidebar}
-                      onToggleSidebar={handleToggleSidebar}
-                    />
-                  </div>
+                  <CallScreen
+                    contact={selectedContact}
+                    callState={callState}
+                    onBack={handleBack}
+                    onEndCall={handleEndCall}
+                    onToggleMute={handleToggleMute}
+                    showSidebar={showSidebar}
+                    onToggleSidebar={handleToggleSidebar}
+                  />
                 )}
                 
                 {currentView === 'settings' && selectedContact && (
@@ -516,14 +514,8 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Settings (when in chat view) */}
-              {(currentView === 'chat' || currentView === 'call') && showSidebar && (
-                <div className="w-1/4 border-l border-slate-700 relative">
-                  <button 
-                    onClick={handleToggleSidebar}
-                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors duration-200 z-10"
-                  >
-                    <X className="w-4 h-4 text-slate-400" />
-                  </button>
+              {currentView === 'chat' && showSidebar && (
+                <div className="w-80 border-l border-slate-700">
                   <SettingsSidebar
                     contact={selectedContact}
                     onSave={handleSaveContact}
