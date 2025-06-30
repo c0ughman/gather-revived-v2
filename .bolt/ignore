@@ -18,3 +18,104 @@ tailwind.config.js
 postcss.config.js
 eslint.config.js
 *.md
+
+# ==============================================================================
+# CORE APPLICATION (~3,740 tokens)
+# ==============================================================================
+src/main.tsx
+src/index.css
+src/core/
+src/core/app/App.tsx
+src/core/config/
+src/core/types/
+src/core/hooks/
+src/core/data/
+src/core/utils/
+src/core/index.ts
+
+# ==============================================================================
+# VOICE MODULE (~13,250 tokens)
+# ==============================================================================
+src/modules/voice/
+src/modules/voice/services/geminiLiveService.ts
+src/modules/voice/components/
+src/modules/voice/types/
+src/modules/voice/index.ts
+
+# ==============================================================================
+# FILE MANAGEMENT MODULE (~13,075 tokens)
+# ==============================================================================
+src/modules/fileManagement/
+src/modules/fileManagement/services/geminiService.ts
+src/modules/fileManagement/services/documentService.ts
+src/modules/fileManagement/services/documentContextService.ts
+src/modules/fileManagement/types/
+src/modules/fileManagement/index.ts
+
+# ==============================================================================
+# INTEGRATIONS MODULE (~22,750 tokens)
+# ==============================================================================
+src/modules/integrations/
+src/modules/integrations/core/integrationsService.ts
+src/modules/integrations/notion/notionService.ts
+src/modules/integrations/notion/notionDataFormatter.ts
+src/modules/integrations/data/
+src/modules/integrations/types/
+src/modules/integrations/index.ts
+
+# ==============================================================================
+# UI MODULE (~26,650 tokens)
+# (Excluded by commenting out all related lines)
+# ==============================================================================
+# src/modules/ui/
+# src/modules/ui/components/
+# src/modules/ui/index.ts
+
+# ==============================================================================
+# CHAT MODULE (~4,500 tokens)
+# ==============================================================================
+# src/modules/chat/
+# src/modules/chat/components/ChatScreen.tsx
+# src/modules/chat/types/
+# src/modules/chat/index.ts
+
+# ==============================================================================
+# AUTH MODULE (~3,000 tokens)
+# ==============================================================================
+src/modules/auth/
+src/modules/auth/components/AuthScreen.tsx
+src/modules/auth/hooks/useAuth.ts
+src/modules/auth/types/
+src/modules/auth/index.ts
+
+# ==============================================================================
+# OAUTH MODULE (~5,575 tokens)
+# ==============================================================================
+src/modules/oauth/
+src/modules/oauth/components/OAuthCallback.tsx
+src/modules/oauth/components/OAuthConnect.tsx
+src/modules/oauth/services/oauthService.ts
+src/modules/oauth/data/
+src/modules/oauth/types/
+src/modules/oauth/index.ts
+
+# ==============================================================================
+# DATABASE MODULE (~1,700 tokens)
+# ==============================================================================
+src/modules/database/
+src/modules/database/services/supabaseService.ts
+src/modules/database/lib/
+src/modules/database/types/
+src/modules/database/index.ts
+
+# ==============================================================================
+# SUPABASE BACKEND (~3,000 tokens estimated)
+# ==============================================================================
+supabase/
+supabase/functions/
+supabase/migrations/
+
+# ==============================================================================
+# DOCUMENTATION & GUIDES (~10,000 tokens estimated)
+# ==============================================================================
+# Already covered by *.md above
