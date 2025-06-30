@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../modules/auth/hooks/useAuth';
+import { useAuth } from '../../modules/auth/hooks/useAuth';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { AIContact, Message } from '../types/types';
 import { contacts as initialContacts } from '../data/contacts';
-import { DocumentInfo } from '../modules/fileManagement/types/documents';
+import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 
 // Components
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
 import PricingPage from '../../components/PricingPage';
 import SuccessPage from '../../components/SuccessPage';
-import AuthScreen from '../modules/auth/components/AuthScreen';
-import Dashboard from '../modules/ui/components/Dashboard';
-import ContactSidebar from '../modules/ui/components/ContactSidebar';
-import SettingsSidebar from '../modules/ui/components/SettingsSidebar';
-import ChatScreen from '../modules/chat/components/ChatScreen';
-import CallScreen from '../modules/voice/components/CallScreen';
-import OAuthCallback from '../modules/oauth/components/OAuthCallback';
+import AuthScreen from '../../modules/auth/components/AuthScreen';
+import Dashboard from '../../modules/ui/components/Dashboard';
+import ContactSidebar from '../../modules/ui/components/ContactSidebar';
+import SettingsSidebar from '../../modules/ui/components/SettingsSidebar';
+import ChatScreen from '../../modules/chat/components/ChatScreen';
+import CallScreen from '../../modules/voice/components/CallScreen';
+import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 
 export default function App() {
   const { user, loading } = useAuth();
