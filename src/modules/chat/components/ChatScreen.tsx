@@ -206,7 +206,7 @@ export default function ChatScreen({
                   <>
                     <span>•</span>
                     <span className="text-[#186799]">
-                      📚 {permanentDocuments} knowledge doc{permanentDocuments > 1 ? 's' : ''}
+                      {permanentDocuments} knowledge doc{permanentDocuments > 1 ? 's' : ''}
                     </span>
                   </>
                 )}
@@ -214,7 +214,7 @@ export default function ChatScreen({
                   <>
                     <span>•</span>
                     <span className="text-green-400">
-                      💬 {totalConversationDocuments} conversation doc{totalConversationDocuments > 1 ? 's' : ''}
+                      {totalConversationDocuments} conversation doc{totalConversationDocuments > 1 ? 's' : ''}
                     </span>
                   </>
                 )}
@@ -222,7 +222,7 @@ export default function ChatScreen({
                   <>
                     <span>•</span>
                     <span className="text-yellow-400">
-                      📎 {pendingDocumentsCount} pending
+                      {pendingDocumentsCount} pending
                     </span>
                   </>
                 )}
@@ -287,54 +287,38 @@ export default function ChatScreen({
               
               {/* Document and Integration Pills */}
               <div className="flex flex-wrap justify-center gap-2 mb-4">
-                {/* Document Pills */}
-                {contact.documents && contact.documents.length > 0 && (
-                  <div className="w-full flex flex-wrap justify-center gap-2 mb-2">
-                    <p className="w-full text-[#186799] text-sm mb-1">
-                      Knowledge Base Documents:
-                    </p>
-                    {contact.documents.slice(0, 5).map((doc) => (
-                      <span key={doc.id} className="px-2 py-1 bg-[#186799]/20 text-[#186799] rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                        📄 {doc.name}
-                      </span>
-                    ))}
-                    {contact.documents.length > 5 && (
-                      <span className="px-2 py-1 bg-[#186799]/10 text-[#186799] rounded-full text-xs">
-                        +{contact.documents.length - 5} more
-                      </span>
-                    )}
-                  </div>
+                {contact.documents && contact.documents.slice(0, 5).map((doc) => (
+                  <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                    {doc.name}
+                  </span>
+                ))}
+                {contact.documents && contact.documents.length > 5 && (
+                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                    +{contact.documents.length - 5} more
+                  </span>
                 )}
                 
-                {/* Integration Pills */}
-                {activeIntegrations.length > 0 && (
-                  <div className="w-full flex flex-wrap justify-center gap-2">
-                    <p className="w-full text-green-400 text-sm mb-1">
-                      Active Integrations:
-                    </p>
-                    {activeIntegrations.slice(0, 5).map((integration) => (
-                      <span key={integration.id} className="px-2 py-1 bg-green-900/20 text-green-400 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                        🔌 {integration.name}
-                      </span>
-                    ))}
-                    {activeIntegrations.length > 5 && (
-                      <span className="px-2 py-1 bg-green-900/10 text-green-400 rounded-full text-xs">
-                        +{activeIntegrations.length - 5} more
-                      </span>
-                    )}
-                  </div>
+                {activeIntegrations.slice(0, 5).map((integration) => (
+                  <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                    {integration.name}
+                  </span>
+                ))}
+                {activeIntegrations.length > 5 && (
+                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                    +{activeIntegrations.length - 5} more
+                  </span>
                 )}
               </div>
               
               <div className="space-y-2">
                 {permanentDocuments > 0 && (
                   <p className="text-[#186799] text-sm">
-                    📚 This AI has {permanentDocuments} document{permanentDocuments > 1 ? 's' : ''} in its permanent knowledge base
+                    This AI has {permanentDocuments} document{permanentDocuments > 1 ? 's' : ''} in its permanent knowledge base
                   </p>
                 )}
                 {totalConversationDocuments > 0 && (
                   <p className="text-green-400 text-sm">
-                    💬 This conversation has {totalConversationDocuments} shared document{totalConversationDocuments > 1 ? 's' : ''} available
+                    This conversation has {totalConversationDocuments} shared document{totalConversationDocuments > 1 ? 's' : ''} available
                   </p>
                 )}
               </div>
@@ -356,10 +340,10 @@ export default function ChatScreen({
                       {/* Show attached documents (only newly attached in this message) */}
                       {message.attachments && message.attachments.length > 0 && (
                         <div className="mt-2 pt-2 border-t border-opacity-20 border-white">
-                          <p className="text-xs opacity-75 mb-1">📎 New documents shared:</p>
+                          <p className="text-xs opacity-75 mb-1">New documents shared:</p>
                           {message.attachments.map((doc) => (
                             <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1">
-                              📄 {doc.name} ({Math.round(doc.size / 1024)}KB)
+                              {doc.name} ({Math.round(doc.size / 1024)}KB)
                             </div>
                           ))}
                         </div>
@@ -399,36 +383,26 @@ export default function ChatScreen({
       {messages.length > 0 && (
         <div className="fixed bottom-24 left-1/4 right-1/4 z-10 px-4">
           <div className="flex flex-wrap gap-2 justify-center">
-            {/* Document Pills */}
-            {conversationDocuments.length > 0 && (
-              <div className="flex flex-wrap gap-1 justify-center">
-                {conversationDocuments.slice(0, 3).map((doc) => (
-                  <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                    📄 {doc.name}
-                  </span>
-                ))}
-                {conversationDocuments.length > 3 && (
-                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
-                    +{conversationDocuments.length - 3} more
-                  </span>
-                )}
-              </div>
+            {conversationDocuments.slice(0, 3).map((doc) => (
+              <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                {doc.name}
+              </span>
+            ))}
+            {conversationDocuments.length > 3 && (
+              <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                +{conversationDocuments.length - 3} more
+              </span>
             )}
             
-            {/* Integration Pills */}
-            {activeIntegrations.length > 0 && (
-              <div className="flex flex-wrap gap-1 justify-center">
-                {activeIntegrations.slice(0, 3).map((integration) => (
-                  <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                    🔌 {integration.name}
-                  </span>
-                ))}
-                {activeIntegrations.length > 3 && (
-                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
-                    +{activeIntegrations.length - 3} more
-                  </span>
-                )}
-              </div>
+            {activeIntegrations.slice(0, 3).map((integration) => (
+              <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                {integration.name}
+              </span>
+            ))}
+            {activeIntegrations.length > 3 && (
+              <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                +{activeIntegrations.length - 3} more
+              </span>
             )}
           </div>
         </div>
@@ -533,17 +507,17 @@ export default function ChatScreen({
             <div className="mt-2 flex items-center justify-center space-x-4 text-xs">
               {pendingDocuments.length > 0 && (
                 <span className="text-yellow-400">
-                  📎 {pendingDocuments.length} new document{pendingDocuments.length > 1 ? 's' : ''} ready to send
+                  {pendingDocuments.length} new document{pendingDocuments.length > 1 ? 's' : ''} ready to send
                 </span>
               )}
               {totalConversationDocuments > 0 && (
                 <span className="text-green-400">
-                  💬 {totalConversationDocuments} conversation document{totalConversationDocuments > 1 ? 's' : ''} available
+                  {totalConversationDocuments} conversation document{totalConversationDocuments > 1 ? 's' : ''} available
                 </span>
               )}
               {permanentDocuments > 0 && (
                 <span className="text-[#186799]">
-                  📚 {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
+                  {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -575,7 +549,7 @@ export default function ChatScreen({
             <div className="flex flex-wrap gap-2">
               {conversationDocuments.slice(0, 5).map((doc) => (
                 <div key={doc.id} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
-                  📄 {doc.name}
+                  {doc.name}
                 </div>
               ))}
               {totalConversationDocuments > 5 && (
