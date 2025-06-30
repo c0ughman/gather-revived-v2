@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { X } from 'lucide-react';
 import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
 import CallScreen from '../../modules/voice/components/CallScreen';
@@ -18,6 +17,7 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
+import { X } from 'lucide-react';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -168,10 +168,6 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
-  const handleToggleSidebar = () => {
-    setShowSidebar(!showSidebar);
-  };
-
   const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('chat');
@@ -233,15 +229,21 @@ export default function App() {
   const handleBack = () => {
     setCurrentView('dashboard');
     setSelectedContact(null);
+    setShowSidebar(false);
   };
 
   const handleHomeClick = () => {
     setCurrentView('dashboard');
     setSelectedContact(null);
+    setShowSidebar(false);
   };
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
+  };
+
+  const handleToggleSidebar = () => {
+    setShowSidebar(!showSidebar);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -434,7 +436,7 @@ export default function App() {
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
             {/* Left Sidebar - Contacts */}
-            <div className="w-80 border-r border-slate-700">
+            <div className="w-1/4 border-r border-slate-700">
               <ContactSidebar
                 contacts={contacts}
                 onChatClick={handleChatClick}
@@ -517,8 +519,8 @@ export default function App() {
 
               {/* Right Sidebar - Settings (when in chat view) */}
               {(currentView === 'chat' || currentView === 'call') && showSidebar && (
-                <div className="w-80 border-l border-slate-700 relative">
-                  <button
+                <div className="w-1/4 border-l border-slate-700 relative">
+                  <button 
                     onClick={handleToggleSidebar}
                     className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors duration-200 z-10"
                   >
