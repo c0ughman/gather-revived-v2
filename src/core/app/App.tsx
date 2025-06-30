@@ -34,6 +34,7 @@ export default function App() {
     isMuted: false,
     status: 'ended'
   });
+  const [showSidebar, setShowSidebar] = useState(true);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -81,8 +82,6 @@ export default function App() {
         avatar: agent.avatar_url,
         status: agent.status as 'online' | 'busy' | 'offline',
         lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
-        lastUsed: agent.last_used_at,
-        total_messages: agent.total_messages,
         integrations: agent.agent_integrations?.map((integration: any) => ({
           id: integration.id,
           integrationId: integration.template_id,
@@ -100,7 +99,8 @@ export default function App() {
           summary: doc.summary,
           extractedText: doc.extracted_text,
           metadata: doc.metadata || {}
-        }))
+        })),
+        total_messages: agent.total_messages || 0
       }));
 
       setContacts(transformedContacts);
@@ -236,6 +236,10 @@ export default function App() {
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
+  };
+
+  const handleToggleSidebar = () => {
+    setShowSidebar(!showSidebar);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -506,13 +510,24 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Settings (when in chat view) */}
-              {currentView === 'chat' && (
+              {currentView === 'chat' && showSidebar && (
                 <div className="w-80 border-l border-slate-700">
                   <SettingsSidebar
                     contact={selectedContact}
                     onSave={handleSaveContact}
                   />
                 </div>
+              )}
+              
+              {/* Sidebar toggle button when sidebar is hidden */}
+              {currentView === 'chat' && !showSidebar && (
+                <button
+                  onClick={() => setShowSidebar(true)}
+                  className="fixed top-20 right-4 p-2 bg-slate-700 hover:bg-slate-600 rounded-full z-20"
+                  title="Show sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-white" />
+                </button>
               )}
             </div>
           </div>

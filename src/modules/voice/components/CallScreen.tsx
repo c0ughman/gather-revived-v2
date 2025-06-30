@@ -295,7 +295,7 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
         
         {/* Response Text */}
         {responseText && callState.status === 'connected' && (
-          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700 max-h-32 overflow-y-auto">
             <p className="text-slate-300 text-sm italic">"{responseText}"</p>
           </div>
         )}

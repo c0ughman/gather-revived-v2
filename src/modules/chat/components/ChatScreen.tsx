@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone } from 'lucide-react';
+import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft } from 'lucide-react';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
@@ -31,6 +31,7 @@ export default function ChatScreen({
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [pendingDocuments, setPendingDocuments] = useState<DocumentInfo[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -88,6 +89,10 @@ export default function ChatScreen({
 
   const handleRemoveDocument = (documentId: string) => {
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
+  const toggleSidebar = () => {
+    setShowSidebar(!showSidebar);
   };
 
   // Get document color based on file type
@@ -245,6 +250,17 @@ export default function ChatScreen({
             title="Start call"
           >
             <Phone className="w-4 h-4 text-slate-400" />
+          </button>
+
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            {showSidebar ? 
+              <ChevronRight className="w-4 h-4 text-slate-400" /> : 
+              <ChevronLeft className="w-4 h-4 text-slate-400" />
+            }
           </button>
         </div>
       </div>
@@ -430,16 +446,19 @@ export default function ChatScreen({
               )}
             </button>
             
-            {/* Input Field */}
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={`Message ${contact.name}...`}
-              disabled={isTyping}
-              className="flex-1 bg-transparent text-white px-4 py-4 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400"
-            />
+            {/* Input Field - Smaller and scrollable */}
+            <div className="flex-1 relative">
+              <textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={`Message ${contact.name}...`}
+                disabled={isTyping}
+                className="w-full bg-transparent text-white px-4 py-3 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-slate-400 resize-none max-h-24 overflow-y-auto"
+                rows={1}
+                style={{ minHeight: '42px' }}
+              />
+            </div>
             
             {/* Send Button - Inside input */}
             <button
