@@ -180,24 +180,14 @@ export default function ChatScreen({
   const totalConversationDocuments = conversationDocuments.length;
   const pendingDocumentsCount = pendingDocuments.length;
 
-  // Calculate responsive layout classes based on sidebar visibility
-  const headerClass = showSidebar 
-    ? "left-0 right-1/4 md:left-80 md:right-0" 
-    : "left-0 right-0";
-  
-  const contentContainerClass = showSidebar
-    ? "w-full md:w-3/4 lg:w-2/3 xl:w-1/2 mx-auto"
-    : "w-full md:w-4/5 lg:w-3/4 xl:w-2/3 mx-auto";
-  
-  const inputContainerClass = showSidebar
-    ? "left-0 right-1/4 md:left-80 md:right-0"
-    : "left-0 right-0";
+  // Calculate main content width based on sidebar visibility
+  const mainContentClass = showSidebar ? "left-1/4 right-1/4" : "left-1/4 right-0";
 
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className={`fixed top-0 ${headerClass} z-20 border-b border-slate-700 p-3 flex items-center space-x-3 transition-all duration-300`}
+        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3 flex items-center space-x-3`}
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -273,8 +263,8 @@ export default function ChatScreen({
       </div>
 
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pt-20 pb-32">
-        <div className={`p-4 ${contentContainerClass} transition-all duration-300`}>
+      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
+        <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
               <div className="w-24 h-24 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg overflow-hidden">
@@ -386,48 +376,46 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className={`relative z-10 p-4 bg-glass-bg transition-all duration-300`}>
-          <div className={`${contentContainerClass}`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium">Upload Conversation Documents</h3>
-              <button
-                onClick={() => {
-                  setShowDocumentUpload(false);
-                  setUploadError(null);
-                }}
-                className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
-              >
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            </div>
-            
-            <p className="text-slate-400 text-sm mb-4">
-              These documents will be available throughout this conversation. For permanent knowledge, use Settings.
-            </p>
-            
-            {uploadError && (
-              <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
-                <p className="text-red-300 text-sm">{uploadError}</p>
-              </div>
-            )}
-            
-            <DocumentUpload
-              onDocumentUploaded={handleDocumentUploaded}
-              onError={handleDocumentError}
-              className="mb-4"
-            />
-            
-            <DocumentList
-              documents={pendingDocuments}
-              onRemoveDocument={handleRemoveDocument}
-            />
+        <div className={`relative z-10 p-4 bg-glass-bg ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">Upload Conversation Documents</h3>
+            <button
+              onClick={() => {
+                setShowDocumentUpload(false);
+                setUploadError(null);
+              }}
+              className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            >
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
           </div>
+          
+          <p className="text-slate-400 text-sm mb-4">
+            These documents will be available throughout this conversation. For permanent knowledge, use Settings.
+          </p>
+          
+          {uploadError && (
+            <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+              <p className="text-red-300 text-sm">{uploadError}</p>
+            </div>
+          )}
+          
+          <DocumentUpload
+            onDocumentUploaded={handleDocumentUploaded}
+            onError={handleDocumentError}
+            className="mb-4"
+          />
+          
+          <DocumentList
+            documents={pendingDocuments}
+            onRemoveDocument={handleRemoveDocument}
+          />
         </div>
       )}
 
       {/* Input Area - Fixed at bottom */}
-      <div className={`fixed bottom-0 ${inputContainerClass} z-10 p-4 transition-all duration-300`}>
-        <div className={`${contentContainerClass}`}>
+      <div className={`fixed bottom-0 z-10 p-4 ${mainContentClass}`}>
+        <div className="relative max-w-4xl mx-auto">
           <div 
             className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
             style={{
@@ -503,38 +491,36 @@ export default function ChatScreen({
 
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
-        <div className={`fixed bottom-20 ${inputContainerClass} z-10 p-4 transition-all duration-300`}>
-          <div className={`${contentContainerClass}`}>
-            <div 
-              className="rounded-lg border border-slate-700 p-4"
-              style={{
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-                backgroundColor: 'rgba(2, 10, 22, 0.8)',
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
-                <button
-                  onClick={() => setShowDocumentUpload(true)}
-                  className="text-xs text-[#186799] hover:text-[#1a5a7a]"
-                >
-                  Add more
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {conversationDocuments.slice(0, 5).map((doc) => (
-                  <div key={doc.id} className={`text-xs ${getDocumentColor(doc)} px-2 py-1 rounded-full`}>
-                    {doc.name}
-                  </div>
-                ))}
-                {totalConversationDocuments > 5 && (
-                  <div className="text-xs text-slate-400 px-2 py-1">
-                    +{totalConversationDocuments - 5} more
-                  </div>
-                )}
-              </div>
+        <div className={`fixed bottom-20 z-10 p-4 ${mainContentClass}`}>
+          <div 
+            className="rounded-lg border border-slate-700 p-4"
+            style={{
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+              backgroundColor: 'rgba(2, 10, 22, 0.8)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-white text-sm font-medium">Conversation Documents ({totalConversationDocuments})</h4>
+              <button
+                onClick={() => setShowDocumentUpload(true)}
+                className="text-xs text-[#186799] hover:text-[#1a5a7a]"
+              >
+                Add more
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {conversationDocuments.slice(0, 5).map((doc) => (
+                <div key={doc.id} className={`text-xs ${getDocumentColor(doc)} px-2 py-1 rounded-full`}>
+                  {doc.name}
+                </div>
+              ))}
+              {totalConversationDocuments > 5 && (
+                <div className="text-xs text-slate-400 px-2 py-1">
+                  +{totalConversationDocuments - 5} more
+                </div>
+              )}
             </div>
           </div>
         </div>
