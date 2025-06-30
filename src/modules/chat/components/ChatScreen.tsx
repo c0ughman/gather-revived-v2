@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Settings, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, Send, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft, MoreVertical } from 'lucide-react';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
@@ -180,11 +180,14 @@ export default function ChatScreen({
   const totalConversationDocuments = conversationDocuments.length;
   const pendingDocumentsCount = pendingDocuments.length;
 
+  // Calculate main content width based on sidebar visibility
+  const mainContentClass = showSidebar ? "left-1/4 right-1/4" : "left-1/4 right-0";
+
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className="fixed top-0 left-1/4 right-1/4 z-20 border-b border-slate-700 p-3 flex items-center space-x-3"
+        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3 flex items-center space-x-3`}
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -234,14 +237,6 @@ export default function ChatScreen({
         
         <div className="flex items-center space-x-1">
           <button
-            onClick={() => onSettingsClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4 text-slate-400" />
-          </button>
-          
-          <button
             onClick={() => onNewChatClick(contact)}
             className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title="Start new conversation"
@@ -262,16 +257,13 @@ export default function ChatScreen({
             className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
             title={showSidebar ? "Hide sidebar" : "Show sidebar"}
           >
-            {showSidebar ? 
-              <ChevronRight className="w-4 h-4 text-slate-400" /> : 
-              <ChevronLeft className="w-4 h-4 text-slate-400" />
-            }
+            <MoreVertical className="w-4 h-4 text-slate-400" />
           </button>
         </div>
       </div>
 
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pt-20 pb-32">
+      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -384,7 +376,7 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className="relative z-10 p-4 bg-glass-bg">
+        <div className={`relative z-10 p-4 bg-glass-bg ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-medium">Upload Conversation Documents</h3>
             <button
@@ -422,7 +414,7 @@ export default function ChatScreen({
       )}
 
       {/* Input Area - Fixed at bottom */}
-      <div className="fixed bottom-0 left-1/4 right-1/4 z-10 p-4">
+      <div className={`fixed bottom-0 z-10 p-4 ${mainContentClass}`}>
         <div className="relative max-w-4xl mx-auto">
           <div 
             className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
@@ -499,7 +491,7 @@ export default function ChatScreen({
 
       {/* Show existing conversation documents */}
       {totalConversationDocuments > 0 && !showDocumentUpload && (
-        <div className="fixed bottom-20 left-1/4 right-1/4 z-10 p-4">
+        <div className={`fixed bottom-20 z-10 p-4 ${mainContentClass}`}>
           <div 
             className="rounded-lg border border-slate-700 p-4"
             style={{

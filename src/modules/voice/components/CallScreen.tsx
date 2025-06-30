@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical, X } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -201,6 +201,9 @@ export default function CallScreen({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  // Calculate main content width based on sidebar visibility
+  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-3/4 ml-1/4";
+
   return (
     <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
@@ -219,26 +222,16 @@ export default function CallScreen({
           </p>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <button className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200">
-            <Settings className="w-6 h-6 text-slate-400" />
-          </button>
-          
-          <button
-            onClick={toggleSidebar}
-            className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
-            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
-          >
-            {showSidebar ? 
-              <ChevronRight className="w-6 h-6 text-slate-400" /> : 
-              <ChevronLeft className="w-6 h-6 text-slate-400" />
-            }
-          </button>
-        </div>
+        <button 
+          onClick={toggleSidebar}
+          className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
+        >
+          <MoreVertical className="w-6 h-6 text-slate-400" />
+        </button>
       </div>
 
       {/* Main Call Area */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8">
+      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
         {/* Avatar */}
         <div className="relative mb-8">
           <div
