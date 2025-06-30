@@ -1,44 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../../modules/auth/hooks/useAuth';
-import AuthScreen from '../../modules/auth/components/AuthScreen';
-import CallScreen from '../../modules/voice/components/CallScreen';
-import { geminiLiveService } from '../../modules/voice';
-import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
-import LandingPage from '../../components/LandingPage';
-import SignupPage from '../../components/SignupPage';
-import PricingPage from '../../components/PricingPage';
-import SuccessPage from '../../components/SuccessPage';
-import { Dashboard, ContactSidebar, SettingsSidebar, SettingsScreen } from '../../modules/ui';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useAuth } from '../../modules/auth';
+import { AuthScreen } from '../../modules/auth';
+import { ContactSidebar, SettingsSidebar, Dashboard, SettingsScreen } from '../../modules/ui';
 import { ChatScreen } from '../../modules/chat';
-import { AIContact, Message, CallState } from '../types/types';
-import { DocumentInfo } from '../../modules/fileManagement/types/documents';
-import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
-import { geminiService } from '../../modules/fileManagement/services/geminiService';
-import { supabaseService } from '../../modules/database/services/supabaseService';
+import { CallScreen, geminiLiveService } from '../../modules/voice';
+import { OAuthCallback } from '../../modules/oauth';
+
+import { AIContact, Message, Screen, CallState, DocumentInfo } from '../types/types';
+import { supabaseService } from '../../modules/database';
+import { geminiService, documentContextService } from '../../modules/fileManagement';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
 
-type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
-type Screen = 'dashboard' | 'chat' | 'call' | 'settings';
-
-export default function App() {
-  const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewType>('landing');
+function AppContent() {
+  const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
   const [contacts, setContacts] = useState<AIContact[]>([]);
-  const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
-  const [dataLoading, setDataLoading] = useState(false);
   const [callState, setCallState] = useState<CallState>({
     isActive: false,
     duration: 0,
     isMuted: false,
     status: 'ended'
   });
-  const [showSidebar, setShowSidebar] = useState(true);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
 
   // Update call duration
@@ -54,21 +40,14 @@ export default function App() {
 
   // Load user data when authenticated
   useEffect(() => {
-    if (user && !dataLoading) {
+    if (user) {
       loadUserData();
-    } else if (!user) {
+    } else {
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
     }
   }, [user]);
-
-  // Update view when user authentication changes
-  useEffect(() => {
-    if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
-      setCurrentView('dashboard');
-    }
-  }, [user, currentView]);
 
   // Handle OAuth success/error messages
   useEffect(() => {
@@ -95,39 +74,22 @@ export default function App() {
   }, [user]);
 
   const loadUserData = async () => {
-    if (!user || dataLoading) return;
+    if (!user) return;
 
     try {
-      setDataLoading(true);
-      console.log('🔄 Loading user data for:', user.email);
-
-      // Test database connection
-      const connectionOk = await supabaseService.testConnection();
-      if (!connectionOk) {
-        console.error('❌ Database connection failed');
-        // Continue with empty data for now
-        setContacts([]);
-        return;
-      }
-
-      console.log('✅ Database connection successful');
-
-      // Load user agents from Supabase
-      const userAgents = await supabaseService.getUserAgents(user.id);
-      console.log('📊 Loaded agents:', userAgents.length);
-
-      // Transform Supabase data to AIContact format
-      const transformedContacts: AIContact[] = userAgents.map((agent: any) => ({
+      const agents = await supabaseService.getUserAgents(user.id);
+      
+      // Transform database agents to AIContact format
+      const transformedContacts: AIContact[] = agents.map(agent => ({
         id: agent.id,
         name: agent.name,
-        description: agent.description,
         initials: agent.initials,
         color: agent.color,
+        description: agent.description,
+        status: agent.status as 'online' | 'busy' | 'offline',
+        lastSeen: agent.last_seen || 'now',
         voice: agent.voice,
         avatar: agent.avatar_url,
-        status: agent.status as 'online' | 'busy' | 'offline',
-        lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
-        total_messages: agent.total_messages,
         integrations: agent.agent_integrations?.map((integration: any) => ({
           id: integration.id,
           integrationId: integration.template_id,
@@ -144,7 +106,7 @@ export default function App() {
           content: doc.content || '',
           summary: doc.summary,
           extractedText: doc.extracted_text,
-          metadata: doc.metadata || {}
+          metadata: doc.metadata
         }))
       }));
 
@@ -169,84 +131,49 @@ export default function App() {
         }
       });
 
-      console.log('✅ User data loaded successfully');
-
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
-      // Set empty contacts on error
+      console.error('Failed to load user data:', error);
       setContacts([]);
-    } finally {
-      setDataLoading(false);
     }
-  };
-
-  const formatLastSeen = (lastSeen: string, lastUsedAt: string | null): string => {
-    if (lastSeen === 'now') return 'now';
-    
-    if (lastUsedAt) {
-      const lastUsed = new Date(lastUsedAt);
-      const now = new Date();
-      const diffMs = now.getTime() - lastUsed.getTime();
-      const diffMins = Math.floor(diffMs / (1000 * 60));
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-      if (diffMins < 1) return 'now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-      return lastUsed.toLocaleDateString();
-    }
-
-    return lastSeen;
-  };
-
-  const handleGetStarted = () => {
-    setCurrentView('signup');
-  };
-
-  const handleSignUp = () => {
-    setCurrentView('signup');
-  };
-
-  const handleSignIn = () => {
-    setCurrentView('login');
-  };
-
-  const handleSignupSuccess = () => {
-    setCurrentView('pricing');
-  };
-
-  const handleBackToLanding = () => {
-    setCurrentView('landing');
-  };
-
-  const handleSelectPlan = (plan: string) => {
-    // Here you would implement the logic to set the user's plan
-    console.log(`Selected plan: ${plan}`);
-    // For now, just redirect to dashboard
-    setCurrentView('dashboard');
-  };
-
-  const handleStayFree = () => {
-    // User chooses to stay with the free plan
-    setCurrentView('dashboard');
   };
 
   const handleChatClick = async (contact: AIContact) => {
     setSelectedContact(contact);
-    setCurrentView('chat');
     setCurrentScreen('chat');
+
+    // Execute integrations on chat start if configured
+    if (contact.integrations) {
+      for (const integrationInstance of contact.integrations) {
+        const integration = getIntegrationById(integrationInstance.integrationId);
+        if (integration && 
+            integration.category !== 'action' &&
+            integrationInstance.config.enabled && 
+            (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
+          try {
+            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
+            integrationsService.storeIntegrationData(contact.id, integration.id, data);
+          } catch (error) {
+            console.error(`Failed to execute integration ${integration.name}:`, error);
+          }
+        }
+      }
+    }
+  };
+
+  const handleNewChatClick = async (contact: AIContact) => {
+    // Clear messages for this contact to start fresh
+    setMessages(prev => prev.filter(msg => msg.contactId !== contact.id));
     
-    // Load conversation documents for this contact
-    const contactMessages = messages.filter(m => m.contactId === contact.id);
-    const allAttachments = contactMessages.flatMap(m => m.attachments || []);
+    // Clear conversation documents for this contact
+    setConversationDocuments(prev => {
+      const updated = { ...prev };
+      delete updated[contact.id];
+      return updated;
+    });
     
-    // Update conversation documents state
-    setConversationDocuments(prev => ({
-      ...prev,
-      [contact.id]: allAttachments
-    }));
+    // Start new chat
+    setSelectedContact(contact);
+    setCurrentScreen('chat');
 
     // Execute integrations on chat start if configured
     if (contact.integrations) {
@@ -280,14 +207,13 @@ export default function App() {
 
   const startNewCall = (contact: AIContact) => {
     setSelectedContact(contact);
-    setCurrentView('call');
-    setCurrentScreen('call');
     setCallState({
       isActive: true,
       duration: 0,
       isMuted: false,
       status: 'connecting'
     });
+    setCurrentScreen('call');
     
     geminiLiveService.initialize().then(initialized => {
       if (initialized) {
@@ -305,113 +231,24 @@ export default function App() {
     });
   };
 
-  const handleEndCall = () => {
-    geminiLiveService.endSession();
-    setCallState({
-      isActive: false,
-      duration: 0,
-      isMuted: false,
-      status: 'ended'
-    });
-    setCurrentView('dashboard');
-    setCurrentScreen('dashboard');
-    setSelectedContact(null);
-  };
-
-  const handleToggleMute = () => {
-    setCallState(prev => ({ ...prev, isMuted: !prev.isMuted }));
-  };
-
-  const handleSettingsClick = (contact?: AIContact) => {
-    if (contact) {
-      setSelectedContact(contact);
-      setCurrentView('settings');
-      setCurrentScreen('settings');
-    }
-  };
-
-  const handleNewChatClick = async (contact: AIContact) => {
-    // Clear messages for this contact to start fresh
-    const otherMessages = messages.filter(m => m.contactId !== contact.id);
-    setMessages(otherMessages);
-    
-    // Clear conversation documents for this contact
-    setConversationDocuments(prev => {
-      const updated = { ...prev };
-      delete updated[contact.id];
-      return updated;
-    });
-    
-    // Start new chat
-    handleChatClick(contact);
-  };
-
-  const handleBack = () => {
-    if (currentScreen === 'call') {
-      handleEndCall();
-    } else if (currentScreen === 'settings') {
-      if (selectedContact && currentView === 'settings') {
-        setCurrentView('chat');
-        setCurrentScreen('chat');
-      } else {
-        setCurrentView('dashboard');
-        setCurrentScreen('dashboard');
-      }
-    } else if (currentScreen === 'chat') {
-      setCurrentView('dashboard');
-      setCurrentScreen('dashboard');
-      setSelectedContact(null);
-    } else {
-      setCurrentView('dashboard');
-      setCurrentScreen('dashboard');
-      setSelectedContact(null);
-    }
-  };
-
-  const handleHomeClick = () => {
-    setCurrentView('dashboard');
-    setCurrentScreen('dashboard');
-    setSelectedContact(null);
-  };
-
-  const handleCreateAgent = () => {
-    setCurrentView('create-agent');
-    setCurrentScreen('settings');
-  };
-
-  const handleToggleSidebar = () => {
-    setShowSidebar(prev => !prev);
-  };
-
-  const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
-    if (!selectedContact) return;
+  const handleSendMessage = async (content: string, attachedDocuments?: DocumentInfo[]) => {
+    if (!selectedContact || !user) return;
 
     const existingConversationDocs = conversationDocuments[selectedContact.id] || [];
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      sender: 'user',
-      timestamp: new Date(),
-      contactId: selectedContact.id,
-      attachments: documents
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-
+    
     // Save attached documents to Supabase and update local state
-    if (documents && documents.length > 0) {
+    if (attachedDocuments && attachedDocuments.length > 0) {
       try {
-        console.log(`💾 Saving ${documents.length} conversation documents to Supabase`);
+        console.log(`💾 Saving ${attachedDocuments.length} conversation documents to Supabase`);
         
         // Save each document to Supabase
-        for (const doc of documents) {
+        for (const doc of attachedDocuments) {
           await documentContextService.saveConversationDocument(selectedContact, doc);
         }
         
         const updatedConversationDocs = [...existingConversationDocs];
         
-        documents.forEach(newDoc => {
+        attachedDocuments.forEach(newDoc => {
           if (!updatedConversationDocs.find(doc => doc.id === newDoc.id)) {
             updatedConversationDocs.push(newDoc);
           }
@@ -429,81 +266,79 @@ export default function App() {
       }
     }
 
-    try {
-      // Get conversation history for this contact
-      const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
-      const chatHistory = [...contactMessages, userMessage];
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content,
+      sender: 'user',
+      timestamp: new Date(),
+      contactId: selectedContact.id,
+      attachments: attachedDocuments
+    };
 
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      const contactMessages = messages.filter(msg => msg.contactId === selectedContact.id);
+      
       // Get fresh document context from Supabase for AI
       const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
-
-      // Generate AI response using the enhanced service
-      const response = await geminiService.generateResponse(
-        selectedContact,
-        content,
-        chatHistory,
+      
+      const aiResponseContent = await geminiService.generateResponse(
+        selectedContact, 
+        content, 
+        contactMessages,
         documentContext.allDocuments
       );
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: response,
-        sender: 'ai',
-        timestamp: new Date(),
-        contactId: selectedContact.id
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Update contact's last used timestamp in Supabase
-      if (user) {
-        try {
-          await supabaseService.updateUserAgent(selectedContact.id, {
-            last_used_at: new Date().toISOString(),
-            last_seen: 'now'
-          });
-
-          // Update local state
-          setContacts(prev => prev.map(contact => 
-            contact.id === selectedContact.id 
-              ? { ...contact, lastSeen: 'now' }
-              : contact
-          ));
-        } catch (error) {
-          console.warn('Failed to update agent last used time:', error);
-        }
-      }
-
+      setTimeout(() => {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          content: aiResponseContent,
+          sender: 'ai',
+          timestamp: new Date(),
+          contactId: selectedContact.id
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      }, 1000 + Math.random() * 1000);
     } catch (error) {
       console.error('Error generating AI response:', error);
       
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
-        sender: 'ai',
-        timestamp: new Date(),
-        contactId: selectedContact.id
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      setTimeout(() => {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          content: "I'm having trouble connecting right now. Please try again in a moment.",
+          sender: 'ai',
+          timestamp: new Date(),
+          contactId: selectedContact.id
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      }, 1500);
     }
   };
 
-  const handleSaveContact = async (updatedContact: AIContact) => {
-    if (!user) {
-      console.error('No user found for saving contact');
-      return;
+  const handleEndCall = () => {
+    geminiLiveService.endSession();
+    setCallState(prev => ({ ...prev, status: 'ended', isActive: false }));
+    setCurrentScreen('dashboard');
+  };
+
+  const handleToggleMute = () => {
+    setCallState(prev => ({ ...prev, isMuted: !prev.isMuted }));
+  };
+
+  const handleSettingsClick = (contact?: AIContact) => {
+    if (contact) {
+      setSelectedContact(contact);
     }
+    setCurrentScreen('settings');
+  };
+
+  const handleSaveContact = async (updatedContact: AIContact) => {
+    if (!user) return;
 
     try {
-      console.log('💾 Saving contact:', updatedContact.name);
-
-      // Check if this is a new contact or existing one
-      const existingContact = contacts.find(c => c.id === updatedContact.id);
-      const isNewContact = !existingContact || updatedContact.id.startsWith('temp_') || updatedContact.id.startsWith('new-');
-      
-      if (isNewContact) {
-        // Create new contact in Supabase
+      if (updatedContact.id.startsWith('new-')) {
+        // Create new agent in Supabase
         const newAgent = await supabaseService.createUserAgent(user.id, {
           name: updatedContact.name,
           description: updatedContact.description,
@@ -570,9 +405,8 @@ export default function App() {
         setContacts(prev => [...prev, transformedContact]);
         setSelectedContact(transformedContact);
 
-        console.log('✅ Created new contact in Supabase with ID:', newAgent.id);
       } else {
-        // Update existing contact in Supabase
+        // Update existing agent
         await supabaseService.updateUserAgent(updatedContact.id, {
           name: updatedContact.name,
           description: updatedContact.description,
@@ -662,8 +496,6 @@ export default function App() {
           )
         );
         setSelectedContact(updatedContact);
-
-        console.log('✅ Updated existing contact in Supabase');
       }
 
       // Restart integrations with new configuration
@@ -681,66 +513,70 @@ export default function App() {
             );
           }
         });
+      } else {
+        integrationsService.stopAllExecution();
       }
-
-      console.log('✅ Contact saved successfully');
-
+      
     } catch (error) {
-      console.error('❌ Error saving contact:', error);
-      alert(`Failed to save contact: ${(error as Error).message || error}`);
+      console.error('Failed to save contact:', error);
+      alert(`Failed to save agent: ${(error as Error).message || error}`);
     }
   };
 
-  const handleCreateNewAgent = () => {
+  const handleBack = () => {
+    if (currentScreen === 'call') {
+      handleEndCall();
+    } else if (currentScreen === 'settings') {
+      if (selectedContact) {
+        setCurrentScreen('chat');
+      } else {
+        setCurrentScreen('dashboard');
+      }
+    } else if (currentScreen === 'chat') {
+      setCurrentScreen('dashboard');
+      setSelectedContact(null);
+    } else {
+      setCurrentScreen('dashboard');
+      setSelectedContact(null);
+    }
+  };
+
+  const handleHomeClick = () => {
+    setCurrentScreen('dashboard');
+    setSelectedContact(null);
+  };
+
+  const handleCreateAgent = () => {
     const newAgent: AIContact = {
-      id: `temp_${Date.now()}`, // Temporary ID, will be replaced when saved
-      name: 'New AI Assistant',
-      description: 'A helpful AI assistant ready to be customized.',
-      initials: 'AI',
+      id: `new-${Date.now()}`,
+      name: 'New Agent',
+      initials: 'NA',
       color: '#3b82f6',
+      description: 'A new AI assistant ready to be customized.',
       status: 'online',
       lastSeen: 'now',
       voice: 'Puck'
     };
     
     setSelectedContact(newAgent);
-    setCurrentView('settings');
     setCurrentScreen('settings');
   };
 
-  // Loading state
-  if (loading || dataLoading) {
+  // Show loading screen while checking auth
+  if (authLoading) {
     return (
-      <div className="h-screen bg-glass-bg flex items-center justify-center">
+      <div className="h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#186799] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">
-            {loading ? 'Loading...' : 'Loading your AI agents...'}
-          </p>
-          {dataLoading && (
-            <p className="text-slate-400 text-sm mt-2">
-              Connecting to database...
-            </p>
-          )}
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // If not authenticated, show landing page or signup page based on currentView
+  // Show auth screen if not authenticated
   if (!user) {
-    if (currentView === 'signup') {
-      return <SignupPage onSuccess={handleSignupSuccess} onBackToLanding={handleBackToLanding} onSignIn={handleSignIn} />;
-    } else if (currentView === 'login') {
-      return <AuthScreen />;
-    } else {
-      return <LandingPage onGetStarted={handleGetStarted} onSignUp={handleSignUp} />;
-    }
-  }
-
-  // Show pricing page after signup
-  if (currentView === 'pricing') {
-    return <PricingPage onSelectPlan={handleSelectPlan} onStayFree={handleStayFree} />;
+    return <AuthScreen />;
   }
 
   // Get messages for selected contact
@@ -754,10 +590,10 @@ export default function App() {
     : [];
 
   const renderMainContent = () => {
-    switch (currentView) {
+    switch (currentScreen) {
       case 'dashboard':
         return (
-          <Dashboard
+          <Dashboard 
             contacts={contacts}
             onChatClick={handleChatClick}
             onCallClick={handleCallClick}
@@ -778,11 +614,9 @@ export default function App() {
             onSettingsClick={handleSettingsClick}
             onNewChatClick={handleNewChatClick}
             onCallClick={handleCallClick}
-            showSidebar={showSidebar}
-            onToggleSidebar={handleToggleSidebar}
           />
         ) : (
-          <Dashboard
+          <Dashboard 
             contacts={contacts}
             onChatClick={handleChatClick}
             onCallClick={handleCallClick}
@@ -791,7 +625,6 @@ export default function App() {
             onCreateAgent={handleCreateAgent}
           />
         );
-
       case 'call':
         return selectedContact ? (
           <CallScreen
@@ -800,11 +633,9 @@ export default function App() {
             onBack={handleBack}
             onEndCall={handleEndCall}
             onToggleMute={handleToggleMute}
-            showSidebar={showSidebar}
-            onToggleSidebar={handleToggleSidebar}
           />
         ) : (
-          <Dashboard
+          <Dashboard 
             contacts={contacts}
             onChatClick={handleChatClick}
             onCallClick={handleCallClick}
@@ -813,23 +644,15 @@ export default function App() {
             onCreateAgent={handleCreateAgent}
           />
         );
-
       case 'settings':
-      case 'create-agent':
         return selectedContact ? (
           <SettingsScreen
             contact={selectedContact}
             onBack={handleBack}
-            onSave={(contact) => {
-              handleSaveContact(contact);
-              if (currentView === 'create-agent') {
-                setCurrentView('dashboard');
-                setCurrentScreen('dashboard');
-              }
-            }}
+            onSave={handleSaveContact}
           />
         ) : (
-          <Dashboard
+          <Dashboard 
             contacts={contacts}
             onChatClick={handleChatClick}
             onCallClick={handleCallClick}
@@ -838,10 +661,9 @@ export default function App() {
             onCreateAgent={handleCreateAgent}
           />
         );
-
       default:
         return (
-          <Dashboard
+          <Dashboard 
             contacts={contacts}
             onChatClick={handleChatClick}
             onCallClick={handleCallClick}
@@ -853,32 +675,60 @@ export default function App() {
     }
   };
 
-  // If authenticated, show the main app
+  return (
+    <div className="h-screen bg-glass-bg flex font-inter">
+      {/* OAuth Success/Error Message */}
+      {oauthMessage && (
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className={`p-4 rounded-lg border ${
+            oauthMessage.includes('✅') 
+              ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
+              : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
+          } backdrop-blur-sm`}>
+            <p className="text-sm font-medium">{oauthMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Left Sidebar - Contacts - Fixed */}
+      <div className="w-1/4 border-r border-slate-700 fixed left-0 top-0 h-screen z-20">
+        <ContactSidebar
+          contacts={contacts}
+          onChatClick={handleChatClick}
+          onCallClick={handleCallClick}
+          onSettingsClick={handleSettingsClick}
+          onHomeClick={handleHomeClick}
+          onCreateAgent={handleCreateAgent}
+        />
+      </div>
+      
+      {/* Main Content - Chat/Call/Dashboard */}
+      <div className={`${currentScreen === 'dashboard' ? 'ml-0' : 'ml-[25%]'} ${currentScreen !== 'dashboard' ? 'mr-[25%]' : ''} flex-1 overflow-y-auto`}>
+        {renderMainContent()}
+      </div>
+
+      {/* Right Sidebar - Settings - Fixed (only show when not on dashboard) */}
+      {currentScreen !== 'dashboard' && (
+        <div className="w-1/4 bg-glass-panel glass-effect border-l border-slate-700 fixed right-0 top-0 h-screen z-20">
+          <SettingsSidebar
+            contact={selectedContact}
+            onSave={handleSaveContact}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
   return (
     <Router>
       <Routes>
         <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
-        <Route path="/success" element={<SuccessPage />} />
-        <Route path="*" element={
-          <div className="h-screen flex bg-glass-bg font-inter">
-            {/* OAuth Success/Error Message */}
-            {oauthMessage && (
-              <div className="fixed top-4 right-4 z-50 max-w-md">
-                <div className={`p-4 rounded-lg border ${
-                  oauthMessage.includes('✅') 
-                    ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
-                    : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
-                }`}>
-                  <p className="text-sm font-medium">{oauthMessage}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Main Content */}
-            {renderMainContent()}
-          </div>
-        } />
+        <Route path="/*" element={<AppContent />} />
       </Routes>
     </Router>
   );
 }
+
+export default App;
