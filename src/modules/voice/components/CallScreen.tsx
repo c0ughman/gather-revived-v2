@@ -275,7 +275,10 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
           <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed">
-            {contact.description}
+            {contact.description.length > 80 
+              ? `${contact.description.substring(0, 80)}...` 
+              : contact.description
+            }
           </p>
         </div>
 

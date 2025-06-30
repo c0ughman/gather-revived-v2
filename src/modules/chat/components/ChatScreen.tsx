@@ -207,7 +207,6 @@ export default function ChatScreen({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-semibold truncate">{contact.name}</h2>
-            <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
           </div>
           <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
             {isTyping ? (
