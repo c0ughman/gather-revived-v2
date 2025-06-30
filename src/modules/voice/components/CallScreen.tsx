@@ -1,177 +1,132 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, MoreVertical, X } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
-import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
+import DocumentDisplay from './DocumentDisplay';
 
 interface CallScreenProps {
   contact: AIContact;
-  callState: CallState;
   onBack: () => void;
-  onEndCall: () => void;
-  onToggleMute: () => void;
+  onSettingsClick: (contact: AIContact) => void;
   showSidebar?: boolean;
   onToggleSidebar?: () => void;
+  onCloseSidebar?: () => void;
 }
 
 export default function CallScreen({ 
   contact, 
-  callState, 
   onBack, 
-  onEndCall, 
-  onToggleMute,
+  onSettingsClick,
   showSidebar = true,
-  onToggleSidebar
+  onToggleSidebar,
+  onCloseSidebar
 }: CallScreenProps) {
-  const [pulseAnimation, setPulseAnimation] = useState(false);
-  const [responseText, setResponseText] = useState<string>("");
-  const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
-  const serviceInitialized = useRef(false);
-  const initializationInProgress = useRef(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+  const [error, setError] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<string>('');
+  const [aiResponse, setAiResponse] = useState<string>('');
+  const [callDuration, setCallDuration] = useState(0);
+  
+  const callStartTimeRef = useRef<number | null>(null);
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (callState.status === 'connecting') {
-      setPulseAnimation(true);
-      
-      // Initialize the Gemini Live service when call is connecting
-      const initService = async () => {
-        if (!serviceInitialized.current && !initializationInProgress.current) {
-          initializationInProgress.current = true;
-          try {
-            console.log("🚀 Starting service initialization...");
-            
-            // Set up event handlers first
-            geminiLiveService.onResponse((response) => {
-              setResponseText(response.text);
-            });
-            
-            geminiLiveService.onError((error) => {
-              console.error("Gemini Live error:", error);
-              setResponseText("I'm having trouble with the connection. Let's try again.");
-            });
-            
-            geminiLiveService.onStateChange((state) => {
-              console.log(`🔄 Service state changed to: ${state}`);
-              setServiceState(state);
-            });
-            
-            // Initialize audio
-            const initialized = await geminiLiveService.initialize();
-            if (initialized) {
-              console.log("✅ Audio initialized, starting session...");
-              await geminiLiveService.startSession(contact);
-              serviceInitialized.current = true;
-              console.log("✅ Service fully initialized");
-            } else {
-              console.error("❌ Audio initialization failed");
-              setResponseText("Could not access microphone. Please check permissions.");
-            }
-          } catch (error) {
-            console.error("❌ Failed to initialize Gemini Live service:", error);
-            setResponseText("Failed to start voice chat. Please try again.");
-          } finally {
-            initializationInProgress.current = false;
-          }
-        }
-      };
-      
-      initService();
-    } else {
-      setPulseAnimation(false);
-    }
+  // Helper function to create radial gradient for agents without avatars
+  const createAgentGradient = (color: string) => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
     
-    return () => {
-      // Clean up when component unmounts
-      if (callState.status === 'ended' && serviceInitialized.current) {
-        geminiLiveService.endSession();
-        serviceInitialized.current = false;
-      }
-    };
-  }, [callState.status, contact.id]);
+    const compR = Math.round(255 - r * 0.3);
+    const compG = Math.round(255 - g * 0.3);
+    const compB = Math.round(255 - b * 0.3);
+    
+    const lightCompR = Math.round(compR + (255 - compR) * 0.8);
+    const lightCompG = Math.round(compG + (255 - compG) * 0.8);
+    const lightCompB = Math.round(compB + (255 - compB) * 0.8);
+    
+    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
+  };
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getStatusText = () => {
-    switch (callState.status) {
-      case 'connecting':
-        return 'Connecting...';
-      case 'connected':
-        return formatDuration(callState.duration);
-      case 'ended':
-        return 'Call ended';
-      default:
-        return '';
+  const startCall = async () => {
+    try {
+      setConnectionStatus('connecting');
+      setError(null);
+      
+      await geminiLiveService.connect({
+        voice: contact.voice || 'Puck',
+        systemInstruction: `You are ${contact.name}. ${contact.description}`,
+        onTranscript: setTranscript,
+        onResponse: setAiResponse,
+        onListening: setIsListening,
+        onError: (err) => {
+          setError(err);
+          setConnectionStatus('error');
+        }
+      });
+      
+      setIsConnected(true);
+      setConnectionStatus('connected');
+      callStartTimeRef.current = Date.now();
+      
+      // Start duration timer
+      durationIntervalRef.current = setInterval(() => {
+        if (callStartTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+          setCallDuration(elapsed);
+        }
+      }, 1000);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start call');
+      setConnectionStatus('error');
     }
   };
 
-  const getStatusColor = () => {
-    switch (callState.status) {
-      case 'connecting':
-        return 'text-yellow-400';
-      case 'connected':
-        return 'text-green-400';
-      case 'ended':
-        return 'text-red-400';
-      default:
-        return 'text-slate-400';
-    }
-  };
-
-  const getServiceStateText = () => {
-    switch (serviceState) {
-      case 'listening':
-        return "🎤 Listening...";
-      case 'processing':
-        return "🧠 Processing...";
-      case 'responding':
-        return "🗣️ Speaking...";
-      case 'idle':
-        return callState.status === 'connected' ? "💬 Ready to chat" : getStatusText();
-      default:
-        return getStatusText();
-    }
-  };
-
-  const getServiceStateColor = () => {
-    switch (serviceState) {
-      case 'listening':
-        return 'text-[#186799]';
-      case 'processing':
-        return 'text-yellow-400';
-      case 'responding':
-        return 'text-green-400';
-      case 'idle':
-        return getStatusColor();
-      default:
-        return getStatusColor();
-    }
-  };
-
-  const handleMicToggle = async () => {
-    onToggleMute();
-    
-    // If we're unmuting, start listening
-    if (callState.isMuted && serviceInitialized.current && callState.status === 'connected') {
-      try {
-        await geminiLiveService.startListening();
-      } catch (error) {
-        console.error("Failed to start listening:", error);
+  const endCall = async () => {
+    try {
+      await geminiLiveService.disconnect();
+      setIsConnected(false);
+      setConnectionStatus('disconnected');
+      setTranscript('');
+      setAiResponse('');
+      setCallDuration(0);
+      callStartTimeRef.current = null;
+      
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
       }
-    } else if (!callState.isMuted && serviceInitialized.current) {
-      geminiLiveService.stopListening();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to end call');
     }
   };
 
-  const handleEndCall = () => {
-    if (serviceInitialized.current) {
-      geminiLiveService.endSession();
-      serviceInitialized.current = false;
+  const toggleMute = async () => {
+    try {
+      if (isMuted) {
+        await geminiLiveService.unmute();
+      } else {
+        await geminiLiveService.mute();
+      }
+      setIsMuted(!isMuted);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle mute');
     }
-    onEndCall();
+  };
+
+  const toggleSpeaker = () => {
+    setIsSpeakerOn(!isSpeakerOn);
   };
 
   const toggleSidebar = () => {
@@ -180,196 +135,250 @@ export default function CallScreen({
     }
   };
 
-  // Helper function to create radial gradient for agents without avatars
-  const createAgentGradient = (color: string) => {
-    // Convert hex to RGB
-    const hex = color.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    // Create complementary color by shifting hue and make it lighter
-    const compR = Math.round(255 - r * 0.3); // Softer complement
-    const compG = Math.round(255 - g * 0.3);
-    const compB = Math.round(255 - b * 0.3);
-    
-    // Make complementary color lighter than the main color
-    const lightCompR = Math.round(compR + (255 - compR) * 0.8);
-    const lightCompG = Math.round(compG + (255 - compG) * 0.8);
-    const lightCompB = Math.round(compB + (255 - compB) * 0.8);
-    
-    return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
-  };
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isConnected) {
+        geminiLiveService.disconnect();
+      }
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+    };
+  }, [isConnected]);
 
-  // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-3/4 ml-1/4";
+  // Calculate main content positioning based on sidebar visibility
+  const mainContentClass = showSidebar ? "left-1/4 right-1/4" : "left-1/4 right-0";
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col">
-      {/* Header */}
-      <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
+    <div className="h-full bg-glass-bg flex flex-col font-inter">
+      {/* Header - Fixed at top with responsive width */}
+      <div 
+        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3 flex items-center space-x-3`}
+        style={{
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          backgroundColor: 'rgba(2, 10, 22, 0.08)'
+        }}
+      >
         <button
           onClick={onBack}
-          className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
+          className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
         >
-          <ArrowLeft className="w-6 h-6 text-white" />
+          <ArrowLeft className="w-4 h-4 text-white" />
         </button>
         
-        <div className="text-center">
-          <h2 className="text-white text-xl font-semibold">{contact.name}</h2>
-          <p className={`text-sm font-medium ${getStatusColor()}`}>
-            {getStatusText()}
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+          {contact.avatar ? (
+            <img
+              src={contact.avatar}
+              alt={contact.name}
+              className="w-full h-full object-cover rounded-lg"
+            />
+          ) : (
+            <div 
+              className="w-full h-full rounded-lg"
+              style={{ background: createAgentGradient(contact.color) }}
+            />
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <h2 className="text-white font-semibold truncate">{contact.name}</h2>
+          <p className="text-slate-400 text-sm truncate mt-0.5">
+            {isConnected ? (
+              <span className="flex items-center space-x-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span>Connected • {formatDuration(callDuration)}</span>
+              </span>
+            ) : connectionStatus === 'connecting' ? (
+              'Connecting...'
+            ) : (
+              'Voice call'
+            )}
           </p>
         </div>
         
-        <button 
-          onClick={toggleSidebar}
-          className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
-        >
-          <MoreVertical className="w-6 h-6 text-slate-400" />
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => onSettingsClick(contact)}
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4 text-slate-400" />
+          </button>
+
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            <MoreVertical className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
       </div>
 
-      {/* Main Call Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
-        {/* Avatar */}
-        <div className="relative mb-8">
-          <div
-            className={`w-40 h-40 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
-              pulseAnimation ? 'animate-pulse scale-110' : ''
-            } ${
-              serviceState === 'listening' ? 'ring-4 ring-[#186799] ring-opacity-75' : ''
-            } ${
-              serviceState === 'responding' ? 'ring-4 ring-green-400 ring-opacity-75' : ''
-            } ${
-              serviceState === 'processing' ? 'ring-4 ring-yellow-400 ring-opacity-75' : ''
-            }`}
-          >
-            {contact.avatar ? (
-              <img
-                src={contact.avatar}
-                alt={contact.name}
-                className="w-full h-full object-cover rounded-2xl"
-              />
-            ) : (
-              <div
-                className="w-full h-full rounded-2xl"
-                style={{ background: createAgentGradient(contact.color) }}
-              />
+      {/* Main Call Interface - Responsive width based on sidebar */}
+      <div className={`flex-1 pt-20 ${showSidebar ? 'pr-1/4' : ''}`}>
+        <div className={`h-full flex flex-col items-center justify-center px-8 ${showSidebar ? 'max-w-4xl mx-auto' : 'max-w-6xl mx-auto'}`}>
+          {/* Contact Avatar */}
+          <div className="mb-8">
+            <div className={`${isConnected ? 'w-48 h-48' : 'w-32 h-32'} rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${isListening ? 'ring-4 ring-green-400 ring-opacity-50' : ''}`}>
+              {contact.avatar ? (
+                <img
+                  src={contact.avatar}
+                  alt={contact.name}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full rounded-full"
+                  style={{ background: createAgentGradient(contact.color) }}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Contact Info */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">{contact.name}</h1>
+            <p className="text-slate-400 text-lg max-w-md">
+              {isConnected ? (
+                <span className="flex items-center justify-center space-x-2">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  <span>Connected • {formatDuration(callDuration)}</span>
+                </span>
+              ) : connectionStatus === 'connecting' ? (
+                'Connecting to voice call...'
+              ) : connectionStatus === 'error' ? (
+                <span className="text-red-400">Connection failed</span>
+              ) : (
+                'Ready to start voice call'
+              )}
+            </p>
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg max-w-md">
+              <p className="text-red-300 text-sm text-center">{error}</p>
+            </div>
+          )}
+
+          {/* Transcript and Response Display */}
+          {isConnected && (transcript || aiResponse) && (
+            <div className="mb-8 w-full max-w-2xl">
+              {transcript && (
+                <div className="mb-4 p-4 bg-slate-800 bg-opacity-50 rounded-lg border border-slate-700">
+                  <h3 className="text-white font-medium mb-2">You said:</h3>
+                  <p className="text-slate-300">{transcript}</p>
+                </div>
+              )}
+              {aiResponse && (
+                <div className="p-4 bg-[#186799] bg-opacity-20 rounded-lg border border-[#186799] border-opacity-50">
+                  <h3 className="text-white font-medium mb-2">{contact.name} responded:</h3>
+                  <p className="text-slate-300">{aiResponse}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Call Controls */}
+          <div className="flex items-center space-x-6">
+            {/* Mute Button */}
+            {isConnected && (
+              <button
+                onClick={toggleMute}
+                className={`p-4 rounded-full transition-all duration-200 ${
+                  isMuted 
+                    ? 'bg-red-600 hover:bg-red-700 text-white' 
+                    : 'bg-slate-700 hover:bg-slate-600 text-white'
+                }`}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+              </button>
+            )}
+
+            {/* Main Call Button */}
+            <button
+              onClick={isConnected ? endCall : startCall}
+              disabled={connectionStatus === 'connecting'}
+              className={`p-6 rounded-full transition-all duration-200 transform hover:scale-105 ${
+                isConnected 
+                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                  : connectionStatus === 'connecting'
+                  ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+              title={isConnected ? 'End Call' : connectionStatus === 'connecting' ? 'Connecting...' : 'Start Call'}
+            >
+              {isConnected ? (
+                <PhoneOff className="w-8 h-8" />
+              ) : (
+                <Phone className="w-8 h-8" />
+              )}
+            </button>
+
+            {/* Speaker Button */}
+            {isConnected && (
+              <button
+                onClick={toggleSpeaker}
+                className={`p-4 rounded-full transition-all duration-200 ${
+                  isSpeakerOn 
+                    ? 'bg-[#186799] hover:bg-[#1a5a7a] text-white' 
+                    : 'bg-slate-700 hover:bg-slate-600 text-white'
+                }`}
+                title={isSpeakerOn ? 'Turn off speaker' : 'Turn on speaker'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+              </button>
             )}
           </div>
-          
-          {/* Pulse rings for connecting state */}
-          {callState.status === 'connecting' && (
-            <>
-              <div 
-                className="absolute inset-0 rounded-2xl border-4 animate-ping opacity-50"
-                style={{ borderColor: contact.color }}
-              ></div>
-              <div 
-                className="absolute inset-0 rounded-2xl border-2 animate-ping opacity-30"
-                style={{ borderColor: contact.color, animationDelay: '0.5s' }}
-              ></div>
-            </>
-          )}
 
-          {/* State indicators */}
-          {serviceState === 'listening' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#186799] rounded-full flex items-center justify-center animate-pulse">
-              <Mic className="w-4 h-4 text-white" />
+          {/* Voice Instructions */}
+          {!isConnected && connectionStatus !== 'connecting' && (
+            <div className="mt-8 text-center max-w-md">
+              <p className="text-slate-400 text-sm">
+                Click the call button to start a voice conversation with {contact.name}. 
+                Make sure your microphone is enabled.
+              </p>
             </div>
           )}
 
-          {serviceState === 'responding' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
-              <Volume2 className="w-4 h-4 text-white" />
-            </div>
-          )}
-
-          {serviceState === 'processing' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center animate-spin">
-              <div className="w-3 h-3 bg-white rounded-full"></div>
+          {/* Listening Indicator */}
+          {isConnected && isListening && (
+            <div className="mt-6 flex items-center space-x-2 text-green-400">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-sm">Listening...</span>
             </div>
           )}
         </div>
-
-        {/* Contact Info */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
-          <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed">
-            {contact.description}
-          </p>
-        </div>
-
-        {/* Status Indicator */}
-        <div className="mb-8">
-          <div className={`px-6 py-3 rounded-full bg-slate-800 border ${
-            callState.status === 'connected' ? 'border-green-500' : 'border-slate-600'
-          }`}>
-            <span className={`text-lg font-medium ${getServiceStateColor()}`}>
-              {getServiceStateText()}
-            </span>
-          </div>
-        </div>
-        
-        {/* Response Text */}
-        {responseText && callState.status === 'connected' && (
-          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
-            <p className="text-slate-300 text-sm italic">"{responseText}"</p>
-          </div>
-        )}
       </div>
 
-      {/* Call Controls */}
-      <div className="pb-8 px-8">
-        <div className="flex items-center justify-center space-x-6">
-          {/* Mute Button */}
-          <button
-            onClick={handleMicToggle}
-            disabled={callState.status !== 'connected'}
-            className={`p-4 rounded-full transition-all duration-200 ${
-              callState.isMuted
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-slate-700 hover:bg-slate-600'
-            } ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
-            } shadow-lg hover:shadow-xl hover:scale-105`}
-          >
-            {callState.isMuted ? (
-              <MicOff className="w-6 h-6 text-white" />
-            ) : (
-              <Mic className="w-6 h-6 text-white" />
-            )}
-          </button>
-
-          {/* End Call Button */}
-          <button
-            onClick={handleEndCall}
-            className="p-6 rounded-full bg-red-600 hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 group"
-          >
-            <PhoneOff className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
-          </button>
-
-          {/* Speaker Button */}
-          <button
-            disabled={callState.status !== 'connected'}
-            className={`p-4 rounded-full bg-slate-700 hover:bg-slate-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <Volume2 className="w-6 h-6 text-white" />
-          </button>
+      {/* Document Display - Show when sidebar is visible */}
+      {showSidebar && contact.documents && contact.documents.length > 0 && (
+        <div className="fixed right-0 top-0 bottom-0 w-1/4 bg-glass-panel glass-effect border-l border-slate-700">
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h3 className="text-white font-semibold">Documents</h3>
+              {onCloseSidebar && (
+                <button
+                  onClick={onCloseSidebar}
+                  className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+                  title="Close sidebar"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <DocumentDisplay documents={contact.documents} />
+            </div>
+          </div>
         </div>
-
-        {/* Control Labels */}
-        <div className="flex items-center justify-center space-x-6 mt-4">
-          <span className="text-slate-400 text-sm w-16 text-center">
-            {callState.isMuted ? 'Unmute' : 'Mute'}
-          </span>
-          <span className="text-slate-400 text-sm w-20 text-center">End Call</span>
-          <span className="text-slate-400 text-sm w-16 text-center">Speaker</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -12,10 +12,11 @@ import { Integration, IntegrationConfig } from '../../integrations/types/integra
 interface SettingsSidebarProps {
   contact: AIContact | null;
   onSave: (contact: AIContact) => void;
+  onClose?: () => void;
   className?: string;
 }
 
-export default function SettingsSidebar({ contact, onSave, className = '' }: SettingsSidebarProps) {
+export default function SettingsSidebar({ contact, onSave, onClose, className = '' }: SettingsSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
     integrations: true,
@@ -244,7 +245,7 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
 
   return (
     <div className={`h-full bg-glass-panel glass-effect flex flex-col font-inter ${className}`}>
-      {/* Header */}
+      {/* Header with close button */}
       <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -267,15 +268,26 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
               <p className="text-slate-400 text-xs">Settings</p>
             </div>
           </div>
-          {hasChanges && (
-            <button
-              onClick={handleSave}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200 text-sm"
-            >
-              <Save className="w-3 h-3" />
-              <span>Save</span>
-            </button>
-          )}
+          <div className="flex items-center space-x-2">
+            {hasChanges && (
+              <button
+                onClick={handleSave}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full transition-colors duration-200 text-sm"
+              >
+                <Save className="w-3 h-3" />
+                <span>Save</span>
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+                title="Close sidebar"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
