@@ -215,6 +215,7 @@ export default function App() {
     if (contact) {
       setSelectedContact(contact);
       setCurrentView('settings');
+      setShowSidebar(false);
     }
   };
 
@@ -240,6 +241,7 @@ export default function App() {
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
+    setShowSidebar(false);
   };
 
   const handleToggleSidebar = () => {
@@ -390,6 +392,7 @@ export default function App() {
     
     setSelectedContact(newAgent);
     setCurrentView('settings');
+    setShowSidebar(false);
   };
 
   // Loading state

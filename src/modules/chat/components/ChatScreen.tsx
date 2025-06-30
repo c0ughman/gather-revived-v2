@@ -263,7 +263,7 @@ export default function ChatScreen({
       </div>
 
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
+      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-1/2 mx-auto' : 'w-1/2 mx-auto'}`}>
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -376,7 +376,7 @@ export default function ChatScreen({
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
-        <div className={`relative z-10 p-4 bg-glass-bg ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
+        <div className={`relative z-10 p-4 bg-glass-bg ${showSidebar ? 'w-1/2 mx-auto' : 'w-1/2 mx-auto'}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-medium">Upload Conversation Documents</h3>
             <button
