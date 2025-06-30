@@ -151,6 +151,9 @@ export default function ChatScreen({
   const totalConversationDocuments = conversationDocuments.length;
   const pendingDocumentsCount = pendingDocuments.length;
 
+  // Get active integrations
+  const activeIntegrations = contact.integrations?.filter(i => i.status === 'active') || [];
+
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
@@ -281,6 +284,48 @@ export default function ChatScreen({
                   : contact.description
                 }
               </p>
+              
+              {/* Document and Integration Pills */}
+              <div className="flex flex-wrap justify-center gap-2 mb-4">
+                {/* Document Pills */}
+                {contact.documents && contact.documents.length > 0 && (
+                  <div className="w-full flex flex-wrap justify-center gap-2 mb-2">
+                    <p className="w-full text-[#186799] text-sm mb-1">
+                      Knowledge Base Documents:
+                    </p>
+                    {contact.documents.slice(0, 5).map((doc) => (
+                      <span key={doc.id} className="px-2 py-1 bg-[#186799]/20 text-[#186799] rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                        📄 {doc.name}
+                      </span>
+                    ))}
+                    {contact.documents.length > 5 && (
+                      <span className="px-2 py-1 bg-[#186799]/10 text-[#186799] rounded-full text-xs">
+                        +{contact.documents.length - 5} more
+                      </span>
+                    )}
+                  </div>
+                )}
+                
+                {/* Integration Pills */}
+                {activeIntegrations.length > 0 && (
+                  <div className="w-full flex flex-wrap justify-center gap-2">
+                    <p className="w-full text-green-400 text-sm mb-1">
+                      Active Integrations:
+                    </p>
+                    {activeIntegrations.slice(0, 5).map((integration) => (
+                      <span key={integration.id} className="px-2 py-1 bg-green-900/20 text-green-400 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                        🔌 {integration.name}
+                      </span>
+                    ))}
+                    {activeIntegrations.length > 5 && (
+                      <span className="px-2 py-1 bg-green-900/10 text-green-400 rounded-full text-xs">
+                        +{activeIntegrations.length - 5} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <div className="space-y-2">
                 {permanentDocuments > 0 && (
                   <p className="text-[#186799] text-sm">
@@ -349,6 +394,45 @@ export default function ChatScreen({
           </div>
         </div>
       </div>
+
+      {/* Document and Integration Pills - Show after first message */}
+      {messages.length > 0 && (
+        <div className="fixed bottom-24 left-1/4 right-1/4 z-10 px-4">
+          <div className="flex flex-wrap gap-2 justify-center">
+            {/* Document Pills */}
+            {conversationDocuments.length > 0 && (
+              <div className="flex flex-wrap gap-1 justify-center">
+                {conversationDocuments.slice(0, 3).map((doc) => (
+                  <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                    📄 {doc.name}
+                  </span>
+                ))}
+                {conversationDocuments.length > 3 && (
+                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                    +{conversationDocuments.length - 3} more
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Integration Pills */}
+            {activeIntegrations.length > 0 && (
+              <div className="flex flex-wrap gap-1 justify-center">
+                {activeIntegrations.slice(0, 3).map((integration) => (
+                  <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                    🔌 {integration.name}
+                  </span>
+                ))}
+                {activeIntegrations.length > 3 && (
+                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                    +{activeIntegrations.length - 3} more
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
