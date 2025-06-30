@@ -166,9 +166,10 @@ export default function ContactSidebar({
             </div>
             <button
               onClick={onCreateAgent}
-              className="px-4 py-2 hover:bg-[#1a5a7a] text-slate-300 rounded-full text-sm transition-colors duration-200"
+              className="flex items-center space-x-2 px-4 py-2 bg-transparent hover:bg-slate-700 text-slate-300 rounded-lg transition-colors duration-200 w-full justify-center"
             >
-              Create Agent
+              <Plus className="w-4 h-4 text-slate-400" />
+              <span>Create Agent</span>
             </button>
           </div>
         ) : (
