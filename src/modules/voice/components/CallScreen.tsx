@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, X, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -20,7 +20,7 @@ export default function CallScreen({
   onBack, 
   onEndCall, 
   onToggleMute,
-  showSidebar = true,
+  showSidebar = false,
   onToggleSidebar
 }: CallScreenProps) {
   const [pulseAnimation, setPulseAnimation] = useState(false);
@@ -202,7 +202,7 @@ export default function CallScreen({
   };
 
   // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-1/2 mx-auto";
+  const mainContentClass = showSidebar ? "w-3/4" : "w-full";
 
   return (
     <div className="h-full bg-glass-bg flex flex-col">
@@ -231,7 +231,7 @@ export default function CallScreen({
       </div>
 
       {/* Main Call Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
+      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass} ${showSidebar ? '' : 'mx-auto'}`}>
         {/* Avatar */}
         <div className="relative mb-8">
           <div

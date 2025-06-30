@@ -215,7 +215,6 @@ export default function App() {
     if (contact) {
       setSelectedContact(contact);
       setCurrentView('settings');
-      setShowSidebar(false);
     }
   };
 
@@ -392,7 +391,6 @@ export default function App() {
     
     setSelectedContact(newAgent);
     setCurrentView('settings');
-    setShowSidebar(false);
   };
 
   // Loading state
