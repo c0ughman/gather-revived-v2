@@ -51,19 +51,12 @@ export default function Dashboard({
   }, [showProfileDropdown]);
 
   // Get frequently used agents (first 4 for hero section)
-  const frequentAgents = contacts.slice(0, 4);
-  
-  // Get recent agents based on last seen
-  const recentAgents = useMemo(() => {
+  const frequentAgents = useMemo(() => {
     return [...contacts]
-      .sort((a, b) => {
-        if (a.lastSeen === 'now') return -1;
-        if (b.lastSeen === 'now') return 1;
-        return 0;
-      })
-      .slice(0, 6);
+      .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+      .slice(0, 4);
   }, [contacts]);
-
+  
   // Filter agents for search
   const filteredAgents = useMemo(() => {
     if (!agentSearchQuery.trim()) return contacts;
@@ -202,8 +195,8 @@ export default function Dashboard({
                     <CheckCircle2 className="w-5 h-5 text-green-300" />
                   </div>
                   <div>
-                    <div className="text-2xl font-bold text-white">{stats.activeAgents}</div>
-                    <div className="text-slate-400 text-sm">Online Now</div>
+                    <div className="text-2xl font-bold text-white">{contacts.length}</div>
+                    <div className="text-slate-400 text-sm">Total Agents</div>
                   </div>
                 </div>
               </div>
@@ -321,42 +314,6 @@ export default function Dashboard({
             )}
           </section>
 
-          {/* Recent Activity - Only show if there are contacts */}
-          {contacts.length > 0 && (
-            <section>
-              <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentAgents.slice(0, 6).map((agent) => (
-                  <div key={`recent-${agent.id}`} className="bg-glass-panel glass-effect rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-                        {agent.avatar ? (
-                          <img
-                            src={agent.avatar}
-                            alt={agent.name}
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div 
-                            className="w-full h-full rounded-lg"
-                            style={{ background: createAgentGradient(agent.color) }}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-white truncate">{agent.name}</h4>
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
-                          <span className="text-slate-400 text-sm">{agent.lastSeen}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* Agents Library */}
           {contacts.length > 0 && (
             <section>
@@ -395,7 +352,6 @@ export default function Dashboard({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-2">
                           <h3 className="font-semibold text-white">{agent.name}</h3>
-                          <div className={`w-2 h-2 rounded-full ${agent.status === 'online' ? 'bg-green-400' : 'bg-slate-400'}`}></div>
                         </div>
                         <p className="text-slate-400 text-sm mb-4 line-clamp-2">{agent.description}</p>
                         <div className="flex items-center space-x-2">
@@ -448,7 +404,7 @@ export default function Dashboard({
                   <div className="flex items-start space-x-4">
                     <div 
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0"
-                      style={{ backgroundColor: integration.color }}
+                      style={{ backgroundColor: integration.color + '20', color: integration.color }}
                     >
                       {getIconForIntegration(integration.icon)}
                     </div>

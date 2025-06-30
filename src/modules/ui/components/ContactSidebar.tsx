@@ -22,7 +22,7 @@ export default function ContactSidebar({
   onCreateAgent 
 }: ContactSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('Recents');
+  const [activeFilter, setActiveFilter] = useState('All');
   const { user } = useAuth();
 
   const createAgentGradient = (color: string) => {
@@ -42,17 +42,26 @@ export default function ContactSidebar({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
-  // Filter and sort contacts based on active filter
+  // Filter contacts based on search query
   const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Sort contacts based on active filter
   const sortedContacts = [...filteredContacts].sort((a, b) => {
-    if (activeFilter === 'Recents') {
+    if (activeFilter === 'All') {
+      return 0; // No specific sorting
+    } else if (activeFilter === 'Recents') {
       // Sort by last used time (most recent first)
       const aTime = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
       const bTime = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
       return bTime - aTime;
+    } else if (activeFilter === 'Frequent') {
+      // Sort by total messages (most messages first)
+      const aMessages = a.total_messages || 0;
+      const bMessages = b.total_messages || 0;
+      return bMessages - aMessages;
     } else if (activeFilter === 'Documents') {
       // Sort by number of documents (most documents first)
       const aDocuments = a.documents?.length || 0;
@@ -67,7 +76,33 @@ export default function ContactSidebar({
     return 0;
   });
 
-  const filters = ['Recents', 'Documents', 'Integrations'];
+  const filters = ['All', 'Sources', 'Actions', 'Documents'];
+
+  // Filter contacts by integration type
+  const getFilteredContacts = () => {
+    if (activeFilter === 'All') {
+      return sortedContacts;
+    } else if (activeFilter === 'Sources') {
+      return sortedContacts.filter(contact => 
+        contact.integrations?.some(integration => 
+          integration.integrationId.includes('source') || 
+          ['http-requests', 'google-news', 'rss-feeds', 'financial-markets', 'notion-oauth-source'].includes(integration.integrationId)
+        )
+      );
+    } else if (activeFilter === 'Actions') {
+      return sortedContacts.filter(contact => 
+        contact.integrations?.some(integration => 
+          integration.integrationId.includes('action') || 
+          ['api-request-tool', 'domain-checker-tool', 'webhook-trigger', 'zapier-webhook', 'n8n-webhook', 'google-sheets', 'notion-oauth-action'].includes(integration.integrationId)
+        )
+      );
+    } else if (activeFilter === 'Documents') {
+      return sortedContacts.filter(contact => (contact.documents?.length || 0) > 0);
+    }
+    return sortedContacts;
+  };
+
+  const displayContacts = getFilteredContacts();
 
   return (
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
@@ -129,19 +164,11 @@ export default function ContactSidebar({
           <Home className="w-5 h-5 text-slate-400" />
           <span className="text-slate-300 font-inter">Home</span>
         </button>
-
-        <button 
-          onClick={onCreateAgent}
-          className="flex items-center space-x-3 w-full text-left hover:bg-slate-700 p-2 rounded-lg transition-colors duration-200"
-        >
-          <Plus className="w-5 h-5 text-slate-400" />
-          <span className="text-slate-300 font-inter">Create Agent</span>
-        </button>
       </div>
 
       {/* Contact List */}
       <div className="flex-1 overflow-y-auto">
-        {sortedContacts.length === 0 ? (
+        {displayContacts.length === 0 ? (
           <div className="p-4 text-center">
             <div className="text-slate-500 mb-4">
               <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -157,7 +184,7 @@ export default function ContactSidebar({
           </div>
         ) : (
           <div className="space-y-1">
-            {sortedContacts.map((contact) => (
+            {displayContacts.map((contact) => (
               <div
                 key={contact.id}
                 className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
@@ -215,11 +242,20 @@ export default function ContactSidebar({
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer with Create Agent Button */}
       <div className="p-4 border-t border-slate-700">
-        <p className="text-center text-slate-400 text-sm font-inter">
-          {contacts.length} AI assistants
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-slate-400 text-sm font-inter">
+            {contacts.length} AI assistants
+          </p>
+          <button
+            onClick={onCreateAgent}
+            className="flex items-center space-x-1 px-3 py-1.5 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full text-sm transition-colors duration-200"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Create Agent</span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -81,6 +81,8 @@ export default function App() {
         avatar: agent.avatar_url,
         status: agent.status as 'online' | 'busy' | 'offline',
         lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
+        lastUsed: agent.last_used_at,
+        total_messages: agent.total_messages,
         integrations: agent.agent_integrations?.map((integration: any) => ({
           id: integration.id,
           integrationId: integration.template_id,
@@ -151,7 +153,7 @@ export default function App() {
   };
 
   const handleBackToLanding = () => {
-    setCurrentView('login'); // Changed from 'landing' to 'login'
+    setCurrentView('landing');
   };
 
   const handleSelectPlan = (plan: string) => {
