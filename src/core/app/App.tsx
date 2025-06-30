@@ -17,6 +17,7 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
+import { X } from 'lucide-react';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -167,10 +168,6 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
-  const handleToggleSidebar = () => {
-    setShowSidebar(!showSidebar);
-  };
-
   const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('chat');
@@ -239,6 +236,10 @@ export default function App() {
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
+  };
+
+  const handleToggleSidebar = () => {
+    setShowSidebar(!showSidebar);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -472,15 +473,17 @@ export default function App() {
                 )}
                 
                 {currentView === 'call' && selectedContact && (
-                  <CallScreen
-                    contact={selectedContact}
-                    callState={callState}
-                    onBack={handleBack}
-                    onEndCall={handleEndCall}
-                    onToggleMute={handleToggleMute}
-                    showSidebar={showSidebar}
-                    onToggleSidebar={handleToggleSidebar}
-                  />
+                  <div className={showSidebar ? "w-3/4" : "w-full"}>
+                    <CallScreen
+                      contact={selectedContact}
+                      callState={callState}
+                      onBack={handleBack}
+                      onEndCall={handleEndCall}
+                      onToggleMute={handleToggleMute}
+                      showSidebar={showSidebar}
+                      onToggleSidebar={handleToggleSidebar}
+                    />
+                  </div>
                 )}
                 
                 {currentView === 'settings' && selectedContact && (
@@ -513,8 +516,14 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Settings (when in chat view) */}
-              {currentView === 'chat' && showSidebar && (
-                <div className="w-1/4 border-l border-slate-700">
+              {(currentView === 'chat' || currentView === 'call') && showSidebar && (
+                <div className="w-1/4 border-l border-slate-700 relative">
+                  <button 
+                    onClick={handleToggleSidebar}
+                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors duration-200 z-10"
+                  >
+                    <X className="w-4 h-4 text-slate-400" />
+                  </button>
                   <SettingsSidebar
                     contact={selectedContact}
                     onSave={handleSaveContact}
