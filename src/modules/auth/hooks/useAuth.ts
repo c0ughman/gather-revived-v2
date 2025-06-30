@@ -1,53 +1,29 @@
-import { useState, useEffect } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '../../database/lib/supabase'
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import type { User, Session, AuthError } from '@supabase/supabase-js';
+
+// Initialize Supabase client with environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export interface AuthState {
-  user: User | null
-  session: Session | null
-  loading: boolean
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
 }
 
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     session: null,
-    loading: true
-  })
-
-  // Clear all user-specific data from localStorage
-  const clearUserData = () => {
-    console.log('🧹 Clearing all user data from localStorage');
-    
-    // Get all keys in localStorage
-    const keys = Object.keys(localStorage);
-    
-    // Find and remove all user-specific data
-    keys.forEach(key => {
-      // Remove Stripe-related data
-      if (key.startsWith('stripe_') || key.includes('subscription')) {
-        localStorage.removeItem(key);
-      }
-      
-      // Remove OAuth tokens and connection status
-      if (key.startsWith('oauth_') || key.startsWith('notion_token_')) {
-        localStorage.removeItem(key);
-      }
-      
-      // Remove user-specific messages
-      if (key.includes('messages') || key.includes('conversation')) {
-        localStorage.removeItem(key);
-      }
-      
-      // Remove any other user-specific data
-      if (key.includes('user_') || key.includes('profile_')) {
-        localStorage.removeItem(key);
-      }
-    });
-    
-    // Clear specific known keys
-    localStorage.removeItem('gather-messages');
-  };
+    loading: true,
+  });
 
   useEffect(() => {
     // Get initial session
@@ -55,77 +31,114 @@ export function useAuth() {
       setAuthState({
         user: session?.user ?? null,
         session,
-        loading: false
-      })
-      
-      // If a user is logged in, clear any previous user data
-      if (session?.user) {
-        clearUserData();
-      }
-    })
+        loading: false,
+      });
+    });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔐 Auth state changed:', event);
-      
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        // Clear any previous user data when a new user signs in
-        clearUserData();
-      } else if (event === 'SIGNED_OUT') {
-        // Clear all user data on sign out
-        clearUserData();
-      }
-      
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthState({
         user: session?.user ?? null,
         session,
-        loading: false
-      })
-    })
+        loading: false,
+      });
+    });
 
-    return () => subscription.unsubscribe()
-  }, [])
+    return () => subscription.unsubscribe();
+  }, []);
 
-  const signUp = async (email: string, password: string, name: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name: name // Store name in user metadata
-        }
+  const signUp = async (email: string, password: string, displayName?: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: displayName,
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Signup error:', error);
+        return { data: null, error };
       }
-    })
-    return { data, error }
-  }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Unexpected signup error:', error);
+      return { 
+        data: null, 
+        error: { message: 'An unexpected error occurred during signup' } as AuthError 
+      };
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    return { data, error }
-  }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Signin error:', error);
+        return { data: null, error };
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Unexpected signin error:', error);
+      return { 
+        data: null, 
+        error: { message: 'An unexpected error occurred during signin' } as AuthError 
+      };
+    }
+  };
 
   const signOut = async () => {
-    // Clear user data before signing out
-    clearUserData();
-    const { error } = await supabase.auth.signOut()
-    return { error }
-  }
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Signout error:', error);
+        return { error };
+      }
+      return { error: null };
+    } catch (error) {
+      console.error('Unexpected signout error:', error);
+      return { error: { message: 'An unexpected error occurred during signout' } as AuthError };
+    }
+  };
 
   const resetPassword = async (email: string) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email)
-    return { data, error }
-  }
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        console.error('Reset password error:', error);
+        return { data: null, error };
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Unexpected reset password error:', error);
+      return { 
+        data: null, 
+        error: { message: 'An unexpected error occurred during password reset' } as AuthError 
+      };
+    }
+  };
 
   return {
     ...authState,
     signUp,
     signIn,
     signOut,
-    resetPassword
-  }
+    resetPassword,
+    supabase, // Export the supabase client for other modules to use
+  };
 }
