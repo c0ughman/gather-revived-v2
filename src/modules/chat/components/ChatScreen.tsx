@@ -57,6 +57,9 @@ export default function ChatScreen({
     }
   }, [messages]);
 
+  // Get active integrations
+  const activeIntegrations = contact.integrations?.filter(i => i.status === 'active') || [];
+
   const handleSend = () => {
     if (inputValue.trim() || pendingDocuments.length > 0) {
       onSendMessage(inputValue.trim(), pendingDocuments.length > 0 ? pendingDocuments : undefined);
@@ -86,9 +89,6 @@ export default function ChatScreen({
   const handleRemoveDocument = (documentId: string) => {
     setPendingDocuments(prev => prev.filter(doc => doc.id !== documentId));
   };
-
-  // Get active integrations
-  const activeIntegrations = contact.integrations?.filter(i => i.status === 'active') || [];
 
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
@@ -127,6 +127,32 @@ export default function ChatScreen({
     return `linear-gradient(135deg, rgb(${r}, ${g}, ${b}) 0%, rgb(${lightR}, ${lightG}, ${lightB}) 100%)`;
   };
 
+  // Get document color based on file type
+  const getDocumentColor = (doc: DocumentInfo) => {
+    const extension = doc.name.toLowerCase().split('.').pop();
+    
+    if (extension === 'pdf' || doc.type.includes('pdf')) {
+      return 'bg-red-700/30 text-red-300 border border-red-700/50'; // PDF - red
+    } else if (['xlsx', 'xls', 'csv'].includes(extension || '') || doc.type.includes('spreadsheet') || doc.type.includes('excel') || doc.type.includes('csv')) {
+      return 'bg-green-700/30 text-green-300 border border-green-700/50'; // Excel/spreadsheet - green
+    } else if (['docx', 'doc'].includes(extension || '') || doc.type.includes('word') || doc.type.includes('document')) {
+      return 'bg-blue-700/30 text-blue-300 border border-blue-700/50'; // Word/document - blue
+    } else {
+      return 'bg-slate-700/30 text-slate-300 border border-slate-700/50'; // Default - gray
+    }
+  };
+
+  // Get integration color
+  const getIntegrationColor = (integration: any) => {
+    const integrationDef = getIntegrationById(integration.integrationId);
+    if (integrationDef) {
+      // Convert hex color to tailwind-compatible background with opacity
+      const color = integrationDef.color.replace('#', '');
+      return `bg-[${integrationDef.color}]/30 text-[${integrationDef.color}] border border-[${integrationDef.color}]/50`;
+    }
+    return 'bg-slate-700/30 text-slate-300 border border-slate-700/50'; // Default
+  };
+
   // Helper function to render AI message with simple markup support
   const renderAIMessage = (content: string) => {
     // Simple markup parsing
@@ -148,32 +174,6 @@ export default function ChatScreen({
         dangerouslySetInnerHTML={{ __html: formattedContent }}
       />
     );
-  };
-
-  // Get document color based on file type
-  const getDocumentColor = (doc: DocumentInfo) => {
-    const extension = doc.name.toLowerCase().split('.').pop();
-    
-    if (extension === 'pdf' || doc.type.includes('pdf')) {
-      return 'bg-red-700/80 text-red-100'; // PDF - red
-    } else if (['xlsx', 'xls', 'csv'].includes(extension || '') || doc.type.includes('spreadsheet') || doc.type.includes('excel') || doc.type.includes('csv')) {
-      return 'bg-green-700/80 text-green-100'; // Excel/spreadsheet - green
-    } else if (['docx', 'doc'].includes(extension || '') || doc.type.includes('word') || doc.type.includes('document')) {
-      return 'bg-blue-700/80 text-blue-100'; // Word/document - blue
-    } else {
-      return 'bg-slate-700/80 text-slate-300'; // Default - gray
-    }
-  };
-
-  // Get integration color
-  const getIntegrationColor = (integration: any) => {
-    const integrationDef = getIntegrationById(integration.integrationId);
-    if (integrationDef) {
-      // Convert hex color to tailwind-compatible background with opacity
-      const color = integrationDef.color.replace('#', '');
-      return `bg-[#${color}]/80 text-[#${color.substring(0, 2)}ffff]`;
-    }
-    return 'bg-slate-700/80 text-slate-300'; // Default
   };
 
   // Count total documents available to this AI
@@ -294,18 +294,21 @@ export default function ChatScreen({
             </span>
           ))}
           {conversationDocuments.length > 3 && (
-            <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+            <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
               +{conversationDocuments.length - 3} more
             </span>
           )}
           
-          {activeIntegrations.slice(0, 3).map((integration) => (
-            <span key={integration.id} className={`px-2 py-1 ${getIntegrationColor(integration)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
-              {integration.name}
-            </span>
-          ))}
+          {activeIntegrations.slice(0, 3).map((integration) => {
+            const integrationDef = getIntegrationById(integration.integrationId);
+            return (
+              <span key={integration.id} className={`px-2 py-1 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] bg-${integrationDef?.color.replace('#', '')}/30 text-${integrationDef?.color} border border-${integrationDef?.color.replace('#', '')}/50`}>
+                {integration.name}
+              </span>
+            );
+          })}
           {activeIntegrations.length > 3 && (
-            <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+            <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
               +{activeIntegrations.length - 3} more
             </span>
           )}
@@ -347,18 +350,22 @@ export default function ChatScreen({
                   </span>
                 ))}
                 {contact.documents && contact.documents.length > 5 && (
-                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
                     +{contact.documents.length - 5} more
                   </span>
                 )}
                 
-                {activeIntegrations.slice(0, 5).map((integration) => (
-                  <span key={integration.id} className={`px-2 py-1 ${getIntegrationColor(integration)} rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]`}>
-                    {integration.name}
-                  </span>
-                ))}
+                {activeIntegrations.slice(0, 5).map((integration) => {
+                  const integrationDef = getIntegrationById(integration.integrationId);
+                  if (!integrationDef) return null;
+                  return (
+                    <span key={integration.id} className={`px-2 py-1 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] bg-${integrationDef.color.replace('#', '')}/30 border border-${integrationDef.color.replace('#', '')}/50`} style={{backgroundColor: `${integrationDef.color}30`, color: integrationDef.color, borderColor: `${integrationDef.color}80`}}>
+                      {integration.name}
+                    </span>
+                  );
+                })}
                 {activeIntegrations.length > 5 && (
-                  <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
                     +{activeIntegrations.length - 5} more
                   </span>
                 )}
