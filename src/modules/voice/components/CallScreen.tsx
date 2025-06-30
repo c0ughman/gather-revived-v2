@@ -202,7 +202,7 @@ export default function CallScreen({
   };
 
   // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "w-3/4" : "w-full";
+  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-1/2 mx-auto";
 
   return (
     <div className="h-full bg-glass-bg flex flex-col">
@@ -231,7 +231,7 @@ export default function CallScreen({
       </div>
 
       {/* Main Call Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass} mx-auto`}>
+      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
         {/* Avatar */}
         <div className="relative mb-8">
           <div
