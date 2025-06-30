@@ -1,151 +1,93 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, FileText, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
+import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
-import DocumentDisplay from './DocumentDisplay';
-import { DocumentInfo } from '../../fileManagement/types/documents';
 
 interface CallScreenProps {
   contact: AIContact;
+  callState: CallState;
   onBack: () => void;
-  onSettingsClick: (contact: AIContact) => void;
+  onEndCall: () => void;
+  onToggleMute: () => void;
+  showSidebar?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export default function CallScreen({ contact, onBack, onSettingsClick }: CallScreenProps) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [callDuration, setCallDuration] = useState(0);
-  const [isAISpeaking, setIsAISpeaking] = useState(false);
-  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [showDocuments, setShowDocuments] = useState(false);
-  const [currentDocument, setCurrentDocument] = useState<DocumentInfo | null>(null);
-  
-  const callStartTimeRef = useRef<number | null>(null);
-  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+export default function CallScreen({ 
+  contact, 
+  callState, 
+  onBack, 
+  onEndCall, 
+  onToggleMute,
+  showSidebar = true,
+  onToggleSidebar
+}: CallScreenProps) {
+  const [pulseAnimation, setPulseAnimation] = useState(false);
+  const [responseText, setResponseText] = useState<string>("");
+  const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
+  const serviceInitialized = useRef(false);
+  const initializationInProgress = useRef(false);
 
   useEffect(() => {
+    if (callState.status === 'connecting') {
+      setPulseAnimation(true);
+      
+      // Initialize the Gemini Live service when call is connecting
+      const initService = async () => {
+        if (!serviceInitialized.current && !initializationInProgress.current) {
+          initializationInProgress.current = true;
+          try {
+            console.log("🚀 Starting service initialization...");
+            
+            // Set up event handlers first
+            geminiLiveService.onResponse((response) => {
+              setResponseText(response.text);
+            });
+            
+            geminiLiveService.onError((error) => {
+              console.error("Gemini Live error:", error);
+              setResponseText("I'm having trouble with the connection. Let's try again.");
+            });
+            
+            geminiLiveService.onStateChange((state) => {
+              console.log(`🔄 Service state changed to: ${state}`);
+              setServiceState(state);
+            });
+            
+            // Initialize audio
+            const initialized = await geminiLiveService.initialize();
+            if (initialized) {
+              console.log("✅ Audio initialized, starting session...");
+              await geminiLiveService.startSession(contact);
+              serviceInitialized.current = true;
+              console.log("✅ Service fully initialized");
+            } else {
+              console.error("❌ Audio initialization failed");
+              setResponseText("Could not access microphone. Please check permissions.");
+            }
+          } catch (error) {
+            console.error("❌ Failed to initialize Gemini Live service:", error);
+            setResponseText("Failed to start voice chat. Please try again.");
+          } finally {
+            initializationInProgress.current = false;
+          }
+        }
+      };
+      
+      initService();
+    } else {
+      setPulseAnimation(false);
+    }
+    
     return () => {
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-      }
-      if (isConnected) {
-        handleEndCall();
+      // Clean up when component unmounts
+      if (callState.status === 'ended' && serviceInitialized.current) {
+        geminiLiveService.endSession();
+        serviceInitialized.current = false;
       }
     };
-  }, [isConnected]);
-
-  const startDurationTimer = () => {
-    callStartTimeRef.current = Date.now();
-    durationIntervalRef.current = setInterval(() => {
-      if (callStartTimeRef.current) {
-        setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
-      }
-    }, 1000);
-  };
-
-  const stopDurationTimer = () => {
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
-    callStartTimeRef.current = null;
-  };
-
-  const handleStartCall = async () => {
-    setIsConnecting(true);
-    setConnectionError(null);
-    
-    try {
-      console.log('🎙️ Starting call with:', contact.name);
-      
-      // Initialize Gemini Live service
-      await geminiLiveService.initialize({
-        model: 'gemini-2.0-flash-exp',
-        voice: contact.voice || 'Puck',
-        systemInstruction: `You are ${contact.name}. ${contact.description}`,
-        documents: contact.documents || []
-      });
-
-      // Set up event listeners
-      geminiLiveService.onAudioStart(() => {
-        console.log('🎵 AI started speaking');
-        setIsAISpeaking(true);
-      });
-
-      geminiLiveService.onAudioEnd(() => {
-        console.log('🔇 AI stopped speaking');
-        setIsAISpeaking(false);
-      });
-
-      geminiLiveService.onUserSpeechStart(() => {
-        console.log('🎤 User started speaking');
-        setIsUserSpeaking(true);
-      });
-
-      geminiLiveService.onUserSpeechEnd(() => {
-        console.log('🔇 User stopped speaking');
-        setIsUserSpeaking(false);
-      });
-
-      geminiLiveService.onDocumentReference((document) => {
-        console.log('📄 AI referenced document:', document.name);
-        setCurrentDocument(document);
-        setShowDocuments(true);
-      });
-
-      geminiLiveService.onError((error) => {
-        console.error('❌ Gemini Live error:', error);
-        setConnectionError(error.message);
-        setIsConnected(false);
-        setIsConnecting(false);
-        stopDurationTimer();
-      });
-
-      // Start the session
-      await geminiLiveService.startSession();
-      
-      setIsConnected(true);
-      setIsConnecting(false);
-      startDurationTimer();
-      
-      console.log('✅ Call connected successfully');
-    } catch (error) {
-      console.error('❌ Failed to start call:', error);
-      setConnectionError(error instanceof Error ? error.message : 'Failed to start call');
-      setIsConnecting(false);
-    }
-  };
-
-  const handleEndCall = async () => {
-    console.log('📞 Ending call');
-    
-    try {
-      await geminiLiveService.endSession();
-    } catch (error) {
-      console.error('Error ending call:', error);
-    }
-    
-    setIsConnected(false);
-    setIsConnecting(false);
-    setIsAISpeaking(false);
-    setIsUserSpeaking(false);
-    setConnectionError(null);
-    stopDurationTimer();
-    setCallDuration(0);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-    geminiLiveService.setMuted(!isMuted);
-  };
-
-  const toggleSpeaker = () => {
-    setIsSpeakerOn(!isSpeakerOn);
-    // Note: Speaker control would be handled by the browser's audio context
-  };
+  }, [callState.status, contact.id]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -153,17 +95,105 @@ export default function CallScreen({ contact, onBack, onSettingsClick }: CallScr
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getStatusText = () => {
+    switch (callState.status) {
+      case 'connecting':
+        return 'Connecting...';
+      case 'connected':
+        return formatDuration(callState.duration);
+      case 'ended':
+        return 'Call ended';
+      default:
+        return '';
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (callState.status) {
+      case 'connecting':
+        return 'text-yellow-400';
+      case 'connected':
+        return 'text-green-400';
+      case 'ended':
+        return 'text-red-400';
+      default:
+        return 'text-slate-400';
+    }
+  };
+
+  const getServiceStateText = () => {
+    switch (serviceState) {
+      case 'listening':
+        return "🎤 Listening...";
+      case 'processing':
+        return "🧠 Processing...";
+      case 'responding':
+        return "🗣️ Speaking...";
+      case 'idle':
+        return callState.status === 'connected' ? "💬 Ready to chat" : getStatusText();
+      default:
+        return getStatusText();
+    }
+  };
+
+  const getServiceStateColor = () => {
+    switch (serviceState) {
+      case 'listening':
+        return 'text-[#186799]';
+      case 'processing':
+        return 'text-yellow-400';
+      case 'responding':
+        return 'text-green-400';
+      case 'idle':
+        return getStatusColor();
+      default:
+        return getStatusColor();
+    }
+  };
+
+  const handleMicToggle = async () => {
+    onToggleMute();
+    
+    // If we're unmuting, start listening
+    if (callState.isMuted && serviceInitialized.current && callState.status === 'connected') {
+      try {
+        await geminiLiveService.startListening();
+      } catch (error) {
+        console.error("Failed to start listening:", error);
+      }
+    } else if (!callState.isMuted && serviceInitialized.current) {
+      geminiLiveService.stopListening();
+    }
+  };
+
+  const handleEndCall = () => {
+    if (serviceInitialized.current) {
+      geminiLiveService.endSession();
+      serviceInitialized.current = false;
+    }
+    onEndCall();
+  };
+
+  const toggleSidebar = () => {
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    }
+  };
+
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
+    // Convert hex to RGB
     const hex = color.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
     
-    const compR = Math.round(255 - r * 0.3);
+    // Create complementary color by shifting hue and make it lighter
+    const compR = Math.round(255 - r * 0.3); // Softer complement
     const compG = Math.round(255 - g * 0.3);
     const compB = Math.round(255 - b * 0.3);
     
+    // Make complementary color lighter than the main color
     const lightCompR = Math.round(compR + (255 - compR) * 0.8);
     const lightCompG = Math.round(compG + (255 - compG) * 0.8);
     const lightCompB = Math.round(compB + (255 - compB) * 0.8);
@@ -171,166 +201,175 @@ export default function CallScreen({ contact, onBack, onSettingsClick }: CallScr
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
-  return (
-    <div className="h-full bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white flex flex-col relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-purple-600/20 to-[#186799]/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-      </div>
+  // Calculate main content width based on sidebar visibility
+  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-3/4 ml-1/4";
 
+  return (
+    <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
-      <div className="relative z-10 p-6 flex items-center justify-between">
+      <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
         <button
           onClick={onBack}
-          className="p-2 rounded-full hover:bg-white/10 transition-colors duration-200"
+          className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
         >
-          <ArrowLeft className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6 text-white" />
         </button>
         
         <div className="text-center">
-          <h1 className="text-xl font-semibold">{contact.name}</h1>
-          <p className="text-slate-400 text-sm">
-            {isConnecting ? 'Connecting...' : 
-             isConnected ? `Connected • ${formatDuration(callDuration)}` : 
-             'Ready to call'}
+          <h2 className="text-white text-xl font-semibold">{contact.name}</h2>
+          <p className={`text-sm font-medium ${getStatusColor()}`}>
+            {getStatusText()}
           </p>
         </div>
-
-        <button
-          onClick={() => onSettingsClick(contact)}
-          className="p-2 rounded-full hover:bg-white/10 transition-colors duration-200"
+        
+        <button 
+          onClick={toggleSidebar}
+          className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
         >
-          <Settings className="w-6 h-6" />
+          <MoreVertical className="w-6 h-6 text-slate-400" />
         </button>
       </div>
 
-      {/* Main Call Interface */}
-      <div className="flex-1 flex flex-col items-center justify-center relative z-10 px-6">
-        {/* Contact Avatar */}
+      {/* Main Call Area */}
+      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
+        {/* Avatar */}
         <div className="relative mb-8">
-          <div className={`w-48 h-48 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
-            isAISpeaking ? 'ring-4 ring-[#186799] ring-opacity-50 scale-105' : ''
-          }`}>
+          <div
+            className={`w-40 h-40 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
+              pulseAnimation ? 'animate-pulse scale-110' : ''
+            } ${
+              serviceState === 'listening' ? 'ring-4 ring-[#186799] ring-opacity-75' : ''
+            } ${
+              serviceState === 'responding' ? 'ring-4 ring-green-400 ring-opacity-75' : ''
+            } ${
+              serviceState === 'processing' ? 'ring-4 ring-yellow-400 ring-opacity-75' : ''
+            }`}
+          >
             {contact.avatar ? (
               <img
                 src={contact.avatar}
                 alt={contact.name}
-                className="w-full h-full object-cover rounded-full"
+                className="w-full h-full object-cover rounded-2xl"
               />
             ) : (
-              <div 
-                className="w-full h-full rounded-full"
+              <div
+                className="w-full h-full rounded-2xl"
                 style={{ background: createAgentGradient(contact.color) }}
               />
             )}
           </div>
           
-          {/* Speaking Indicator */}
-          {isAISpeaking && (
-            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-[#186799] rounded-full flex items-center justify-center animate-pulse">
-              <Volume2 className="w-6 h-6 text-white" />
+          {/* Pulse rings for connecting state */}
+          {callState.status === 'connecting' && (
+            <>
+              <div 
+                className="absolute inset-0 rounded-2xl border-4 animate-ping opacity-50"
+                style={{ borderColor: contact.color }}
+              ></div>
+              <div 
+                className="absolute inset-0 rounded-2xl border-2 animate-ping opacity-30"
+                style={{ borderColor: contact.color, animationDelay: '0.5s' }}
+              ></div>
+            </>
+          )}
+
+          {/* State indicators */}
+          {serviceState === 'listening' && (
+            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#186799] rounded-full flex items-center justify-center animate-pulse">
+              <Mic className="w-4 h-4 text-white" />
+            </div>
+          )}
+
+          {serviceState === 'responding' && (
+            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
+              <Volume2 className="w-4 h-4 text-white" />
+            </div>
+          )}
+
+          {serviceState === 'processing' && (
+            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center animate-spin">
+              <div className="w-3 h-3 bg-white rounded-full"></div>
             </div>
           )}
         </div>
 
-        {/* Status Text */}
+        {/* Contact Info */}
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-2">{contact.name}</h2>
-          <p className="text-slate-400 mb-4">{contact.description}</p>
-          
-          {connectionError && (
-            <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-4 max-w-md">
-              <p className="text-red-300 text-sm">{connectionError}</p>
-            </div>
-          )}
-          
-          {isConnected && (
-            <div className="flex items-center justify-center space-x-4 text-sm text-slate-400">
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${isUserSpeaking ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`}></div>
-                <span>You</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${isAISpeaking ? 'bg-[#186799] animate-pulse' : 'bg-slate-600'}`}></div>
-                <span>AI</span>
-              </div>
-            </div>
-          )}
+          <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
+          <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed">
+            {contact.description}
+          </p>
         </div>
 
-        {/* Call Controls */}
-        <div className="flex items-center space-x-6">
-          {/* Mute Button */}
-          {isConnected && (
-            <button
-              onClick={toggleMute}
-              className={`p-4 rounded-full transition-all duration-200 ${
-                isMuted 
-                  ? 'bg-red-600 hover:bg-red-700' 
-                  : 'bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-            </button>
-          )}
-
-          {/* Main Call Button */}
-          <button
-            onClick={isConnected ? handleEndCall : handleStartCall}
-            disabled={isConnecting}
-            className={`p-6 rounded-full transition-all duration-200 transform hover:scale-105 ${
-              isConnected 
-                ? 'bg-red-600 hover:bg-red-700' 
-                : isConnecting
-                ? 'bg-slate-600 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
-            {isConnecting ? (
-              <Loader2 className="w-8 h-8 animate-spin" />
-            ) : isConnected ? (
-              <PhoneOff className="w-8 h-8" />
-            ) : (
-              <Phone className="w-8 h-8" />
-            )}
-          </button>
-
-          {/* Speaker Button */}
-          {isConnected && (
-            <button
-              onClick={toggleSpeaker}
-              className={`p-4 rounded-full transition-all duration-200 ${
-                isSpeakerOn 
-                  ? 'bg-white/10 hover:bg-white/20' 
-                  : 'bg-slate-600 hover:bg-slate-700'
-              }`}
-            >
-              {isSpeakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
-            </button>
-          )}
+        {/* Status Indicator */}
+        <div className="mb-8">
+          <div className={`px-6 py-3 rounded-full bg-slate-800 border ${
+            callState.status === 'connected' ? 'border-green-500' : 'border-slate-600'
+          }`}>
+            <span className={`text-lg font-medium ${getServiceStateColor()}`}>
+              {getServiceStateText()}
+            </span>
+          </div>
         </div>
-
-        {/* Documents Button */}
-        {contact.documents && contact.documents.length > 0 && (
-          <button
-            onClick={() => setShowDocuments(!showDocuments)}
-            className="mt-8 flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors duration-200"
-          >
-            <FileText className="w-4 h-4" />
-            <span className="text-sm">Documents ({contact.documents.length})</span>
-          </button>
+        
+        {/* Response Text */}
+        {responseText && callState.status === 'connected' && (
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
+            <p className="text-slate-300 text-sm italic">"{responseText}"</p>
+          </div>
         )}
       </div>
 
-      {/* Document Display */}
-      {showDocuments && (
-        <DocumentDisplay
-          documents={contact.documents || []}
-          currentDocument={currentDocument}
-          onClose={() => setShowDocuments(false)}
-        />
-      )}
+      {/* Call Controls */}
+      <div className="pb-8 px-8">
+        <div className="flex items-center justify-center space-x-6">
+          {/* Mute Button */}
+          <button
+            onClick={handleMicToggle}
+            disabled={callState.status !== 'connected'}
+            className={`p-4 rounded-full transition-all duration-200 ${
+              callState.isMuted
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-slate-700 hover:bg-slate-600'
+            } ${
+              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
+            } shadow-lg hover:shadow-xl hover:scale-105`}
+          >
+            {callState.isMuted ? (
+              <MicOff className="w-6 h-6 text-white" />
+            ) : (
+              <Mic className="w-6 h-6 text-white" />
+            )}
+          </button>
+
+          {/* End Call Button */}
+          <button
+            onClick={handleEndCall}
+            className="p-6 rounded-full bg-red-600 hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 group"
+          >
+            <PhoneOff className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
+          </button>
+
+          {/* Speaker Button */}
+          <button
+            disabled={callState.status !== 'connected'}
+            className={`p-4 rounded-full bg-slate-700 hover:bg-slate-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 ${
+              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Volume2 className="w-6 h-6 text-white" />
+          </button>
+        </div>
+
+        {/* Control Labels */}
+        <div className="flex items-center justify-center space-x-6 mt-4">
+          <span className="text-slate-400 text-sm w-16 text-center">
+            {callState.isMuted ? 'Unmute' : 'Mute'}
+          </span>
+          <span className="text-slate-400 text-sm w-20 text-center">End Call</span>
+          <span className="text-slate-400 text-sm w-16 text-center">Speaker</span>
+        </div>
+      </div>
     </div>
   );
 }
