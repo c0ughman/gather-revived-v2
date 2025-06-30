@@ -53,11 +53,6 @@ export default function ContactSidebar({
       const aTime = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
       const bTime = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
       return bTime - aTime;
-    } else if (activeFilter === 'Frequent') {
-      // Sort by total messages (most messages first)
-      const aMessages = a.totalMessages || 0;
-      const bMessages = b.totalMessages || 0;
-      return bMessages - aMessages;
     } else if (activeFilter === 'Documents') {
       // Sort by number of documents (most documents first)
       const aDocuments = a.documents?.length || 0;
@@ -72,7 +67,7 @@ export default function ContactSidebar({
     return 0;
   });
 
-  const filters = ['Recents', 'Frequent', 'Documents', 'Integrations'];
+  const filters = ['Recents', 'Documents', 'Integrations'];
 
   return (
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
