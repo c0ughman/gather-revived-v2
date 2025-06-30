@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
 import CallScreen from '../../modules/voice/components/CallScreen';
+import { geminiLiveService } from '../../modules/voice';
 import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
@@ -15,6 +16,7 @@ import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
 import { geminiService } from '../../modules/fileManagement/services/geminiService';
 import { supabaseService } from '../../modules/database/services/supabaseService';
+import { integrationsService, getIntegrationById } from '../../modules/integrations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
 
@@ -26,7 +28,7 @@ export default function App() {
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
   const [contacts, setContacts] = useState<AIContact[]>([]);
   const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
-  const [conversationDocuments, setConversationDocuments] = useState<DocumentInfo[]>([]);
+  const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
   const [dataLoading, setDataLoading] = useState(false);
   const [callState, setCallState] = useState<CallState>({
     isActive: false,
@@ -35,11 +37,27 @@ export default function App() {
     status: 'ended'
   });
   const [showSidebar, setShowSidebar] = useState(true);
+  const [oauthMessage, setOauthMessage] = useState<string | null>(null);
+
+  // Update call duration
+  useEffect(() => {
+    let interval: number;
+    if (callState.isActive && callState.status === 'connected') {
+      interval = setInterval(() => {
+        setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [callState.isActive, callState.status]);
 
   // Load user data when authenticated
   useEffect(() => {
     if (user && !dataLoading) {
       loadUserData();
+    } else if (!user) {
+      setContacts([]);
+      setMessages([]);
+      setConversationDocuments({});
     }
   }, [user]);
 
@@ -48,6 +66,30 @@ export default function App() {
       setCurrentView('dashboard');
     }
   }, [user, currentView]);
+
+  // Handle OAuth success/error messages
+  useEffect(() => {
+    const handleLocationState = () => {
+      const state = window.history.state?.usr;
+      if (state?.oauthSuccess) {
+        setOauthMessage(`✅ ${state.provider} connected successfully!`);
+        // Mark as connected in localStorage for the OAuth component
+        if (user) {
+          localStorage.setItem(`oauth_connected_${state.provider}_${user.id}`, 'true');
+        }
+        // Clear the state
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(() => setOauthMessage(null), 5000);
+      } else if (state?.oauthError) {
+        setOauthMessage(`❌ OAuth error: ${state.error}`);
+        // Clear the state
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(() => setOauthMessage(null), 8000);
+      }
+    };
+
+    handleLocationState();
+  }, [user]);
 
   const loadUserData = async () => {
     if (!user || dataLoading) return;
@@ -104,6 +146,26 @@ export default function App() {
       }));
 
       setContacts(transformedContacts);
+      
+      // Initialize integrations
+      transformedContacts.forEach(contact => {
+        if (contact.integrations) {
+          contact.integrations.forEach(integrationInstance => {
+            const integration = getIntegrationById(integrationInstance.integrationId);
+            if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
+              integrationsService.startPeriodicExecution(
+                contact.id, 
+                integration, 
+                integrationInstance.config, 
+                (contactId, data) => {
+                  console.log(`Integration data updated for contact ${contactId}`);
+                }
+              );
+            }
+          });
+        }
+      });
+
       console.log('✅ User data loaded successfully');
 
     } catch (error) {
@@ -168,33 +230,76 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
-  const handleChatClick = (contact: AIContact) => {
+  const handleChatClick = async (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('chat');
     
     // Load conversation documents for this contact
     const contactMessages = messages.filter(m => m.contactId === contact.id);
     const allAttachments = contactMessages.flatMap(m => m.attachments || []);
-    setConversationDocuments(allAttachments);
+    setConversationDocuments(prev => ({
+      ...prev,
+      [contact.id]: allAttachments
+    }));
+
+    // Execute integrations on chat start if configured
+    if (contact.integrations) {
+      for (const integrationInstance of contact.integrations) {
+        const integration = getIntegrationById(integrationInstance.integrationId);
+        if (integration && 
+            integration.category !== 'action' &&
+            integrationInstance.config.enabled && 
+            (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
+          try {
+            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
+            integrationsService.storeIntegrationData(contact.id, integration.id, data);
+          } catch (error) {
+            console.error(`Failed to execute integration ${integration.name}:`, error);
+          }
+        }
+      }
+    }
   };
 
   const handleCallClick = (contact: AIContact) => {
+    if (callState.isActive && callState.status !== 'ended') {
+      handleEndCall();
+      setTimeout(() => {
+        startNewCall(contact);
+      }, 200);
+    } else {
+      startNewCall(contact);
+    }
+  };
+
+  const startNewCall = (contact: AIContact) => {
     setSelectedContact(contact);
-    setCurrentView('call');
     setCallState({
       isActive: true,
       duration: 0,
       isMuted: false,
       status: 'connecting'
     });
-
-    // Simulate call connection
-    setTimeout(() => {
-      setCallState(prev => ({ ...prev, status: 'connected' }));
-    }, 2000);
+    setCurrentView('call');
+    
+    geminiLiveService.initialize().then(initialized => {
+      if (initialized) {
+        geminiLiveService.startSession(contact).then(() => {
+          setTimeout(() => {
+            setCallState(prev => ({ ...prev, status: 'connected' }));
+          }, 2000);
+        });
+      } else {
+        setTimeout(() => {
+          setCallState(prev => ({ ...prev, status: 'ended' }));
+          handleEndCall();
+        }, 2000);
+      }
+    });
   };
 
   const handleEndCall = () => {
+    geminiLiveService.endSession();
     setCallState({
       isActive: false,
       duration: 0,
@@ -216,17 +321,28 @@ export default function App() {
     }
   };
 
-  const handleNewChatClick = (contact: AIContact) => {
+  const handleNewChatClick = async (contact: AIContact) => {
     // Clear messages for this contact to start fresh
     const otherMessages = messages.filter(m => m.contactId !== contact.id);
     setMessages(otherMessages);
-    setConversationDocuments([]);
+    
+    // Clear conversation documents for this contact
+    setConversationDocuments(prev => {
+      const updated = { ...prev };
+      delete updated[contact.id];
+      return updated;
+    });
+    
     handleChatClick(contact);
   };
 
   const handleBack = () => {
-    setCurrentView('dashboard');
-    setSelectedContact(null);
+    if (currentView === 'call') {
+      handleEndCall();
+    } else {
+      setCurrentView('dashboard');
+      setSelectedContact(null);
+    }
   };
 
   const handleHomeClick = () => {
@@ -245,6 +361,8 @@ export default function App() {
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
     if (!selectedContact) return;
 
+    const existingConversationDocs = conversationDocuments[selectedContact.id] || [];
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -258,7 +376,32 @@ export default function App() {
 
     // Add new documents to conversation documents
     if (documents && documents.length > 0) {
-      setConversationDocuments(prev => [...prev, ...documents]);
+      try {
+        console.log(`💾 Saving ${documents.length} conversation documents to Supabase`);
+        
+        // Save each document to Supabase
+        for (const doc of documents) {
+          await documentContextService.saveConversationDocument(selectedContact, doc);
+        }
+        
+        const updatedConversationDocs = [...existingConversationDocs];
+        
+        documents.forEach(newDoc => {
+          if (!updatedConversationDocs.find(doc => doc.id === newDoc.id)) {
+            updatedConversationDocs.push(newDoc);
+          }
+        });
+        
+        setConversationDocuments(prev => ({
+          ...prev,
+          [selectedContact.id]: updatedConversationDocs
+        }));
+        
+        console.log(`✅ Saved conversation documents to Supabase`);
+      } catch (error) {
+        console.error('❌ Failed to save conversation documents:', error);
+        // Continue with the conversation even if document saving fails
+      }
     }
 
     try {
@@ -266,12 +409,15 @@ export default function App() {
       const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
       const chatHistory = [...contactMessages, userMessage];
 
+      // Get fresh document context from Supabase for AI
+      const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
+
       // Generate AI response using the enhanced service
       const response = await geminiService.generateResponse(
         selectedContact,
         content,
         chatHistory,
-        conversationDocuments
+        documentContext.allDocuments
       );
 
       const aiMessage: Message = {
@@ -330,7 +476,7 @@ export default function App() {
       // Check if this is a new contact or existing one
       const existingContact = contacts.find(c => c.id === contact.id);
       
-      if (existingContact) {
+      if (existingContact && !contact.id.startsWith('temp_') && !contact.id.startsWith('new-')) {
         // Update existing contact in Supabase
         await supabaseService.updateUserAgent(contact.id, {
           name: contact.name,
@@ -342,11 +488,127 @@ export default function App() {
           status: contact.status
         });
 
+        // Handle integrations updates
+        if (contact.integrations) {
+          // For simplicity, we'll delete all existing integrations and recreate them
+          if (existingContact?.integrations) {
+            for (const integration of existingContact.integrations) {
+              try {
+                await supabaseService.deleteAgentIntegration(integration.id);
+              } catch (error) {
+                console.error(`Failed to delete integration ${integration.id}:`, error);
+              }
+            }
+          }
+
+          // Create new integrations
+          const savedIntegrations = [];
+          for (const integration of contact.integrations) {
+            try {
+              const savedIntegration = await supabaseService.createAgentIntegration(contact.id, integration);
+              savedIntegrations.push({
+                id: savedIntegration.id,
+                integrationId: integration.integrationId,
+                name: integration.name,
+                config: integration.config,
+                status: savedIntegration.status
+              });
+            } catch (error) {
+              console.error(`Failed to save integration ${integration.name}:`, error);
+            }
+          }
+          
+          contact.integrations = savedIntegrations;
+        }
+
+        // Handle documents updates
+        if (contact.documents) {
+          // For simplicity, we'll delete all existing documents and recreate them
+          if (existingContact?.documents) {
+            for (const document of existingContact.documents) {
+              try {
+                await supabaseService.deleteAgentDocument(document.id);
+              } catch (error) {
+                console.error(`Failed to delete document ${document.id}:`, error);
+              }
+            }
+          }
+
+          // Create new documents
+          const savedDocuments = [];
+          for (const document of contact.documents) {
+            try {
+              const savedDocument = await supabaseService.createAgentDocument(contact.id, document);
+              savedDocuments.push({
+                id: savedDocument.id,
+                name: document.name,
+                type: document.type,
+                size: document.size,
+                uploadedAt: new Date(savedDocument.uploaded_at),
+                content: document.content,
+                summary: document.summary,
+                extractedText: document.extractedText,
+                metadata: document.metadata
+              });
+            } catch (error) {
+              console.error(`Failed to save document ${document.name}:`, error);
+            }
+          }
+          
+          contact.documents = savedDocuments;
+        }
+
         console.log('✅ Updated existing contact in Supabase');
       } else {
         // Create new contact in Supabase
         const newAgent = await supabaseService.createUserAgent(user.id, contact);
         contact.id = newAgent.id; // Update with the database ID
+
+        // Save integrations if any
+        if (contact.integrations && contact.integrations.length > 0) {
+          const savedIntegrations = [];
+          for (const integration of contact.integrations) {
+            try {
+              const savedIntegration = await supabaseService.createAgentIntegration(newAgent.id, integration);
+              savedIntegrations.push({
+                id: savedIntegration.id,
+                integrationId: integration.integrationId,
+                name: integration.name,
+                config: integration.config,
+                status: savedIntegration.status
+              });
+            } catch (integrationError) {
+              console.error(`Failed to save integration ${integration.name}:`, integrationError);
+            }
+          }
+          
+          contact.integrations = savedIntegrations;
+        }
+
+        // Save documents if any
+        if (contact.documents && contact.documents.length > 0) {
+          const savedDocuments = [];
+          for (const document of contact.documents) {
+            try {
+              const savedDocument = await supabaseService.createAgentDocument(newAgent.id, document);
+              savedDocuments.push({
+                id: savedDocument.id,
+                name: document.name,
+                type: document.type,
+                size: document.size,
+                uploadedAt: new Date(savedDocument.uploaded_at),
+                content: document.content,
+                summary: document.summary,
+                extractedText: document.extractedText,
+                metadata: document.metadata
+              });
+            } catch (documentError) {
+              console.error(`Failed to save document ${document.name}:`, documentError);
+            }
+          }
+          
+          contact.documents = savedDocuments;
+        }
         
         console.log('✅ Created new contact in Supabase with ID:', newAgent.id);
       }
@@ -362,6 +624,23 @@ export default function App() {
           return [...prev, contact];
         }
       });
+
+      // Restart integrations with new configuration
+      if (contact.integrations) {
+        contact.integrations.forEach(integrationInstance => {
+          const integration = getIntegrationById(integrationInstance.integrationId);
+          if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
+            integrationsService.startPeriodicExecution(
+              contact.id, 
+              integration, 
+              integrationInstance.config, 
+              (contactId, data) => {
+                console.log(`Integration data updated for contact ${contactId}`);
+              }
+            );
+          }
+        });
+      }
 
       setSelectedContact(contact);
       console.log('✅ Contact saved successfully');
@@ -423,6 +702,16 @@ export default function App() {
     return <PricingPage onSelectPlan={handleSelectPlan} onStayFree={handleStayFree} />;
   }
 
+  // Get messages for selected contact
+  const contactMessages = selectedContact 
+    ? messages.filter(msg => msg.contactId === selectedContact.id)
+    : [];
+
+  // Get conversation documents for selected contact
+  const contactConversationDocuments = selectedContact 
+    ? conversationDocuments[selectedContact.id] || []
+    : [];
+
   // If authenticated, show the main app
   return (
     <Router>
@@ -431,6 +720,19 @@ export default function App() {
         <Route path="/success" element={<SuccessPage />} />
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
+            {/* OAuth Success/Error Message */}
+            {oauthMessage && (
+              <div className="fixed top-4 right-4 z-50 max-w-md">
+                <div className={`p-4 rounded-lg border ${
+                  oauthMessage.includes('✅') 
+                    ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
+                    : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
+                } backdrop-blur-sm`}>
+                  <p className="text-sm font-medium">{oauthMessage}</p>
+                </div>
+              </div>
+            )}
+
             {/* Left Sidebar - Contacts */}
             <div className="w-80 border-r border-slate-700">
               <ContactSidebar
@@ -460,8 +762,8 @@ export default function App() {
                 {currentView === 'chat' && selectedContact && (
                   <ChatScreen
                     contact={selectedContact}
-                    messages={messages.filter(m => m.contactId === selectedContact.id)}
-                    conversationDocuments={conversationDocuments}
+                    messages={contactMessages}
+                    conversationDocuments={contactConversationDocuments}
                     onBack={handleBack}
                     onSendMessage={handleSendMessage}
                     onSettingsClick={handleSettingsClick}
