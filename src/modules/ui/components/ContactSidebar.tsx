@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -52,26 +52,15 @@ export default function ContactSidebar({
   const sortedContacts = [...filteredContacts].sort((a, b) => {
     if (activeFilter === 'All') {
       return 0; // No specific sorting
-    } else if (activeFilter === 'Recents') {
-      // Sort by last used time (most recent first)
-      const aTime = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
-      const bTime = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
-      return bTime - aTime;
-    } else if (activeFilter === 'Frequent') {
-      // Sort by total messages (most messages first)
-      const aMessages = a.total_messages || 0;
-      const bMessages = b.total_messages || 0;
-      return bMessages - aMessages;
+    } else if (activeFilter === 'Sources') {
+      return 0; // No specific sorting for Sources
+    } else if (activeFilter === 'Actions') {
+      return 0; // No specific sorting for Actions
     } else if (activeFilter === 'Documents') {
       // Sort by number of documents (most documents first)
       const aDocuments = a.documents?.length || 0;
       const bDocuments = b.documents?.length || 0;
       return bDocuments - aDocuments;
-    } else if (activeFilter === 'Integrations') {
-      // Sort by number of integrations (most integrations first)
-      const aIntegrations = a.integrations?.length || 0;
-      const bIntegrations = b.integrations?.length || 0;
-      return bIntegrations - aIntegrations;
     }
     return 0;
   });
@@ -244,18 +233,13 @@ export default function ContactSidebar({
 
       {/* Footer with Create Agent Button */}
       <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center justify-between">
-          <p className="text-slate-400 text-sm font-inter">
-            {contacts.length} AI assistants
-          </p>
-          <button
-            onClick={onCreateAgent}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-[#186799] hover:bg-[#1a5a7a] text-white rounded-full text-sm transition-colors duration-200"
-          >
-            <Plus className="w-3 h-3" />
-            <span>Create Agent</span>
-          </button>
-        </div>
+        <button
+          onClick={onCreateAgent}
+          className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200 w-full justify-center"
+        >
+          <Plus className="w-4 h-4 text-slate-400" />
+          <span>Create Agent</span>
+        </button>
       </div>
     </div>
   );
