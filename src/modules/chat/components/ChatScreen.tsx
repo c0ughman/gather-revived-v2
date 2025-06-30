@@ -14,6 +14,8 @@ interface ChatScreenProps {
   onSettingsClick: (contact: AIContact) => void;
   onNewChatClick: (contact: AIContact) => void;
   onCallClick: (contact: AIContact) => void;
+  showSidebar?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export default function ChatScreen({ 
@@ -24,14 +26,15 @@ export default function ChatScreen({
   onSendMessage, 
   onSettingsClick, 
   onNewChatClick,
-  onCallClick 
+  onCallClick,
+  showSidebar = true,
+  onToggleSidebar
 }: ChatScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [pendingDocuments, setPendingDocuments] = useState<DocumentInfo[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -92,7 +95,9 @@ export default function ChatScreen({
   };
 
   const toggleSidebar = () => {
-    setShowSidebar(!showSidebar);
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    }
   };
 
   // Get document color based on file type

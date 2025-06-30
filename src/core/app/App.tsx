@@ -99,8 +99,7 @@ export default function App() {
           summary: doc.summary,
           extractedText: doc.extracted_text,
           metadata: doc.metadata || {}
-        })),
-        total_messages: agent.total_messages || 0
+        }))
       }));
 
       setContacts(transformedContacts);
@@ -467,6 +466,8 @@ export default function App() {
                     onSettingsClick={handleSettingsClick}
                     onNewChatClick={handleNewChatClick}
                     onCallClick={handleCallClick}
+                    showSidebar={showSidebar}
+                    onToggleSidebar={handleToggleSidebar}
                   />
                 )}
                 
@@ -517,17 +518,6 @@ export default function App() {
                     onSave={handleSaveContact}
                   />
                 </div>
-              )}
-              
-              {/* Sidebar toggle button when sidebar is hidden */}
-              {currentView === 'chat' && !showSidebar && (
-                <button
-                  onClick={() => setShowSidebar(true)}
-                  className="fixed top-20 right-4 p-2 bg-slate-700 hover:bg-slate-600 rounded-full z-20"
-                  title="Show sidebar"
-                >
-                  <ChevronLeft className="w-4 h-4 text-white" />
-                </button>
               )}
             </div>
           </div>
