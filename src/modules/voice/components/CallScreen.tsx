@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, X, Volume2, VolumeX, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -20,7 +20,7 @@ export default function CallScreen({
   onBack, 
   onEndCall, 
   onToggleMute,
-  showSidebar = false,
+  showSidebar = true,
   onToggleSidebar
 }: CallScreenProps) {
   const [pulseAnimation, setPulseAnimation] = useState(false);
@@ -231,7 +231,7 @@ export default function CallScreen({
       </div>
 
       {/* Main Call Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass} ${showSidebar ? '' : 'mx-auto'}`}>
+      <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass} mx-auto`}>
         {/* Avatar */}
         <div className="relative mb-8">
           <div

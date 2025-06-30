@@ -17,7 +17,6 @@ import { geminiService } from '../../modules/fileManagement/services/geminiServi
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
-import { X } from 'lucide-react';
 
 type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
 
@@ -35,7 +34,7 @@ export default function App() {
     isMuted: false,
     status: 'ended'
   });
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -171,7 +170,6 @@ export default function App() {
   const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('chat');
-    setShowSidebar(false);
     
     // Load conversation documents for this contact
     const contactMessages = messages.filter(m => m.contactId === contact.id);
@@ -182,7 +180,6 @@ export default function App() {
   const handleCallClick = (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('call');
-    setShowSidebar(false);
     setCallState({
       isActive: true,
       duration: 0,
@@ -229,18 +226,15 @@ export default function App() {
   const handleBack = () => {
     setCurrentView('dashboard');
     setSelectedContact(null);
-    setShowSidebar(false);
   };
 
   const handleHomeClick = () => {
     setCurrentView('dashboard');
     setSelectedContact(null);
-    setShowSidebar(false);
   };
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
-    setShowSidebar(false);
   };
 
   const handleToggleSidebar = () => {
@@ -519,14 +513,8 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Settings (when in chat view) */}
-              {(currentView === 'chat' || currentView === 'call') && showSidebar && (
-                <div className="w-1/4 border-l border-slate-700 relative">
-                  <button 
-                    onClick={handleToggleSidebar}
-                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors duration-200 z-10"
-                  >
-                    <X className="w-4 h-4 text-slate-400" />
-                  </button>
+              {currentView === 'chat' && showSidebar && (
+                <div className="w-1/4 border-l border-slate-700">
                   <SettingsSidebar
                     contact={selectedContact}
                     onSave={handleSaveContact}
