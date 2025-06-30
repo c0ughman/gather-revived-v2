@@ -167,6 +167,10 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  const handleToggleSidebar = () => {
+    setShowSidebar(!showSidebar);
+  };
+
   const handleChatClick = (contact: AIContact) => {
     setSelectedContact(contact);
     setCurrentView('chat');
@@ -235,10 +239,6 @@ export default function App() {
 
   const handleCreateAgent = () => {
     setCurrentView('create-agent');
-  };
-
-  const handleToggleSidebar = () => {
-    setShowSidebar(!showSidebar);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -478,6 +478,8 @@ export default function App() {
                     onBack={handleBack}
                     onEndCall={handleEndCall}
                     onToggleMute={handleToggleMute}
+                    showSidebar={showSidebar}
+                    onToggleSidebar={handleToggleSidebar}
                   />
                 )}
                 

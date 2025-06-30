@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, ChevronRight, ChevronLeft } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -10,9 +10,19 @@ interface CallScreenProps {
   onBack: () => void;
   onEndCall: () => void;
   onToggleMute: () => void;
+  showSidebar?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export default function CallScreen({ contact, callState, onBack, onEndCall, onToggleMute }: CallScreenProps) {
+export default function CallScreen({ 
+  contact, 
+  callState, 
+  onBack, 
+  onEndCall, 
+  onToggleMute,
+  showSidebar = true,
+  onToggleSidebar
+}: CallScreenProps) {
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
@@ -164,6 +174,12 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
     onEndCall();
   };
 
+  const toggleSidebar = () => {
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    }
+  };
+
   // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
     // Convert hex to RGB
@@ -203,9 +219,22 @@ export default function CallScreen({ contact, callState, onBack, onEndCall, onTo
           </p>
         </div>
         
-        <button className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200">
-          <Settings className="w-6 h-6 text-slate-400" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200">
+            <Settings className="w-6 h-6 text-slate-400" />
+          </button>
+          
+          <button
+            onClick={toggleSidebar}
+            className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            {showSidebar ? 
+              <ChevronRight className="w-6 h-6 text-slate-400" /> : 
+              <ChevronLeft className="w-6 h-6 text-slate-400" />
+            }
+          </button>
+        </div>
       </div>
 
       {/* Main Call Area */}
