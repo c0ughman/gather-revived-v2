@@ -258,8 +258,35 @@ export default function ChatScreen({
         </div>
       </div>
 
+      {/* Document and Integration Pills - Under header */}
+      <div className="fixed top-[72px] left-1/4 right-1/4 z-10 px-4 py-2">
+        <div className="flex flex-wrap gap-2 justify-center">
+          {conversationDocuments.slice(0, 3).map((doc) => (
+            <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+              {doc.name}
+            </span>
+          ))}
+          {conversationDocuments.length > 3 && (
+            <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+              +{conversationDocuments.length - 3} more
+            </span>
+          )}
+          
+          {activeIntegrations.slice(0, 3).map((integration) => (
+            <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+              {integration.name}
+            </span>
+          ))}
+          {activeIntegrations.length > 3 && (
+            <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
+              +{activeIntegrations.length - 3} more
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className="flex-1 overflow-y-auto pt-20 pb-32">
+      <div className="flex-1 overflow-y-auto pt-28 pb-32">
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -378,35 +405,6 @@ export default function ChatScreen({
           </div>
         </div>
       </div>
-
-      {/* Document and Integration Pills - Show after first message */}
-      {messages.length > 0 && (
-        <div className="fixed bottom-24 left-1/4 right-1/4 z-10 px-4">
-          <div className="flex flex-wrap gap-2 justify-center">
-            {conversationDocuments.slice(0, 3).map((doc) => (
-              <span key={doc.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                {doc.name}
-              </span>
-            ))}
-            {conversationDocuments.length > 3 && (
-              <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
-                +{conversationDocuments.length - 3} more
-              </span>
-            )}
-            
-            {activeIntegrations.slice(0, 3).map((integration) => (
-              <span key={integration.id} className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                {integration.name}
-              </span>
-            ))}
-            {activeIntegrations.length > 3 && (
-              <span className="px-2 py-1 bg-slate-700/80 text-slate-300 rounded-full text-xs">
-                +{activeIntegrations.length - 3} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Document Upload Section - Show above input when expanded */}
       {showDocumentUpload && (
