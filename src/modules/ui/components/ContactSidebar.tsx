@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -22,17 +22,8 @@ export default function ContactSidebar({
   onCreateAgent 
 }: ContactSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState('Recents');
   const { user } = useAuth();
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'busy': return 'bg-yellow-500';
-      case 'offline': return 'bg-gray-500';
-      default: return 'bg-gray-500';
-    }
-  };
 
   const createAgentGradient = (color: string) => {
     const hex = color.replace('#', '');
@@ -51,11 +42,37 @@ export default function ContactSidebar({
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  // Filter and sort contacts based on active filter
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filters = ['All', 'Online', 'Favorites', 'Groups'];
+  const sortedContacts = [...filteredContacts].sort((a, b) => {
+    if (activeFilter === 'Recents') {
+      // Sort by last used time (most recent first)
+      const aTime = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
+      const bTime = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
+      return bTime - aTime;
+    } else if (activeFilter === 'Frequent') {
+      // Sort by total messages (most messages first)
+      const aMessages = a.totalMessages || 0;
+      const bMessages = b.totalMessages || 0;
+      return bMessages - aMessages;
+    } else if (activeFilter === 'Documents') {
+      // Sort by number of documents (most documents first)
+      const aDocuments = a.documents?.length || 0;
+      const bDocuments = b.documents?.length || 0;
+      return bDocuments - aDocuments;
+    } else if (activeFilter === 'Integrations') {
+      // Sort by number of integrations (most integrations first)
+      const aIntegrations = a.integrations?.length || 0;
+      const bIntegrations = b.integrations?.length || 0;
+      return bIntegrations - aIntegrations;
+    }
+    return 0;
+  });
+
+  const filters = ['Recents', 'Frequent', 'Documents', 'Integrations'];
 
   return (
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
@@ -129,7 +146,7 @@ export default function ContactSidebar({
 
       {/* Contact List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredContacts.length === 0 ? (
+        {sortedContacts.length === 0 ? (
           <div className="p-4 text-center">
             <div className="text-slate-500 mb-4">
               <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -145,7 +162,7 @@ export default function ContactSidebar({
           </div>
         ) : (
           <div className="space-y-1">
-            {filteredContacts.map((contact) => (
+            {sortedContacts.map((contact) => (
               <div
                 key={contact.id}
                 className="px-4 py-3 hover:bg-slate-700 transition-colors duration-200 cursor-pointer group"
@@ -168,14 +185,12 @@ export default function ContactSidebar({
                         />
                       )}
                     </div>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-800 ${getStatusColor(contact.status)}`}></div>
                   </div>
 
                   {/* Contact Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
-                      <span className="text-xs text-slate-400 font-inter">{contact.lastSeen}</span>
                     </div>
                     <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
                       {contact.description.length > 40 
@@ -208,7 +223,7 @@ export default function ContactSidebar({
       {/* Footer */}
       <div className="p-4 border-t border-slate-700">
         <p className="text-center text-slate-400 text-sm font-inter">
-          {contacts.filter(c => c.status === 'online').length} AI assistants online
+          {contacts.length} AI assistants
         </p>
       </div>
     </div>
