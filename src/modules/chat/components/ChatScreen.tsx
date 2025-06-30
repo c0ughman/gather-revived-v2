@@ -470,9 +470,7 @@ export default function ChatScreen({
                 </span>
               )}
               {permanentDocuments > 0 && (
-                <span className="text-[#186799]">
-                  {permanentDocuments} permanent knowledge document{permanentDocuments > 1 ? 's' : ''}
-                </span>
+
               )}
             </div>
           )}
