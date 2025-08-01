@@ -222,8 +222,7 @@ class GeminiLiveService {
       if (this.isSessionActive || this.activeSession) {
         console.log("Session already active, ending current session first");
         this.endSession();
-        // Small delay to ensure cleanup completes
-        await new Promise<void>(resolve => setTimeout(resolve, 50));
+        // No delay - instant session restart for maximum responsiveness
       }
 
       this.isSessionActive = true;
@@ -277,8 +276,8 @@ class GeminiLiveService {
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            prefixPaddingMs: 300, // Reasonable padding to catch speech start
-            silenceDurationMs: 800 // Allow for natural pauses in speech
+            prefixPaddingMs: 50, // ULTRA-LOW: Minimal padding for instant response
+            silenceDurationMs: 200 // ULTRA-LOW: Interrupt quickly rather than wait
           }
         },
         // Speech configuration
@@ -1027,7 +1026,7 @@ class GeminiLiveService {
       this.isPlaying = false;
       // Continue with next chunk if available
       if (this.audioQueue.length > 0) {
-        this.setFastTimeout(() => this.playNextAudioChunk(), 1); // Minimal delay - FAST PATH
+        this.playNextAudioChunk(); // ZERO delay - INSTANT PLAYBACK
       } else {
         this.updateState('listening');
       }
@@ -1051,8 +1050,8 @@ class GeminiLiveService {
       const source = this.audioContext.createMediaStreamSource(this.audioStream);
       this.audioSource = source;
       
-      // Use OPTIMAL buffer size - 512 samples (32ms at 16kHz) for best latency/performance balance
-      const processor = this.audioContext.createScriptProcessor(512, 1, 1);
+      // Use ULTRA-LOW buffer size - 256 samples (16ms at 16kHz) for maximum responsiveness
+      const processor = this.audioContext.createScriptProcessor(256, 1, 1);
       this.audioProcessor = processor;
       
       processor.onaudioprocess = (event) => {
@@ -1065,7 +1064,7 @@ class GeminiLiveService {
         // ULTRA-SENSITIVE voice activity detection for minimal latency
         let hasAudio = false;
         for (let i = 0; i < inputData.length; i++) {
-          if (Math.abs(inputData[i]) > 0.002) { // Lower threshold for faster response
+          if (Math.abs(inputData[i]) > 0.0005) { // ULTRA-SENSITIVE: Instant response to any sound
             hasAudio = true;
             break;
           }
@@ -1082,14 +1081,14 @@ class GeminiLiveService {
       source.connect(processor);
       processor.connect(this.audioContext.destination);
 
-      // Send audio chunks every 32ms for ultra-low latency streaming - USE FAST PATH
+      // Send audio chunks every 16ms for MAXIMUM responsiveness - ZERO LATENCY PATH
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
         // Minimal buffer management - only when absolutely necessary  
-        if (Math.random() < 0.001) { // 0.1% of the time (~every 32 seconds)
+        if (Math.random() < 0.001) { // 0.1% of the time (~every 16 seconds)
           this.manageAudioBuffers();
         }
-      }, 32);
+      }, 16);
 
     } catch (error) {
       console.error("Error starting audio capture:", error);
@@ -1640,7 +1639,7 @@ class GeminiLiveService {
           this.onStateChangeCallback(state);
         }
         this.stateChangeTimeout = null;
-      }, 100); // 100ms debounce
+      }, 25); // ULTRA-LOW 25ms debounce for instant response
     }
   }
 
