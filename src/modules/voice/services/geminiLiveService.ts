@@ -280,14 +280,8 @@ class GeminiLiveService {
             silenceDurationMs: 200 // ULTRA-LOW: Interrupt quickly rather than wait
           }
         },
-        // Speech configuration
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: this.getVoiceForContact(contact)
-            }
-          }
-        }
+        // Speech configuration - Automatic language-appropriate voice selection
+        // Removing speechConfig entirely allows Gemini to auto-select proper accent/voice for each language
       };
 
       // Add tools if integrations are enabled
@@ -1197,7 +1191,8 @@ class GeminiLiveService {
   }
 
   /**
-   * Get appropriate voice for contact
+   * Get appropriate voice for contact (DEPRECATED - now using auto-selection for proper accents)
+   * This method is kept for potential future explicit voice selection
    */
   private getVoiceForContact(contact: AIContact): string {
     // Use the contact's selected voice if available, otherwise fall back to auto-selection
