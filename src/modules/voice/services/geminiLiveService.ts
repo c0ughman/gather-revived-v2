@@ -280,8 +280,11 @@ class GeminiLiveService {
             silenceDurationMs: 200 // ULTRA-LOW: Interrupt quickly rather than wait
           }
         },
-        // Speech configuration - Automatic language-appropriate voice selection
-        // Removing speechConfig entirely allows Gemini to auto-select proper accent/voice for each language
+        // Speech configuration - Remove explicit voice to enable language-appropriate selection
+        speechConfig: {
+          // Language will be auto-detected from user input and system prompt
+          // Voice will be selected automatically based on detected language
+        }
       };
 
       // Add tools if integrations are enabled
@@ -1544,6 +1547,14 @@ class GeminiLiveService {
     systemPrompt += '\n- Present information conversationally without mentioning how you obtained it';
     systemPrompt += '\n- Focus on the actual information content, not the technical wrapper';
     
+    systemPrompt += '\n\n🌍 CRITICAL MULTILINGUAL VOICE INSTRUCTIONS:';  
+    systemPrompt += '\n- ESPAÑOL: Habla con acento NATIVO español, NO con acento americano/inglés';
+    systemPrompt += '\n- FRANÇAIS: Parlez avec un accent NATIF français, PAS avec un accent anglais';
+    systemPrompt += '\n- DEUTSCH: Sprechen Sie mit NATIVEM deutschen Akzent, NICHT mit englischem Akzent';
+    systemPrompt += '\n- ALWAYS match the native pronunciation, accent, and speech patterns of the user\'s language';
+    systemPrompt += '\n- NEVER use English pronunciation when speaking other languages';
+    systemPrompt += '\n- Your voice must sound like a native speaker of whatever language you\'re using';
+    systemPrompt += '\n- Language detection: Automatically adapt voice/accent to detected input language'
     systemPrompt += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
     
     console.log(`📏 Voice: System prompt ready (${systemPrompt.length.toLocaleString()} chars)`);
