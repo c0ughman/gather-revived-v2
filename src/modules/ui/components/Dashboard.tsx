@@ -100,9 +100,7 @@ export default function Dashboard({
 
   // Get frequently used agents (first 4 for hero section)
   const frequentAgents = useMemo(() => {
-    return [...contacts]
-      .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
-      .slice(0, 4);
+    return contacts.slice(0, 4);
   }, [contacts]);
   
   // Filter agent templates for search
@@ -140,7 +138,7 @@ export default function Dashboard({
 
   const getIconForIntegration = (iconName: string) => {
     const iconMap: { [key: string]: React.ComponentType<any> } = {
-      Globe, Rss, Newspaper, TrendingUp, Bot, Zap, Bell
+      Globe, Search, Rss, Newspaper, TrendingUp, Bot, Zap, Bell
     };
     const IconComponent = iconMap[iconName] || Globe;
     return <IconComponent className="w-5 h-5" />;
@@ -206,8 +204,8 @@ export default function Dashboard({
                       <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50">
                         <div className="p-2">
                           <div className="px-3 py-2 border-b border-slate-600 mb-2">
-                            <p className="text-white text-sm font-medium">{user?.email?.split('@')[0]}</p>
-                            <p className="text-slate-400 text-xs">{user?.email}</p>
+                            <p className="text-white text-sm font-medium truncate">{user?.email?.split('@')[0]}</p>
+                            <p className="text-slate-400 text-xs truncate">{user?.email}</p>
                           </div>
                           <button
                             onClick={async () => {
@@ -321,8 +319,8 @@ export default function Dashboard({
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {frequentAgents.map((agent) => (
                   <div key={agent.id} className="group relative">
-                    <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105">
-                      <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105 h-full">
+                      <div className="flex flex-col items-center text-center space-y-4 h-full">
                         <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
                           {agent.avatar ? (
                             <img
@@ -337,9 +335,23 @@ export default function Dashboard({
                             />
                           )}
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-white mb-1">{agent.name}</h3>
-                          <p className="text-slate-400 text-sm line-clamp-2">{agent.description}</p>
+                        <div className="w-full flex-1">
+                          <h3 className="font-semibold text-white mb-1 truncate">{agent.name}</h3>
+                          <div 
+                            className="text-slate-400 text-sm"
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              lineHeight: '1.4em',
+                              height: '2.8em',
+                              wordBreak: 'break-word'
+                            }}
+                          >
+                            {agent.description}
+                          </div>
                         </div>
                         <div className="flex space-x-2 w-full">
                           <button 
@@ -421,12 +433,12 @@ export default function Dashboard({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-2">
-                          <h3 className="font-semibold text-white">{template.name}</h3>
+                          <h3 className="font-semibold text-white truncate">{template.name}</h3>
                           {template.is_featured && (
                             <Star className="w-4 h-4 text-yellow-400 fill-current" />
                           )}
                         </div>
-                        <p className="text-slate-400 text-sm mb-4 line-clamp-2">{template.description}</p>
+                        <p className="text-slate-400 text-sm mb-4 ellipsis-2">{template.description}</p>
                         
                         {/* Tags */}
                         <div className="flex flex-wrap gap-1 mb-4">
@@ -494,8 +506,8 @@ export default function Dashboard({
                       {getIconForIntegration(integration.icon)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white mb-2">{integration.name}</h3>
-                      <p className="text-slate-400 text-sm mb-3 line-clamp-2">{integration.description}</p>
+                      <h3 className="font-semibold text-white mb-2 truncate">{integration.name}</h3>
+                      <p className="text-slate-400 text-sm mb-3 ellipsis-2">{integration.description}</p>
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${
                         integration.category === 'source' 
                           ? 'bg-[#186799]/20 text-[#186799]' 

@@ -73,7 +73,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
-      <style jsx="true">{`
+      <style>{`
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -218,7 +218,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
                   <benefit.icon className="w-8 h-8 text-[#6143fa]" />
                 </div>
                 <h3 className="text-xl font-bold mb-4 text-white">{benefit.title}</h3>
-                <p className="text-slate-400 leading-relaxed">{benefit.description}</p>
+                <p className="text-slate-400 leading-relaxed ellipsis-3">{benefit.description}</p>
               </div>
             ))}
           </div>

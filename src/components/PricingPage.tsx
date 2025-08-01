@@ -35,7 +35,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white overflow-hidden">
       {/* Custom CSS for animated gradient */}
-      <style jsx="true">{`
+      <style>{`
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -103,7 +103,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
-                    <p className="text-slate-400 mb-4">{product.description}</p>
+                    <p className="text-slate-400 mb-4 ellipsis-2">{product.description}</p>
                   </div>
                   <div className={`p-2 rounded-lg ${
                     product.name === 'Standard' ? 'bg-slate-700/50' : 

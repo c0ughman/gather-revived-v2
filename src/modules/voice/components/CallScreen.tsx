@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical, FileText } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
+import DocumentDisplay from './DocumentDisplay';
 
 interface CallScreenProps {
   contact: AIContact;
@@ -26,12 +27,31 @@ export default function CallScreen({
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
+  const [documentContent, setDocumentContent] = useState<string>("");
+  const [showDocument, setShowDocument] = useState(false);
+  const [documentWordCount, setDocumentWordCount] = useState<number | undefined>(undefined);
+  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false);
+  const [documentHistory, setDocumentHistory] = useState<Array<{
+    id: string;
+    content: string;
+    wordCount?: number;
+    timestamp: Date;
+  }>>([]);
+  const [currentDocumentIndex, setCurrentDocumentIndex] = useState<number>(-1);
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
 
   useEffect(() => {
     if (callState.status === 'connecting') {
       setPulseAnimation(true);
+      
+      // Clear document history for new call
+      setDocumentHistory([]);
+      setCurrentDocumentIndex(-1);
+      setShowDocument(false);
+      setDocumentContent("");
+      setDocumentWordCount(undefined);
+      setIsGeneratingDocument(false);
       
       // Initialize the Gemini Live service when call is connecting
       const initService = async () => {
@@ -53,6 +73,47 @@ export default function CallScreen({
             geminiLiveService.onStateChange((state) => {
               console.log(`🔄 Service state changed to: ${state}`);
               setServiceState(state);
+              
+              // Detect when document generation might be starting
+              if (state === 'processing') {
+                // Check if the last response text contains document-related keywords
+                const lastResponse = responseText.toLowerCase();
+                const documentKeywords = [
+                  'write', 'document', 'paper', 'essay', 'create', 'generate', 
+                  'put that down', 'write that down', 'make a note', 'take notes',
+                  'draft', 'compose', 'formulate', 'prepare', 'develop'
+                ];
+                
+                const hasDocumentKeywords = documentKeywords.some(keyword => 
+                  lastResponse.includes(keyword)
+                );
+                
+                if (hasDocumentKeywords) {
+                  setIsGeneratingDocument(true);
+                }
+              }
+            });
+            
+            // Set up document generation callback
+            geminiLiveService.onDocumentGeneration((document) => {
+              console.log("📄 Document generated:", document);
+              setIsGeneratingDocument(false);
+              
+              // Add new document to history
+              const newDocument = {
+                id: Date.now().toString(),
+                content: document.content,
+                wordCount: document.wordCount,
+                timestamp: new Date()
+              };
+              
+              setDocumentHistory(prev => [...prev, newDocument]);
+              setCurrentDocumentIndex(prev => prev + 1);
+              
+              // Show the new document
+              setDocumentContent(document.content);
+              setDocumentWordCount(document.wordCount);
+              setShowDocument(true);
             });
             
             // Initialize audio
@@ -81,13 +142,41 @@ export default function CallScreen({
     }
     
     return () => {
-      // Clean up when component unmounts
-      if (callState.status === 'ended' && serviceInitialized.current) {
-        geminiLiveService.endSession();
+      // Enhanced cleanup when component unmounts - prevents memory leaks
+      if (serviceInitialized.current) {
+        console.log("🧹 CallScreen unmounting - cleaning up voice service");
+        
+        if (callState.status === 'ended') {
+          // If call ended, do complete shutdown to free all resources
+          geminiLiveService.shutdown();
+        } else {
+          // If call still active, just end session properly
+          geminiLiveService.endSession();
+        }
+        
         serviceInitialized.current = false;
+        console.log("✅ Voice service cleanup completed");
       }
     };
-  }, [callState.status, contact.id]);
+  }, [contact.id]); // Only depend on contact.id, not callState.status
+
+  // Keyboard event listener for document navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (showDocument) {
+        if (event.key === 'Escape') {
+          handleCloseDocument();
+        } else if (event.key === 'ArrowRight' && documentHistory.length > 1) {
+          showNextDocument();
+        } else if (event.key === 'ArrowLeft' && documentHistory.length > 1) {
+          showPreviousDocument();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showDocument, documentHistory.length, currentDocumentIndex]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -100,11 +189,11 @@ export default function CallScreen({
       case 'connecting':
         return 'Connecting...';
       case 'connected':
-        return formatDuration(callState.duration);
+        return 'Connected';
       case 'ended':
-        return 'Call ended';
+        return 'Call Ended';
       default:
-        return '';
+        return 'Unknown';
     }
   };
 
@@ -123,54 +212,42 @@ export default function CallScreen({
 
   const getServiceStateText = () => {
     switch (serviceState) {
-      case 'listening':
-        return "🎤 Listening...";
-      case 'processing':
-        return "🧠 Processing...";
-      case 'responding':
-        return "🗣️ Speaking...";
       case 'idle':
-        return callState.status === 'connected' ? "💬 Ready to chat" : getStatusText();
+        return 'Ready';
+      case 'listening':
+        return 'Listening...';
+      case 'processing':
+        return 'Processing...';
+      case 'responding':
+        return 'Speaking...';
       default:
-        return getStatusText();
+        return 'Unknown';
     }
   };
 
   const getServiceStateColor = () => {
     switch (serviceState) {
+      case 'idle':
+        return 'text-slate-400';
       case 'listening':
         return 'text-[#186799]';
       case 'processing':
         return 'text-yellow-400';
       case 'responding':
         return 'text-green-400';
-      case 'idle':
-        return getStatusColor();
       default:
-        return getStatusColor();
+        return 'text-slate-400';
     }
   };
 
   const handleMicToggle = async () => {
-    onToggleMute();
-    
-    // If we're unmuting, start listening
-    if (callState.isMuted && serviceInitialized.current && callState.status === 'connected') {
-      try {
-        await geminiLiveService.startListening();
-      } catch (error) {
-        console.error("Failed to start listening:", error);
-      }
-    } else if (!callState.isMuted && serviceInitialized.current) {
-      geminiLiveService.stopListening();
+    if (callState.status === 'connected') {
+      onToggleMute();
     }
   };
 
   const handleEndCall = () => {
-    if (serviceInitialized.current) {
-      geminiLiveService.endSession();
-      serviceInitialized.current = false;
-    }
+    geminiLiveService.endSession();
     onEndCall();
   };
 
@@ -180,32 +257,71 @@ export default function CallScreen({
     }
   };
 
-  // Helper function to create radial gradient for agents without avatars
   const createAgentGradient = (color: string) => {
-    // Convert hex to RGB
-    const hex = color.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
+    // Parse the color to create a gradient
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
     
-    // Create complementary color by shifting hue and make it lighter
-    const compR = Math.round(255 - r * 0.3); // Softer complement
-    const compG = Math.round(255 - g * 0.3);
-    const compB = Math.round(255 - b * 0.3);
-    
-    // Make complementary color lighter than the main color
-    const lightCompR = Math.round(compR + (255 - compR) * 0.8);
-    const lightCompG = Math.round(compG + (255 - compG) * 0.8);
-    const lightCompB = Math.round(compB + (255 - compB) * 0.8);
+    // Create lighter components for gradient
+    const lightCompR = Math.min(255, r + 50);
+    const lightCompG = Math.min(255, g + 50);
+    const lightCompB = Math.min(255, b + 50);
     
     return `radial-gradient(circle, rgb(${lightCompR}, ${lightCompG}, ${lightCompB}) 0%, ${color} 40%, rgba(${r}, ${g}, ${b}, 0.4) 50%, rgba(${r}, ${g}, ${b}, 0.1) 60%, rgba(0, 0, 0, 0) 70%)`;
   };
 
+  const handleCloseDocument = () => {
+    setShowDocument(false);
+    setDocumentContent("");
+    setDocumentWordCount(undefined);
+    setIsGeneratingDocument(false);
+    setCurrentDocumentIndex(-1);
+  };
+
+  const showDocumentAtIndex = (index: number) => {
+    if (index >= 0 && index < documentHistory.length) {
+      const doc = documentHistory[index];
+      setDocumentContent(doc.content);
+      setDocumentWordCount(doc.wordCount);
+      setCurrentDocumentIndex(index);
+      setShowDocument(true);
+    }
+  };
+
+  const showNextDocument = () => {
+    if (currentDocumentIndex < documentHistory.length - 1) {
+      showDocumentAtIndex(currentDocumentIndex + 1);
+    }
+  };
+
+  const showPreviousDocument = () => {
+    if (currentDocumentIndex > 0) {
+      showDocumentAtIndex(currentDocumentIndex - 1);
+    }
+  };
+
   // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "w-1/2 mx-auto" : "w-3/4 ml-1/4";
+  const mainContentClass = showSidebar ? "w-full" : "w-full";
 
   return (
-    <div className="h-full bg-glass-bg flex flex-col">
+    <div className="h-full bg-glass-bg flex flex-col relative">
+      {/* Document Display Overlay */}
+      {showDocument && (
+        <div className="absolute inset-0 z-50 bg-black bg-opacity-50 backdrop-blur-sm">
+          <DocumentDisplay
+            content={documentContent}
+            isVisible={showDocument}
+            onClose={handleCloseDocument}
+            documentIndex={currentDocumentIndex}
+            totalDocuments={documentHistory.length}
+            onNextDocument={showNextDocument}
+            onPreviousDocument={showPreviousDocument}
+            canNavigate={documentHistory.length > 1}
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
         <button
@@ -296,7 +412,7 @@ export default function CallScreen({
         {/* Contact Info */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
-          <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed">
+          <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed ellipsis-2">
             {contact.description}
           </p>
         </div>
@@ -316,6 +432,44 @@ export default function CallScreen({
         {responseText && callState.status === 'connected' && (
           <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
             <p className="text-slate-300 text-sm italic">"{responseText}"</p>
+          </div>
+        )}
+
+        {/* Document Generation Hint */}
+        {callState.status === 'connected' && !showDocument && !isGeneratingDocument && (
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-50 p-4 rounded-lg border border-slate-700">
+            <div className="flex items-center space-x-2 text-slate-400 text-sm">
+              <FileText className="w-4 h-4" />
+              <span>Say "write that down" or "put that on paper" to generate documents</span>
+            </div>
+          </div>
+        )}
+
+        {/* Document Generation Indicator */}
+        {isGeneratingDocument && (
+          <div className="mb-8 max-w-md bg-blue-900 bg-opacity-50 p-4 rounded-lg border border-blue-700">
+            <div className="flex items-center space-x-2 text-blue-300 text-sm">
+              <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin"></div>
+              <span>Generating your document...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Document History Indicator */}
+        {documentHistory.length > 0 && !showDocument && !isGeneratingDocument && (
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-50 p-4 rounded-lg border border-slate-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-slate-300 text-sm">
+                <FileText className="w-4 h-4" />
+                <span>{documentHistory.length} document{documentHistory.length > 1 ? 's' : ''} generated</span>
+              </div>
+              <button
+                onClick={() => showDocumentAtIndex(documentHistory.length - 1)}
+                className="text-xs text-[#186799] hover:text-[#1a5a7a] px-2 py-1 rounded border border-slate-600 hover:border-slate-500 transition-colors duration-200"
+              >
+                View Latest
+              </button>
+            </div>
           </div>
         )}
       </div>

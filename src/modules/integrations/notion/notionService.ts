@@ -1,4 +1,5 @@
 import { supabase } from '../../database/lib/supabase';
+import { secureTokenService } from '../../../core/services/secureTokenService';
 
 export interface NotionPage {
   id: string;
@@ -107,16 +108,13 @@ class NotionService {
       console.log('✅ Token exchange successful via Supabase');
       console.log(`🏢 Workspace: ${result.workspace_name}`);
       
-      // Store token info in localStorage for quick access
-      const tokenInfo = {
+      // Store token securely (no localStorage)
+      await secureTokenService.storeToken(userId, 'notion', {
         access_token: result.access_token,
         workspace_name: result.workspace_name,
         workspace_id: result.workspace_id,
-        bot_id: result.bot_id,
-        timestamp: Date.now()
-      };
-      
-      localStorage.setItem(`notion_token_${userId}`, JSON.stringify(tokenInfo));
+        bot_id: result.bot_id
+      });
       
       return result.access_token;
     } catch (error) {
@@ -126,40 +124,17 @@ class NotionService {
   }
 
   /**
-   * Get stored access token (from localStorage or Supabase)
+   * Get stored access token securely
    */
   private async getAccessToken(userId: string): Promise<string> {
     console.log('🔍 Getting access token for user:', userId);
     
-    // First try to get from Supabase database (most reliable)
-    try {
-      console.log('🔍 Retrieving stored token from database...');
-      
-      const result = await this.callEdgeFunction({
-        action: 'get_stored_token',
-        user_id: userId
-      });
-
-      console.log('✅ Retrieved token from database');
-      
-      // Update localStorage cache
-      const tokenInfo = {
-        access_token: result.access_token,
-        workspace_name: result.workspace_name,
-        workspace_id: result.workspace_id,
-        bot_id: result.bot_id,
-        timestamp: Date.now()
-      };
-      
-      localStorage.setItem(`notion_token_${userId}`, JSON.stringify(tokenInfo));
-      
-      return result.access_token;
-    } catch (dbError) {
-      console.warn('⚠️ Failed to get token from database:', dbError);
-      
+    const token = await secureTokenService.getToken(userId, 'notion');
+    
+    if (!token) {
       // Fallback: try to exchange the authorization code if we have it
       try {
-        console.log('🔄 Attempting to exchange authorization code...');
+        console.log('🔄 No stored token, attempting to exchange authorization code...');
         const authData = this.getNotionAuthData(userId);
         
         if (authData.code) {
@@ -173,6 +148,8 @@ class NotionService {
         throw new Error('Unable to get access token. Please reconnect your Notion account.');
       }
     }
+    
+    return token;
   }
 
   /**
@@ -455,7 +432,7 @@ class NotionService {
       });
 
       // Clear localStorage cache
-      localStorage.removeItem(`notion_token_${userId}`);
+      await secureTokenService.removeToken(userId, 'notion');
       localStorage.removeItem(`oauth_connected_notion_${userId}`);
       localStorage.removeItem(`oauth_auth_notion_${userId}`);
 

@@ -11,6 +11,7 @@ export interface Integration {
   fields: IntegrationField[];
   examples: string[];
   tags: string[];
+  triggerWords?: string[];
 }
 
 export interface IntegrationField {

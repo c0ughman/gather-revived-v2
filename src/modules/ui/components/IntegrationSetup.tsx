@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, X, Play, AlertCircle, CheckCircle, Globe, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database, FileText } from 'lucide-react';
+import { Save, X, Play, AlertCircle, CheckCircle, Globe, Search, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database, FileText } from 'lucide-react';
 import { Integration, IntegrationConfig, IntegrationField } from '../../integrations/types/integrations';
 import { integrationsService } from '../../integrations/core/integrationsService';
 import OAuthConnect from '../../oauth/components/OAuthConnect';
@@ -15,6 +15,7 @@ interface IntegrationSetupProps {
 
 const iconMap = {
   Globe,
+  Search,
   Rss,
   Newspaper,
   Cloud,
@@ -123,7 +124,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
     } catch (error) {
       setTestResult({
         success: false,
-        message: `Test failed: ${error.message || error}`
+        message: `Test failed: ${error instanceof Error ? error.message : String(error)}`
       });
     } finally {
       setIsTesting(false);
@@ -202,7 +203,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">{integration.name}</h2>
-              <p className="text-slate-400 text-sm">{integration.description}</p>
+                              <p className="text-slate-400 text-sm ellipsis-2">{integration.description}</p>
             </div>
           </div>
           <button
@@ -246,7 +247,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
             </label>
             {renderField(field)}
             {field.description && (
-              <p className="text-slate-400 text-xs mt-1">{field.description}</p>
+                              <p className="text-slate-400 text-xs mt-1 ellipsis-2">{field.description}</p>
             )}
           </div>
         ))}
@@ -270,7 +271,7 @@ export default function IntegrationSetup({ integration, existingConfig, onSave, 
                   />
                   <div>
                     <div className="text-white font-medium text-sm">{option.label}</div>
-                    <div className="text-slate-400 text-xs">{option.description}</div>
+                    <div className="text-slate-400 text-xs ellipsis-2">{option.description}</div>
                   </div>
                 </label>
               ))}

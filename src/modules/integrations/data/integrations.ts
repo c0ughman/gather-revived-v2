@@ -59,6 +59,90 @@ export const sourceIntegrations: Integration[] = [
     tags: ['api', 'http', 'rest', 'web', 'data']
   },
   {
+    id: 'web-search',
+    name: 'Web Search (Tavily)',
+    description: 'Search the web using Tavily AI-powered search engine',
+    category: 'source',
+    icon: 'Search',
+    color: '#10b981',
+    requiresApiKey: false,
+    fields: [
+      {
+        id: 'searchDepth',
+        name: 'Search Depth',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'basic', label: 'Basic (1 credit)' },
+          { value: 'advanced', label: 'Advanced (2 credits)' }
+        ],
+        defaultValue: 'basic',
+        description: 'Search depth determines quality and cost'
+      },
+      {
+        id: 'maxResults',
+        name: 'Max Results',
+        type: 'number',
+        required: false,
+        placeholder: '5',
+        description: 'Maximum number of search results (1-20)',
+        defaultValue: '5'
+      },
+      {
+        id: 'includeAnswer',
+        name: 'Include AI Answer',
+        type: 'select',
+        required: false,
+        options: [
+          { value: 'false', label: 'No' },
+          { value: 'basic', label: 'Basic Answer' },
+          { value: 'advanced', label: 'Advanced Answer' }
+        ],
+        defaultValue: 'basic',
+        description: 'Include an AI-generated answer to the query'
+      },
+      {
+        id: 'includeDomains',
+        name: 'Include Domains',
+        type: 'text',
+        required: false,
+        placeholder: 'example.com, trusted-site.org',
+        description: 'Comma-separated list of domains to include (optional)'
+      },
+      {
+        id: 'excludeDomains',
+        name: 'Exclude Domains',
+        type: 'text',
+        required: false,
+        placeholder: 'spam-site.com, unreliable.net',
+        description: 'Comma-separated list of domains to exclude (optional)'
+      }
+    ],
+    examples: [
+      'Search for latest technology news',
+      'Find information about specific topics',
+      'Research current events and trends',
+      'Look up factual information',
+      'Get recent updates on any subject'
+    ],
+    tags: ['search', 'web', 'tavily', 'ai', 'information', 'research'],
+    triggerWords: [
+      'search up',
+      'look up',
+      'google this',
+      'search for',
+      'find information about',
+      'web search',
+      'search the web',
+      'look this up',
+      'find out about',
+      'research',
+      'what is',
+      'tell me about',
+      'search'
+    ]
+  },
+  {
     id: 'google-news',
     name: 'Google News',
     description: 'Fetch latest news articles from Google News',

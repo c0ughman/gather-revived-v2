@@ -4,6 +4,7 @@ import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
 import { getIntegrationById } from '../../integrations/data/integrations';
+import DOMPurify from 'dompurify';
 
 interface ChatScreenProps {
   contact: AIContact;
@@ -152,9 +153,9 @@ export default function ChatScreen({
     return `linear-gradient(135deg, rgb(${r}, ${g}, ${b}) 0%, rgb(${lightR}, ${lightG}, ${lightB}) 100%)`;
   };
 
-  // Helper function to render AI message with simple markup support
+  // Helper function to render AI message with secure markup support
   const renderAIMessage = (content: string) => {
-    // Simple markup parsing
+    // Simple markup parsing with input validation
     let formattedContent = content
       // Bold text: **text** or __text__
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -167,10 +168,18 @@ export default function ChatScreen({
       // Line breaks
       .replace(/\n/g, '<br>');
 
+    // Sanitize HTML to prevent XSS attacks
+    const sanitizedContent = DOMPurify.sanitize(formattedContent, {
+      ALLOWED_TAGS: ['strong', 'em', 'code', 'br'],
+      ALLOWED_ATTR: ['class'],
+      FORBID_TAGS: ['script', 'object', 'embed', 'iframe', 'form', 'input'],
+      FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'style']
+    });
+
     return (
       <div 
         className="text-white"
-        dangerouslySetInnerHTML={{ __html: formattedContent }}
+        dangerouslySetInnerHTML={{ __html: sanitizedContent }}
       />
     );
   };
@@ -181,7 +190,7 @@ export default function ChatScreen({
   const pendingDocumentsCount = pendingDocuments.length;
 
   // Calculate main content width based on sidebar visibility
-  const mainContentClass = showSidebar ? "left-1/4 right-1/4" : "left-1/4 right-0";
+  const mainContentClass = showSidebar ? "left-80 right-80" : "left-80 right-0";
 
   return (
     <div className="h-full bg-glass-bg flex flex-col font-inter">
@@ -263,7 +272,7 @@ export default function ChatScreen({
       </div>
 
       {/* Messages Area - Scrollable with padding for fixed input */}
-      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-1/2 mx-auto' : 'w-3/4 ml-1/4'}`}>
+      <div className={`flex-1 overflow-y-auto pt-20 pb-32 ${showSidebar ? 'w-full px-8' : 'w-full px-8'}`}>
         <div className="p-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -282,11 +291,8 @@ export default function ChatScreen({
                 )}
               </div>
               <h3 className="text-white text-2xl font-semibold mb-3">{contact.name}</h3>
-              <p className="text-slate-400 text-base max-w-md mx-auto leading-relaxed mb-6">
-                {contact.description.length > 120 
-                  ? `${contact.description.substring(0, 120)}...` 
-                  : contact.description
-                }
+              <p className="text-slate-400 text-base max-w-2xl mx-auto leading-relaxed mb-6 ellipsis-3">
+                {contact.description}
               </p>
               
               {/* Document and Integration Pills */}
@@ -327,7 +333,7 @@ export default function ChatScreen({
                   // User message - bubble style with agent color gradient
                   <div className="flex justify-end">
                     <div
-                      className="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl text-white shadow-lg"
+                      className="max-w-xs lg:max-w-lg xl:max-w-xl px-4 py-3 rounded-2xl text-white shadow-lg"
                       style={{ background: getUserBubbleGradient(contact.color) }}
                     >
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -415,7 +421,7 @@ export default function ChatScreen({
 
       {/* Input Area - Fixed at bottom */}
       <div className={`fixed bottom-0 z-10 p-4 ${mainContentClass}`}>
-        <div className="relative max-w-4xl mx-auto">
+        <div className="relative max-w-6xl mx-auto">
           <div 
             className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
             style={{
@@ -493,7 +499,7 @@ export default function ChatScreen({
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className={`fixed bottom-20 z-10 p-4 ${mainContentClass}`}>
           <div 
-            className="rounded-lg border border-slate-700 p-4"
+            className="rounded-lg border border-slate-700 p-4 max-w-6xl mx-auto"
             style={{
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',

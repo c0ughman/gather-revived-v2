@@ -45,7 +45,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           pdf: ['pdfjs-dist'],
-          gemini: ['@google/generative-ai', '@google/genai']
+          gemini: ['@google/genai']
         }
       }
     }

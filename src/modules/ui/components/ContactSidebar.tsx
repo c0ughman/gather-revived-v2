@@ -204,11 +204,8 @@ export default function ContactSidebar({
                     <div className="flex items-center justify-between">
                       <h3 className="text-white font-medium truncate font-inter">{contact.name}</h3>
                     </div>
-                    <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
-                      {contact.description.length > 40 
-                        ? `${contact.description.substring(0, 40)}...` 
-                        : contact.description
-                      }
+                    <p className="text-slate-400 text-sm ellipsis-2 mt-0.5 font-inter">
+                      {contact.description}
                     </p>
                   </div>
 

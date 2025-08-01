@@ -11,6 +11,7 @@ interface IntegrationsLibraryProps {
 
 const iconMap = {
   Globe,
+  Search,
   Rss,
   Newspaper,
   Cloud,
@@ -34,12 +35,27 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
     const matchesCategory = selectedCategory === 'all' || integration.category === selectedCategory;
     const matchesTag = !selectedTag || integration.tags.includes(selectedTag);
     
+    // Debug logging for web-search integration
+    if (integration.id === 'web-search') {
+      console.log('🔍 Web Search Integration Debug:', {
+        name: integration.name,
+        category: integration.category,
+        matchesSearch,
+        matchesCategory,
+        matchesTag,
+        searchQuery,
+        selectedCategory,
+        selectedTag
+      });
+    }
+    
     return matchesSearch && matchesCategory && matchesTag;
   });
 
   const allTags = Array.from(new Set(allIntegrations.flatMap(integration => integration.tags))).sort();
 
   const handleIntegrationClick = (integration: Integration) => {
+    console.log('🎯 Integration clicked:', integration.id, integration.name);
     if (onSelectIntegration) {
       onSelectIntegration(integration);
     }
@@ -180,7 +196,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                   </div>
 
                   {/* Description */}
-                  <p className="text-slate-300 text-xs mb-2 line-clamp-2">
+                  <p className="text-slate-300 text-xs mb-2 ellipsis-2 min-h-[2.5rem]">
                     {integration.description}
                   </p>
 

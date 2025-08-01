@@ -17,6 +17,7 @@ import { documentContextService } from '../../modules/fileManagement/services/do
 import { geminiService } from '../../modules/fileManagement/services/geminiService';
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
+import { IntegrationInstance } from '../../modules/integrations/types/integrations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
 
@@ -38,6 +39,18 @@ export default function App() {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
+  
+  // Shared state for settings synchronization
+  const [settingsFormData, setSettingsFormData] = useState({
+    name: '',
+    description: '',
+    color: '#3b82f6',
+    voice: 'Puck',
+    avatar: ''
+  });
+  const [settingsIntegrations, setSettingsIntegrations] = useState<IntegrationInstance[]>([]);
+  const [settingsDocuments, setSettingsDocuments] = useState<DocumentInfo[]>([]);
+  const [settingsHasChanges, setSettingsHasChanges] = useState(false);
 
   // Update call duration
   useEffect(() => {
@@ -115,14 +128,14 @@ export default function App() {
 
       // Transform Supabase data to AIContact format
       const transformedContacts: AIContact[] = userAgents.map((agent: any) => ({
-        id: agent.id,
-        name: agent.name,
-        description: agent.description,
-        initials: agent.initials,
-        color: agent.color,
-        voice: agent.voice,
-        avatar: agent.avatar_url,
-        status: agent.status as 'online' | 'busy' | 'offline',
+          id: agent.id,
+          name: agent.name,
+          description: agent.description,
+          initials: agent.initials,
+          color: agent.color,
+          voice: agent.voice,
+          avatar: agent.avatar_url,
+          status: agent.status as 'online' | 'busy' | 'offline',
         lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
         total_messages: agent.total_messages,
         integrations: agent.agent_integrations?.map((integration: any) => ({
@@ -234,6 +247,18 @@ export default function App() {
     setSelectedContact(contact);
     setCurrentView('chat');
     
+    // Initialize shared settings state with contact data for sidebar
+    setSettingsFormData({
+      name: contact.name,
+      description: contact.description,
+      color: contact.color,
+      voice: contact.voice || 'Puck',
+      avatar: contact.avatar || ''
+    });
+    setSettingsIntegrations(contact.integrations || []);
+    setSettingsDocuments(contact.documents || []);
+    setSettingsHasChanges(false);
+    
     // Load conversation documents for this contact
     const contactMessages = messages.filter(m => m.contactId === contact.id);
     const allAttachments = contactMessages.flatMap(m => m.attachments || []);
@@ -262,6 +287,18 @@ export default function App() {
   };
 
   const handleCallClick = (contact: AIContact) => {
+    // Initialize shared settings state with contact data for sidebar
+    setSettingsFormData({
+      name: contact.name,
+      description: contact.description,
+      color: contact.color,
+      voice: contact.voice || 'Puck',
+      avatar: contact.avatar || ''
+    });
+    setSettingsIntegrations(contact.integrations || []);
+    setSettingsDocuments(contact.documents || []);
+    setSettingsHasChanges(false);
+    
     if (callState.isActive && callState.status !== 'ended') {
       handleEndCall();
       setTimeout(() => {
@@ -317,6 +354,19 @@ export default function App() {
   const handleSettingsClick = (contact?: AIContact) => {
     if (contact) {
       setSelectedContact(contact);
+      
+      // Initialize shared settings state with contact data
+      setSettingsFormData({
+        name: contact.name,
+        description: contact.description,
+        color: contact.color,
+        voice: contact.voice || 'Puck',
+        avatar: contact.avatar || ''
+      });
+      setSettingsIntegrations(contact.integrations || []);
+      setSettingsDocuments(contact.documents || []);
+      setSettingsHasChanges(false);
+      
       setCurrentView('settings');
     }
   };
@@ -341,7 +391,7 @@ export default function App() {
       handleEndCall();
     } else {
       setCurrentView('dashboard');
-      setSelectedContact(null);
+    setSelectedContact(null);
     }
   };
 
@@ -351,11 +401,72 @@ export default function App() {
   };
 
   const handleCreateAgent = () => {
+    const newAgent: AIContact = {
+      id: `temp_${Date.now()}`,
+      name: 'New AI Assistant',
+      description: 'A helpful AI assistant ready to be customized.',
+      initials: 'AI',
+      color: '#3b82f6',
+      status: 'online',
+      lastSeen: 'now',
+      voice: 'Puck'
+    };
+    setSelectedContact(newAgent);
+    
+    // Initialize shared settings state
+    setSettingsFormData({
+      name: newAgent.name,
+      description: newAgent.description,
+      color: newAgent.color,
+      voice: newAgent.voice || 'Puck',
+      avatar: newAgent.avatar || ''
+    });
+    setSettingsIntegrations([]);
+    setSettingsDocuments([]);
+    setSettingsHasChanges(false);
+    
     setCurrentView('create-agent');
   };
 
   const handleToggleSidebar = () => {
     setShowSidebar(prev => !prev);
+  };
+
+  // Settings synchronization functions
+  const handleSettingsFormChange = (field: string, value: string) => {
+    setSettingsFormData(prev => ({ ...prev, [field]: value }));
+    setSettingsHasChanges(true);
+  };
+
+  const handleSettingsIntegrationsChange = (integrations: IntegrationInstance[]) => {
+    console.log('🔄 Settings integrations changed:', integrations);
+    setSettingsIntegrations(integrations);
+    setSettingsHasChanges(true);
+  };
+
+  const handleSettingsDocumentsChange = (documents: DocumentInfo[]) => {
+    setSettingsDocuments(documents);
+    setSettingsHasChanges(true);
+  };
+
+  const handleSettingsSave = (contact: AIContact) => {
+    console.log('💾 Saving contact with integrations:', settingsIntegrations);
+    
+    const updatedContact: AIContact = {
+      ...contact,
+      name: settingsFormData.name.trim(),
+      description: settingsFormData.description.trim(),
+      color: settingsFormData.color,
+      voice: settingsFormData.voice,
+      avatar: settingsFormData.avatar,
+      initials: settingsFormData.name.trim().split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2) || 'AI',
+      integrations: settingsIntegrations.length > 0 ? settingsIntegrations : undefined,
+      documents: settingsDocuments.length > 0 ? settingsDocuments : undefined
+    };
+    
+    console.log('📦 Updated contact:', updatedContact);
+    handleSaveContact(updatedContact);
+    setSettingsHasChanges(false);
   };
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
@@ -620,7 +731,7 @@ export default function App() {
           const updated = [...prev];
           updated[existingIndex] = contact;
           return updated;
-        } else {
+    } else {
           return [...prev, contact];
         }
       });
@@ -729,25 +840,25 @@ export default function App() {
                     : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
                 } backdrop-blur-sm`}>
                   <p className="text-sm font-medium">{oauthMessage}</p>
-                </div>
+              </div>
               </div>
             )}
 
             {/* Left Sidebar - Contacts */}
             <div className="w-80 border-r border-slate-700">
-              <ContactSidebar
-                contacts={contacts}
-                onChatClick={handleChatClick}
-                onCallClick={handleCallClick}
-                onSettingsClick={handleSettingsClick}
+                  <ContactSidebar
+                    contacts={contacts}
+                    onChatClick={handleChatClick}
+                    onCallClick={handleCallClick}
+                    onSettingsClick={handleSettingsClick}
                 onHomeClick={handleHomeClick}
-                onCreateAgent={handleCreateAgent}
-              />
-            </div>
+                    onCreateAgent={handleCreateAgent}
+                  />
+                </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex">
-              <div className="flex-1">
+            <div className="flex-1 flex h-full">
+                <div className={`h-full ${((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') ? 'flex-1' : 'w-full'}`}>
                 {currentView === 'dashboard' && (
                   <Dashboard
                     contacts={contacts}
@@ -757,9 +868,9 @@ export default function App() {
                     onNewChatClick={handleNewChatClick}
                     onCreateAgent={handleCreateAgent}
                   />
-                )}
-                
-                {currentView === 'chat' && selectedContact && (
+            )}
+
+            {currentView === 'chat' && selectedContact && (
                   <ChatScreen
                     contact={selectedContact}
                     messages={contactMessages}
@@ -774,57 +885,69 @@ export default function App() {
                   />
                 )}
                 
-                {currentView === 'call' && selectedContact && (
-                  <CallScreen
-                    contact={selectedContact}
+            {currentView === 'call' && selectedContact && (
+                <CallScreen
+                  contact={selectedContact}
                     callState={callState}
-                    onBack={handleBack}
+                  onBack={handleBack}
                     onEndCall={handleEndCall}
                     onToggleMute={handleToggleMute}
                     showSidebar={showSidebar}
                     onToggleSidebar={handleToggleSidebar}
-                  />
-                )}
-                
-                {currentView === 'settings' && selectedContact && (
+                />
+            )}
+
+            {currentView === 'settings' && selectedContact && (
+              <SettingsScreen
+                contact={selectedContact}
+                onBack={handleBack}
+                onSave={handleSettingsSave}
+                formData={settingsFormData}
+                integrations={settingsIntegrations}
+                documents={settingsDocuments}
+                hasChanges={settingsHasChanges}
+                onFormChange={handleSettingsFormChange}
+                onIntegrationsChange={handleSettingsIntegrationsChange}
+                onDocumentsChange={handleSettingsDocumentsChange}
+              />
+            )}
+
+            {currentView === 'create-agent' && selectedContact && (
                   <SettingsScreen
                     contact={selectedContact}
-                    onBack={handleBack}
-                    onSave={handleSaveContact}
-                  />
-                )}
-                
-                {currentView === 'create-agent' && (
-                  <SettingsScreen
-                    contact={{
-                      id: `temp_${Date.now()}`,
-                      name: 'New AI Assistant',
-                      description: 'A helpful AI assistant ready to be customized.',
-                      initials: 'AI',
-                      color: '#3b82f6',
-                      status: 'online',
-                      lastSeen: 'now',
-                      voice: 'Puck'
-                    }}
                     onBack={handleBack}
                     onSave={(contact) => {
-                      handleSaveContact(contact);
+                      handleSettingsSave(contact);
                       setCurrentView('dashboard');
                     }}
+                    formData={settingsFormData}
+                    integrations={settingsIntegrations}
+                    documents={settingsDocuments}
+                    hasChanges={settingsHasChanges}
+                    onFormChange={handleSettingsFormChange}
+                    onIntegrationsChange={handleSettingsIntegrationsChange}
+                    onDocumentsChange={handleSettingsDocumentsChange}
                   />
                 )}
-              </div>
-
-              {/* Right Sidebar - Settings (when in chat view) */}
-              {currentView === 'chat' && showSidebar && (
-                <div className="w-80 border-l border-slate-700">
-                  <SettingsSidebar
-                    contact={selectedContact}
-                    onSave={handleSaveContact}
-                  />
                 </div>
-              )}
-            </div>
+
+              {/* Right Sidebar - Settings (when in chat view, call view, settings view, or create-agent view) */}
+              {((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') && (
+                <div className="w-80 border-l border-slate-700 z-20 relative">
+                    <SettingsSidebar
+                    contact={selectedContact}
+                    onSave={handleSettingsSave}
+                    formData={settingsFormData}
+                    integrations={settingsIntegrations}
+                    documents={settingsDocuments}
+                    hasChanges={settingsHasChanges}
+                    onFormChange={handleSettingsFormChange}
+                    onIntegrationsChange={handleSettingsIntegrationsChange}
+                    onDocumentsChange={handleSettingsDocumentsChange}
+                    />
+                  </div>
+                )}
+              </div>
           </div>
         } />
       </Routes>

@@ -1,20 +1,46 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../types/documents';
 import { integrationsService } from '../../integrations';
 import { getIntegrationById } from '../../integrations';
 import { documentService } from './documentService';
 import { DomainChecker } from '../../../core/utils/domainChecker';
+import { supabase } from '../../database/lib/supabase';
 
 class GeminiService {
-  private genAI: GoogleGenerativeAI;
+  private supabaseUrl: string;
 
   constructor() {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY environment variable is required');
+    // Use Supabase URL for our secure proxy endpoints
+    this.supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!this.supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL environment variable is required');
     }
-    this.genAI = new GoogleGenerativeAI(apiKey);
+  }
+
+  private async callGeminiAPI(endpoint: string, payload: any): Promise<any> {
+    try {
+      const response = await fetch(`${this.supabaseUrl}/functions/v1/gemini-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          endpoint,
+          payload
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'API request failed');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini API call failed:', error);
+      throw error;
+    }
   }
 
   async generateResponse(
@@ -49,6 +75,10 @@ class GeminiService {
 
       const hasNotionAction = contact.integrations?.some(
         integration => integration.integrationId === 'notion-oauth-action' && integration.config.enabled
+      );
+
+      const hasWebSearch = contact.integrations?.some(
+        integration => integration.integrationId === 'web-search' && integration.config.enabled
       );
 
       const hasNotion = hasNotionSource || hasNotionAction;
@@ -148,12 +178,35 @@ class GeminiService {
         });
       }
 
-      const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : [];
+      if (hasWebSearch) {
+        functionDeclarations.push({
+          name: 'search_web',
+          description: 'Search the web for current information, news, or any real-time data using Tavily AI search engine. Use when users ask to search, look up, google, or find current information online.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The search query - what to search for on the web'
+              },
+              searchDepth: {
+                type: 'string',
+                description: 'Search depth for better results',
+                enum: ['basic', 'advanced'],
+                default: 'basic'
+              },
+              maxResults: {
+                type: 'number',
+                description: 'Maximum number of search results to return (1-20)',
+                default: 5
+              }
+            },
+            required: ['query']
+          }
+        });
+      }
 
-      const model = this.genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        tools: tools.length > 0 ? tools : undefined
-      } as any);
+      const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : [];
 
       // Build context with PROPER document access
       let context = this.buildContactContext(contact, conversationDocuments);
@@ -181,17 +234,46 @@ User: ${userMessage}
 ${contact.name}:`;
 
       console.log('📝 Sending prompt to Gemini...');
-      const result = await model.generateContent(prompt);
+      
+      // Create payload for Gemini API
+      const payload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        tools: tools.length > 0 ? tools : undefined,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        }
+      };
+
+      const result = await this.callGeminiAPI('models/gemini-1.5-flash:generateContent', payload);
       
       // Handle function calls
-      const response = result.response;
-      const functionCalls = response.functionCalls();
+      const candidates = result.candidates || [];
+      if (candidates.length === 0) {
+        throw new Error('No response candidates from Gemini API');
+      }
+
+      const candidate = candidates[0];
+      const functionCalls = candidate.content?.parts?.filter((part: any) => part.functionCall) || [];
       
-      if (functionCalls && functionCalls.length > 0) {
+      if (functionCalls.length > 0) {
         console.log('🔧 Function calls detected:', functionCalls);
         
         const functionResponses = [];
-        for (const call of functionCalls) {
+        for (const callPart of functionCalls) {
+          const call = callPart.functionCall;
+          if (!call) continue;
+          
           if (call.name === 'make_api_request') {
             try {
               const args = call.args as any || {};
@@ -372,6 +454,33 @@ ${contact.name}:`;
               });
             }
           }
+
+          if (call.name === 'search_web') {
+            try {
+              const args = call.args as any || {};
+              const { query, searchDepth = 'basic', maxResults = 5 } = args;
+              
+              console.log(`🔍 Web search requested: "${query}"`);
+              
+              const result = await integrationsService.executeWebSearchTool(
+                query,
+                searchDepth,
+                maxResults,
+                true // include answer
+              );
+              
+              functionResponses.push({
+                name: call.name,
+                response: { success: true, data: result }
+              });
+            } catch (error) {
+              console.error('❌ Web search failed:', error);
+              functionResponses.push({
+                name: call.name,
+                response: { success: false, error: error instanceof Error ? error.message : 'Web search failed' }
+              });
+            }
+          }
         }
 
         // Generate final response with function results
@@ -393,15 +502,40 @@ ${contact.name}:`;
 
           console.log('🔧 Generating final response with function results...');
           
-          const finalResult = await model.generateContent(followUpPrompt);
-          const finalResponse = finalResult.response.text();
+          const finalPayload = {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: followUpPrompt
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 2048,
+            }
+          };
+
+          const finalResult = await this.callGeminiAPI('models/gemini-1.5-flash:generateContent', finalPayload);
+          const finalCandidates = finalResult.candidates || [];
+          if (finalCandidates.length === 0) {
+            throw new Error('No response candidates from Gemini API for follow-up');
+          }
+
+          const finalResponse = finalCandidates[0].content?.parts?.[0]?.text || '';
           
           console.log('✅ Final response generated');
           return finalResponse;
         }
       }
 
-      return response.text();
+      // Return the text content from the first candidate
+      const textContent = candidate.content?.parts?.[0]?.text || '';
+      return textContent;
     } catch (error) {
       console.error('❌ Error generating response:', error);
       throw new Error('Failed to generate AI response. Please try again.');
@@ -530,6 +664,10 @@ ${contact.name}:`;
       integration => integration.integrationId === 'google-sheets' && integration.config.enabled
     );
 
+    const hasWebSearch = contact.integrations?.some(
+      integration => integration.integrationId === 'web-search' && integration.config.enabled
+    );
+
     if (hasApiTool) {
       context += '\n\n🔧 API REQUEST TOOL AVAILABLE 🔧';
       context += '\nYou HAVE the make_api_request function. Use it when users ask for real-time information:';
@@ -544,6 +682,15 @@ ${contact.name}:`;
       context += '\nYou HAVE the check_domain_availability function. Use it when users ask about domains:';
       context += '\n- "Is [domain] available?" - "Check if [name] domains are available"';
       context += '\nExtract the base domain name (remove .com, .net, etc.) and call the function.';
+    }
+
+    if (hasWebSearch) {
+      context += '\n\n🔍 WEB SEARCH AVAILABLE 🔍';
+      context += '\nYou HAVE the search_web function. Use it when users ask to search, look up, google, or find current information:';
+      context += '\n- "Search up latest AI news" - "Look up information about [topic]"';
+      context += '\n- "Google this: [query]" - "Find current information about [subject]"';
+      context += '\n- "What\'s happening with [topic]?" - "Search for recent [topic] updates"';
+      context += '\nAlways use this for current events, recent news, or any real-time information requests.';
     }
 
     if (hasWebhookTool) {

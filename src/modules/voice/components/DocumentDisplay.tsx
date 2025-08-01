@@ -1,21 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, X } from 'lucide-react';
+import { Copy, X, Download, Check } from 'lucide-react';
 
 interface DocumentDisplayProps {
   content: string;
   isVisible: boolean;
   onClose: () => void;
+  documentIndex?: number;
+  totalDocuments?: number;
+  onNextDocument?: () => void;
+  onPreviousDocument?: () => void;
+  canNavigate?: boolean;
 }
 
-export default function DocumentDisplay({ content, isVisible, onClose }: DocumentDisplayProps) {
+export default function DocumentDisplay({ 
+  content, 
+  isVisible, 
+  onClose, 
+  documentIndex = 0,
+  totalDocuments = 1,
+  onNextDocument,
+  onPreviousDocument,
+  canNavigate = false
+}: DocumentDisplayProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isVisible) {
       setShouldRender(true);
+      setError(null);
       // Small delay to ensure DOM is ready
       setTimeout(() => setIsAnimating(true), 10);
     } else {
@@ -40,9 +57,30 @@ export default function DocumentDisplay({ content, isVisible, onClose }: Documen
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
-      // You could add a toast notification here
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
+      setError('Failed to copy to clipboard');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleDownload = () => {
+    try {
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `document-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download document: ', err);
+      setError('Failed to download document');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -85,8 +123,92 @@ export default function DocumentDisplay({ content, isVisible, onClose }: Documen
           <X className="w-4 h-4 text-gray-600" />
         </button>
 
+        {/* Document Header */}
+        <div className={`p-6 border-b border-gray-200 transition-all duration-500 transform ${
+          isAnimating 
+            ? 'translate-y-0 opacity-100' 
+            : 'translate-y-4 opacity-0'
+        }`}
+        style={{ transitionDelay: isAnimating ? '50ms' : '0ms' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Generated Document</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {new Date().toLocaleDateString()} • {content.split(' ').length} words
+                {totalDocuments > 1 && (
+                  <span className="ml-2">• Document {documentIndex + 1} of {totalDocuments}</span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              {/* Navigation Controls */}
+              {canNavigate && totalDocuments > 1 && (
+                <>
+                  <button
+                    onClick={onPreviousDocument}
+                    disabled={documentIndex === 0}
+                    className={`p-2 rounded-full transition-colors duration-200 ${
+                      documentIndex === 0 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-50 hover:bg-gray-100 text-gray-600'
+                    }`}
+                    title="Previous document"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={onNextDocument}
+                    disabled={documentIndex === totalDocuments - 1}
+                    className={`p-2 rounded-full transition-colors duration-200 ${
+                      documentIndex === totalDocuments - 1 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-50 hover:bg-gray-100 text-gray-600'
+                    }`}
+                    title="Next document"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+              <button
+                onClick={handleDownload}
+                className="p-2 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200"
+                title="Download document"
+              >
+                <Download className="w-4 h-4 text-blue-600" />
+              </button>
+              <button
+                onClick={handleCopy}
+                className={`p-2 rounded-full transition-colors duration-200 ${
+                  copied 
+                    ? 'bg-green-50 hover:bg-green-100' 
+                    : 'bg-gray-50 hover:bg-gray-100'
+                }`}
+                title="Copy to clipboard"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4 text-green-600" />
+                ) : (
+                  <Copy className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Document Content */}
-        <div className={`flex-1 p-8 overflow-y-auto cursor-pointer transition-all duration-500 transform ${
+        <div className={`flex-1 p-6 overflow-y-auto cursor-pointer transition-all duration-500 transform ${
           isAnimating 
             ? 'translate-y-0 opacity-100' 
             : 'translate-y-4 opacity-0'
@@ -163,6 +285,23 @@ export default function DocumentDisplay({ content, isVisible, onClose }: Documen
                     {children}
                   </em>
                 ),
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-4">
+                    <table className="min-w-full border border-gray-200">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-left font-semibold text-gray-700">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-4 py-2 border-b border-gray-200 text-gray-700">
+                    {children}
+                  </td>
+                ),
               }}
             >
               {content}
@@ -170,20 +309,17 @@ export default function DocumentDisplay({ content, isVisible, onClose }: Documen
           </div>
         </div>
 
-        {/* Copy Button - Bottom */}
-        <div className={`p-3 border-t border-gray-200 bg-gray-50 transition-all duration-500 transform ${
+        {/* Document Footer */}
+        <div className={`p-4 border-t border-gray-200 bg-gray-50 transition-all duration-500 transform ${
           isAnimating 
             ? 'translate-y-0 opacity-100' 
             : 'translate-y-2 opacity-0'
         }`}
         style={{ transitionDelay: isAnimating ? '300ms' : '0ms' }}>
-          <button
-            onClick={handleCopy}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors duration-200 text-gray-600 text-xs font-medium"
-          >
-            <Copy className="w-3 h-3" />
-            <span>Copy</span>
-          </button>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Click anywhere to copy • Generated by AI</span>
+            <span>{content.length} characters</span>
+          </div>
         </div>
       </div>
     </div>

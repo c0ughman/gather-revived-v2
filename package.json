@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@google/genai": "^1.5.1",
-    "@google/generative-ai": "^0.21.0",
     "@stripe/react-stripe-js": "^2.5.0",
     "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.0",
+    "@tailwindcss/line-clamp": "^0.4.4",
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.2.6",
     "jsrsasign": "^11.1.0",
     "lucide-react": "^0.344.0",
     "mammoth": "^1.6.0",

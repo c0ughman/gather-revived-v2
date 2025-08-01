@@ -21,6 +21,8 @@ class IntegrationsService {
       switch (integration.id) {
         case 'http-requests':
           return await this.executeHttpRequest(config);
+        case 'web-search':
+          return await this.executeWebSearch(config);
         case 'google-news':
           return await this.executeGoogleNews(config);
         case 'rss-feeds':
@@ -108,6 +110,109 @@ class IntegrationsService {
       return await response.json();
     } catch (e) {
       return await response.text();
+    }
+  }
+
+  /**
+   * Execute Tavily Web Search integration
+   */
+  private async executeWebSearch(config: IntegrationConfig): Promise<any> {
+    console.log('🔍 Starting Tavily web search execution');
+    console.log('📋 Web search config:', config);
+    
+    const { 
+      searchDepth = 'basic', 
+      maxResults = 5, 
+      includeAnswer = 'basic',
+      includeDomains = '',
+      excludeDomains = ''
+    } = config.settings;
+    
+    // Use secure proxy endpoint instead of direct API call
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL environment variable is required');
+    }
+
+    // Extract query from the config or default search term
+    const query = config.settings.query || 'recent news';
+    console.log('🔍 Search query:', query);
+
+    // Parse domain lists
+    const includeDomainsList = includeDomains ? 
+      includeDomains.split(',').map((d: string) => d.trim()).filter((d: string) => d) : [];
+    const excludeDomainsList = excludeDomains ? 
+      excludeDomains.split(',').map((d: string) => d.trim()).filter((d: string) => d) : [];
+
+    const requestBody: any = {
+      query,
+      search_depth: searchDepth,
+      max_results: parseInt(maxResults.toString()) || 5,
+      include_answer: includeAnswer !== 'false' ? includeAnswer : false
+    };
+
+    // Add domain filters if provided
+    if (includeDomainsList.length > 0) {
+      requestBody.include_domains = includeDomainsList;
+    }
+    if (excludeDomainsList.length > 0) {
+      requestBody.exclude_domains = excludeDomainsList;
+    }
+
+    console.log('📤 Tavily request body:', requestBody);
+    console.log('🌐 Making request to Tavily proxy...');
+
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/tavily-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('📡 Tavily response status:', response.status);
+      console.log('📡 Tavily response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Tavily API error response:', errorText);
+        throw new Error(`Tavily search failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Tavily search successful!');
+      console.log('📊 Search results:', {
+        query: result.query,
+        answer_length: result.answer?.length || 0,
+        results_count: result.results?.length || 0,
+        response_time: result.response_time
+      });
+      
+      // Format the response for better readability
+      const formattedResult = {
+        query: result.query,
+        answer: result.answer || null,
+        results: result.results || [],
+        response_time: result.response_time,
+        search_metadata: {
+          search_depth: searchDepth,
+          max_results: maxResults,
+          total_results: result.results?.length || 0
+        }
+      };
+
+      console.log('📦 Formatted web search result:', formattedResult);
+      return formattedResult;
+
+    } catch (error) {
+      console.error('❌ Tavily search request failed:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
   }
 
@@ -254,6 +359,91 @@ class IntegrationsService {
       }
     } catch (error) {
       console.error(`❌ API request failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute web search tool for dynamic queries from chat/voice
+   */
+  async executeWebSearchTool(
+    query: string,
+    searchDepth: string = 'basic',
+    maxResults: number = 5,
+    includeAnswer: boolean = true
+  ): Promise<any> {
+    console.log('🔍 Starting dynamic web search tool execution');
+    console.log('📋 Search parameters:', { query, searchDepth, maxResults, includeAnswer });
+    
+    try {
+      console.log(`🔍 Executing web search tool for query: "${query}"`);
+      
+      // Use secure proxy endpoint instead of direct API call
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('VITE_SUPABASE_URL environment variable is required');
+      }
+      
+      const requestBody: any = {
+        query,
+        search_depth: searchDepth,
+        max_results: maxResults,
+        include_answer: includeAnswer
+      };
+
+      console.log('📤 Web search tool request body:', requestBody);
+      console.log('🌐 Making web search tool request to Tavily proxy...');
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/tavily-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('📡 Web search tool response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Web search tool API error:', errorText);
+        throw new Error(`Tavily search failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Web search tool successful!');
+      console.log('📊 Tool search results:', {
+        query: result.query,
+        answer_length: result.answer?.length || 0,
+        results_count: result.results?.length || 0,
+        response_time: result.response_time
+      });
+      
+      // Format the response for better readability
+      const formattedResult = {
+        query: result.query,
+        answer: result.answer || null,
+        results: result.results || [],
+        response_time: result.response_time,
+        search_metadata: {
+          search_depth: searchDepth,
+          max_results: maxResults,
+          total_results: result.results?.length || 0
+        }
+      };
+
+      console.log('📦 Web search tool formatted result:', formattedResult);
+      return formattedResult;
+
+    } catch (error) {
+      console.error('❌ Web search tool failed:', error);
+      console.error('❌ Tool error details:', {
+        message: error.message,
+        query,
+        searchDepth,
+        maxResults
+      });
       throw error;
     }
   }
@@ -552,6 +742,60 @@ class IntegrationsService {
     }
     
     return data;
+  }
+
+  /**
+   * Start periodic execution of an integration
+   */
+  startPeriodicExecution(
+    contactId: string,
+    integration: Integration,
+    config: IntegrationConfig,
+    onDataUpdate?: (contactId: string, data: any) => void
+  ): void {
+    console.log(`🔄 Starting periodic execution for ${integration.name} (${contactId})`);
+    
+    // For now, we'll just execute once immediately
+    // In a real implementation, you'd set up intervals based on config.intervalMinutes
+    this.executeIntegration(integration, config)
+      .then((data) => {
+        console.log(`✅ Periodic execution completed for ${integration.name}`);
+        
+        // Store the data
+        this.storeIntegrationData(contactId, integration.id, data, `Periodic execution of ${integration.name}`);
+        
+        // Call the callback if provided
+        if (onDataUpdate) {
+          onDataUpdate(contactId, data);
+        }
+      })
+      .catch((error) => {
+        console.error(`❌ Periodic execution failed for ${integration.name}:`, error);
+      });
+  }
+
+  /**
+   * Stop periodic execution of an integration
+   */
+  stopPeriodicExecution(contactId: string, integrationId: string): void {
+    console.log(`🛑 Stopping periodic execution for ${integrationId} (${contactId})`);
+    // In a real implementation, you'd clear the interval
+  }
+
+  /**
+   * Debug function to test web search manually
+   * Call this from browser console: integrationsService.debugWebSearch("test query")
+   */
+  async debugWebSearch(query: string = "latest tech news"): Promise<any> {
+    console.log('🧪 DEBUG: Testing web search with query:', query);
+    try {
+      const result = await this.executeWebSearchTool(query);
+      console.log('🧪 DEBUG: Web search test successful:', result);
+      return result;
+    } catch (error) {
+      console.error('🧪 DEBUG: Web search test failed:', error);
+      throw error;
+    }
   }
 }
 

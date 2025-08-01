@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Save, User, Database, FileText, Plus, Trash2, Settings, X, Upload, Volume2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Save, User, Database, FileText, Plus, Trash2, Settings, X, Upload, Volume2, Palette } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import { IntegrationInstance } from '../../integrations/types/integrations';
@@ -13,19 +13,46 @@ interface SettingsSidebarProps {
   contact: AIContact | null;
   onSave: (contact: AIContact) => void;
   className?: string;
+  formData?: {
+    name: string;
+    description: string;
+    color: string;
+    voice: string;
+    avatar: string;
+  };
+  integrations?: IntegrationInstance[];
+  documents?: DocumentInfo[];
+  hasChanges?: boolean;
+  onFormChange?: (field: string, value: string) => void;
+  onIntegrationsChange?: (integrations: IntegrationInstance[]) => void;
+  onDocumentsChange?: (documents: DocumentInfo[]) => void;
 }
 
-export default function SettingsSidebar({ contact, onSave, className = '' }: SettingsSidebarProps) {
+export default function SettingsSidebar({ 
+  contact, 
+  onSave, 
+  className = '',
+  formData: externalFormData,
+  integrations: externalIntegrations,
+  documents: externalDocuments,
+  hasChanges: externalHasChanges,
+  onFormChange,
+  onIntegrationsChange,
+  onDocumentsChange
+}: SettingsSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
     integrations: true,
     documents: true
   });
 
-  const [formData, setFormData] = useState({
+  // Use external state if provided, otherwise use local state
+  const [localFormData, setLocalFormData] = useState({
     name: '',
     description: '',
-    voice: 'Puck'
+    color: '#3b82f6',
+    voice: 'Puck',
+    avatar: ''
   });
 
   // Available voices from Gemini Live API
@@ -40,9 +67,30 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
     { id: 'Zephyr', name: 'Zephyr', description: 'Light and airy', gender: 'Female' }
   ];
 
-  const [integrations, setIntegrations] = useState<IntegrationInstance[]>([]);
-  const [documents, setDocuments] = useState<DocumentInfo[]>([]);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Available colors with names
+  const availableColors = [
+    { id: '#3b82f6', name: 'Blue', hex: '#3b82f6' },
+    { id: '#8b5cf6', name: 'Purple', hex: '#8b5cf6' },
+    { id: '#10b981', name: 'Emerald', hex: '#10b981' },
+    { id: '#f59e0b', name: 'Amber', hex: '#f59e0b' },
+    { id: '#ef4444', name: 'Red', hex: '#ef4444' },
+    { id: '#ec4899', name: 'Pink', hex: '#ec4899' },
+    { id: '#06b6d4', name: 'Cyan', hex: '#06b6d4' },
+    { id: '#84cc16', name: 'Lime', hex: '#84cc16' },
+    { id: '#f97316', name: 'Orange', hex: '#f97316' },
+    { id: '#6366f1', name: 'Indigo', hex: '#6366f1' }
+  ];
+
+  const [localIntegrations, setLocalIntegrations] = useState<IntegrationInstance[]>([]);
+  const [localDocuments, setLocalDocuments] = useState<DocumentInfo[]>([]);
+  const [localHasChanges, setLocalHasChanges] = useState(false);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
+
+  // Use external state if provided, otherwise use local state
+  const formData = externalFormData || localFormData;
+  const integrations = externalIntegrations || localIntegrations;
+  const documents = externalDocuments || localDocuments;
+  const hasChanges = externalHasChanges !== undefined ? externalHasChanges : localHasChanges;
   const [uploadError, setUploadError] = useState<string | null>(null);
   
   // Integration setup state
@@ -52,17 +100,37 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
 
   // Update form data when contact changes
   useEffect(() => {
-    if (contact) {
-      setFormData({
+    if (contact && !externalFormData) {
+      setLocalFormData({
         name: contact.name,
         description: contact.description,
-        voice: contact.voice || 'Puck'
+        color: contact.color,
+        voice: contact.voice || 'Puck',
+        avatar: contact.avatar || ''
       });
-      setIntegrations(contact.integrations || []);
-      setDocuments(contact.documents || []);
-      setHasChanges(false);
+      setLocalIntegrations(contact.integrations || []);
+      setLocalDocuments(contact.documents || []);
+      setLocalHasChanges(false);
     }
-  }, [contact]);
+  }, [contact, externalFormData]);
+
+  // Close color dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.color-dropdown')) {
+        setShowColorDropdown(false);
+      }
+    };
+
+    if (showColorDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColorDropdown]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -72,8 +140,12 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setHasChanges(true);
+    if (onFormChange) {
+      onFormChange(field, value);
+    } else {
+      setLocalFormData(prev => ({ ...prev, [field]: value }));
+      setLocalHasChanges(true);
+    }
   };
 
   const handleSave = () => {
@@ -90,13 +162,19 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
     };
     
     onSave(updatedContact);
-    setHasChanges(false);
+    if (!onFormChange) {
+      setLocalHasChanges(false);
+    }
   };
 
   // Document handlers
   const handleDocumentUploaded = (document: DocumentInfo) => {
-    setDocuments(prev => [...prev, document]);
-    setHasChanges(true);
+    if (onDocumentsChange) {
+      onDocumentsChange([...documents, document]);
+    } else {
+      setLocalDocuments(prev => [...prev, document]);
+      setLocalHasChanges(true);
+    }
     setUploadError(null);
   };
 
@@ -105,8 +183,12 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
   };
 
   const handleRemoveDocument = (documentId: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-    setHasChanges(true);
+    if (onDocumentsChange) {
+      onDocumentsChange(documents.filter(doc => doc.id !== documentId));
+    } else {
+      setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      setLocalHasChanges(true);
+    }
   };
 
   // Integration handlers
@@ -125,16 +207,26 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
     };
 
     if (editingIntegration) {
-      setIntegrations(prev => prev.map(int => 
+      const updatedIntegrations = integrations.map(int => 
         int.id === editingIntegration.id ? { ...integrationInstance, id: editingIntegration.id } : int
-      ));
+      );
+      if (onIntegrationsChange) {
+        onIntegrationsChange(updatedIntegrations);
+      } else {
+        setLocalIntegrations(updatedIntegrations);
+        setLocalHasChanges(true);
+      }
     } else {
-      setIntegrations(prev => [...prev, integrationInstance]);
+      if (onIntegrationsChange) {
+        onIntegrationsChange([...integrations, integrationInstance]);
+      } else {
+        setLocalIntegrations(prev => [...prev, integrationInstance]);
+        setLocalHasChanges(true);
+      }
     }
 
     setSetupIntegration(null);
     setEditingIntegration(null);
-    setHasChanges(true);
   };
 
   const handleEditIntegration = (integrationInstance: IntegrationInstance) => {
@@ -147,8 +239,12 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
 
   const handleRemoveIntegration = (integrationId: string) => {
     if (confirm('Remove this integration?')) {
-      setIntegrations(prev => prev.filter(int => int.id !== integrationId));
-      setHasChanges(true);
+      if (onIntegrationsChange) {
+        onIntegrationsChange(integrations.filter(int => int.id !== integrationId));
+      } else {
+        setLocalIntegrations(prev => prev.filter(int => int.id !== integrationId));
+        setLocalHasChanges(true);
+      }
     }
   };
 
@@ -249,21 +345,21 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-              {contact.avatar ? (
+              {formData.avatar ? (
                 <img
-                  src={contact.avatar}
-                  alt={contact.name}
+                  src={formData.avatar}
+                  alt={formData.name}
                   className="w-full h-full object-cover rounded-lg"
                 />
               ) : (
                 <div 
                   className="w-full h-full rounded-lg"
-                  style={{ background: createAgentGradient(contact.color) }}
+                  style={{ background: createAgentGradient(formData.color) }}
                 />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-white font-semibold truncate">{contact.name}</h2>
+              <h2 className="text-white font-semibold truncate">{formData.name}</h2>
               <p className="text-slate-400 text-xs">Settings</p>
             </div>
           </div>
@@ -322,6 +418,52 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                 />
               </div>
 
+              {/* Color Selection */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-2 flex items-center space-x-1">
+                  <Palette className="w-3 h-3" />
+                  <span>Color</span>
+                </label>
+                <div className="relative color-dropdown">
+                  <button
+                    onClick={() => setShowColorDropdown(!showColorDropdown)}
+                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div 
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: formData.color }}
+                      />
+                      <span>{availableColors.find(c => c.hex === formData.color)?.name || 'Select Color'}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showColorDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showColorDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {availableColors.map((color) => (
+                        <button
+                          key={color.id}
+                          onClick={() => {
+                            handleInputChange('color', color.hex);
+                            setShowColorDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left hover:bg-slate-700 transition-colors duration-200 flex items-center space-x-2 ${
+                            formData.color === color.hex ? 'bg-slate-700' : ''
+                          }`}
+                        >
+                          <div 
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="text-white text-sm">{color.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Voice */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-2 flex items-center space-x-1">
@@ -341,6 +483,72 @@ export default function SettingsSidebar({ contact, onSave, className = '' }: Set
                     ))}
                   </select>
                   <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Avatar Upload */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-2 flex items-center space-x-1">
+                  <Upload className="w-3 h-3" />
+                  <span>Avatar</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+                    {formData.avatar ? (
+                      <img
+                        src={formData.avatar}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div 
+                        className="w-full h-full"
+                        style={{ background: createAgentGradient(formData.color) }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (!file.type.startsWith('image/')) {
+                            setUploadError('Please select an image file');
+                            return;
+                          }
+                          if (file.size > 5 * 1024 * 1024) {
+                            setUploadError('Image must be smaller than 5MB');
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            const base64 = e.target?.result as string;
+                            handleInputChange('avatar', base64);
+                            setUploadError(null);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                      id="avatar-upload"
+                    />
+                    <label
+                      htmlFor="avatar-upload"
+                      className="block text-xs text-slate-400 hover:text-white cursor-pointer transition-colors duration-200"
+                    >
+                      {formData.avatar ? 'Change avatar' : 'Upload avatar'}
+                    </label>
+                  </div>
+                  {formData.avatar && (
+                    <button
+                      onClick={() => handleInputChange('avatar', '')}
+                      className="p-1 hover:bg-slate-600 rounded text-xs text-red-400 hover:text-red-300 transition-colors duration-200"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

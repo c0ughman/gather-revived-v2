@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Palette, User, FileText, Settings as SettingsIcon, Upload, Trash2, Plus, Database, Volume2, ChevronDown } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
@@ -12,45 +12,79 @@ interface SettingsScreenProps {
   contact: AIContact;
   onBack: () => void;
   onSave: (contact: AIContact) => void;
+  formData?: {
+    name: string;
+    description: string;
+    color: string;
+    voice: string;
+    avatar: string;
+  };
+  integrations?: IntegrationInstance[];
+  documents?: DocumentInfo[];
+  hasChanges?: boolean;
+  onFormChange?: (field: string, value: string) => void;
+  onIntegrationsChange?: (integrations: IntegrationInstance[]) => void;
+  onDocumentsChange?: (documents: DocumentInfo[]) => void;
 }
 
 const availableColors = [
-  '#3b82f6', // Blue
-  '#8b5cf6', // Purple  
-  '#10b981', // Green
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#ec4899', // Pink
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
-  '#f97316', // Orange
-  '#6366f1', // Indigo
+  { id: '#3b82f6', name: 'Blue', hex: '#3b82f6' },
+  { id: '#8b5cf6', name: 'Purple', hex: '#8b5cf6' },
+  { id: '#10b981', name: 'Emerald', hex: '#10b981' },
+  { id: '#f59e0b', name: 'Amber', hex: '#f59e0b' },
+  { id: '#ef4444', name: 'Red', hex: '#ef4444' },
+  { id: '#ec4899', name: 'Pink', hex: '#ec4899' },
+  { id: '#06b6d4', name: 'Cyan', hex: '#06b6d4' },
+  { id: '#84cc16', name: 'Lime', hex: '#84cc16' },
+  { id: '#f97316', name: 'Orange', hex: '#f97316' },
+  { id: '#6366f1', name: 'Indigo', hex: '#6366f1' }
 ];
 
-// Available voices from Gemini Live API
-const availableVoices = [
-  { id: 'Puck', name: 'Puck', description: 'Playful and energetic', gender: 'Male' },
-  { id: 'Charon', name: 'Charon', description: 'Deep and mysterious', gender: 'Male' },
-  { id: 'Kore', name: 'Kore', description: 'Warm and friendly', gender: 'Female' },
-  { id: 'Fenrir', name: 'Fenrir', description: 'Strong and confident', gender: 'Male' },
-  { id: 'Aoede', name: 'Aoede', description: 'Melodic and soothing', gender: 'Female' },
-  { id: 'Leda', name: 'Leda', description: 'Gentle and calm', gender: 'Female' },
-  { id: 'Orus', name: 'Orus', description: 'Clear and articulate', gender: 'Male' },
-  { id: 'Zephyr', name: 'Zephyr', description: 'Light and airy', gender: 'Female' }
-];
+  // Available voices from Gemini Live API
+  const availableVoices = [
+    { id: 'Puck', name: 'Puck', description: 'Playful and energetic', gender: 'Male' },
+    { id: 'Charon', name: 'Charon', description: 'Deep and mysterious', gender: 'Male' },
+    { id: 'Kore', name: 'Kore', description: 'Warm and friendly', gender: 'Female' },
+    { id: 'Fenrir', name: 'Fenrir', description: 'Strong and confident', gender: 'Male' },
+    { id: 'Aoede', name: 'Aoede', description: 'Melodic and soothing', gender: 'Female' },
+    { id: 'Leda', name: 'Leda', description: 'Gentle and calm', gender: 'Female' },
+    { id: 'Orus', name: 'Orus', description: 'Clear and articulate', gender: 'Male' },
+    { id: 'Zephyr', name: 'Zephyr', description: 'Light and airy', gender: 'Female' }
+  ];
 
-export default function SettingsScreen({ contact, onBack, onSave }: SettingsScreenProps) {
-  const [formData, setFormData] = useState({
+
+
+export default function SettingsScreen({ 
+  contact, 
+  onBack, 
+  onSave, 
+  formData: externalFormData,
+  integrations: externalIntegrations,
+  documents: externalDocuments,
+  hasChanges: externalHasChanges,
+  onFormChange,
+  onIntegrationsChange,
+  onDocumentsChange
+}: SettingsScreenProps) {
+  // Use external state if provided, otherwise use local state
+  const [localFormData, setLocalFormData] = useState({
     name: contact.name,
     description: contact.description,
     color: contact.color,
-    voice: contact.voice || 'Puck', // Default to Puck if no voice is set
+    voice: contact.voice || 'Puck',
     avatar: contact.avatar || '',
   });
 
-  const [integrations, setIntegrations] = useState<IntegrationInstance[]>(contact.integrations || []);
-  const [documents, setDocuments] = useState<DocumentInfo[]>(contact.documents || []);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [localIntegrations, setLocalIntegrations] = useState<IntegrationInstance[]>(contact.integrations || []);
+  const [localDocuments, setLocalDocuments] = useState<DocumentInfo[]>(contact.documents || []);
+  const [localHasChanges, setLocalHasChanges] = useState(false);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
+
+  // Use external state if provided, otherwise use local state
+  const formData = externalFormData || localFormData;
+  const integrations = externalIntegrations || localIntegrations;
+  const documents = externalDocuments || localDocuments;
+  const hasChanges = externalHasChanges !== undefined ? externalHasChanges : localHasChanges;
   const [activeTab, setActiveTab] = useState<'basic' | 'integrations' | 'documents'>('basic');
   const [uploadError, setUploadError] = useState<string | null>(null);
   
@@ -60,13 +94,21 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
   const [editingIntegration, setEditingIntegration] = useState<IntegrationInstance | null>(null);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setHasChanges(true);
+    if (onFormChange) {
+      onFormChange(field, value);
+    } else {
+      setLocalFormData(prev => ({ ...prev, [field]: value }));
+      setLocalHasChanges(true);
+    }
   };
 
   const handleDocumentUploaded = (document: DocumentInfo) => {
-    setDocuments(prev => [...prev, document]);
-    setHasChanges(true);
+    if (onDocumentsChange) {
+      onDocumentsChange([...documents, document]);
+    } else {
+      setLocalDocuments(prev => [...prev, document]);
+      setLocalHasChanges(true);
+    }
     setUploadError(null);
   };
 
@@ -75,23 +117,34 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
   };
 
   const handleRemoveDocument = (documentId: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-    setHasChanges(true);
+    if (onDocumentsChange) {
+      onDocumentsChange(documents.filter(doc => doc.id !== documentId));
+    } else {
+      setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      setLocalHasChanges(true);
+    }
   };
 
   const handleClearAllDocuments = () => {
     if (confirm('Are you sure you want to remove all documents? This action cannot be undone.')) {
-      setDocuments([]);
-      setHasChanges(true);
+      if (onDocumentsChange) {
+        onDocumentsChange([]);
+      } else {
+        setLocalDocuments([]);
+        setLocalHasChanges(true);
+      }
     }
   };
 
   const handleSelectIntegration = (integration: Integration) => {
+    console.log('🎯 Integration selected in SettingsScreen:', integration.id, integration.name);
     setSetupIntegration(integration);
     setShowIntegrationsLibrary(false);
   };
 
   const handleSaveIntegration = (config: IntegrationConfig) => {
+    console.log('💾 Saving integration config:', config);
+    
     const integrationInstance: IntegrationInstance = {
       id: Date.now().toString(),
       integrationId: config.integrationId,
@@ -100,17 +153,31 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
       status: 'active'
     };
 
+    console.log('📦 Created integration instance:', integrationInstance);
+
     if (editingIntegration) {
-      setIntegrations(prev => prev.map(int => 
+      const updatedIntegrations = integrations.map(int => 
         int.id === editingIntegration.id ? { ...integrationInstance, id: editingIntegration.id } : int
-      ));
+      );
+      console.log('🔄 Updating existing integration');
+      if (onIntegrationsChange) {
+        onIntegrationsChange(updatedIntegrations);
+      } else {
+        setLocalIntegrations(updatedIntegrations);
+        setLocalHasChanges(true);
+      }
     } else {
-      setIntegrations(prev => [...prev, integrationInstance]);
+      console.log('➕ Adding new integration to list');
+      if (onIntegrationsChange) {
+        onIntegrationsChange([...integrations, integrationInstance]);
+      } else {
+        setLocalIntegrations(prev => [...prev, integrationInstance]);
+        setLocalHasChanges(true);
+      }
     }
 
     setSetupIntegration(null);
     setEditingIntegration(null);
-    setHasChanges(true);
   };
 
   const handleEditIntegration = (integrationInstance: IntegrationInstance) => {
@@ -123,8 +190,12 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
 
   const handleRemoveIntegration = (integrationId: string) => {
     if (confirm('Are you sure you want to remove this integration?')) {
-      setIntegrations(prev => prev.filter(int => int.id !== integrationId));
-      setHasChanges(true);
+      if (onIntegrationsChange) {
+        onIntegrationsChange(integrations.filter(int => int.id !== integrationId));
+      } else {
+        setLocalIntegrations(prev => prev.filter(int => int.id !== integrationId));
+        setLocalHasChanges(true);
+      }
     }
   };
 
@@ -142,12 +213,32 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
     };
     
     onSave(updatedContact);
-    setHasChanges(false);
+    if (!onFormChange) {
+      setLocalHasChanges(false);
+    }
   };
 
   const handleColorSelect = (color: string) => {
     handleInputChange('color', color);
   };
+
+  // Close color dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.color-dropdown')) {
+        setShowColorDropdown(false);
+      }
+    };
+
+    if (showColorDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColorDropdown]);
 
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -257,7 +348,9 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
           >
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
-          <h1 className="text-xl font-semibold text-white">Contact Settings</h1>
+          <h1 className="text-xl font-semibold text-white truncate">
+            {formData.name} Settings
+          </h1>
         </div>
         
         {hasChanges && (
@@ -344,7 +437,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-white">{formData.name || 'AI Assistant'}</h3>
-                    <p className="text-slate-400">{formData.description || 'No description provided'}</p>
+                    <p className="text-slate-400 ellipsis-2">{formData.description || 'No description provided'}</p>
                   </div>
                 </div>
               </div>
@@ -426,19 +519,43 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                   <Palette className="w-4 h-4" />
                   <span>Avatar Color</span>
                 </label>
-                <div className="grid grid-cols-5 gap-3">
-                  {availableColors.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => handleColorSelect(color)}
-                      className={`w-12 h-12 rounded-lg transition-all duration-200 hover:scale-110 ${
-                        formData.color === color 
-                          ? 'ring-4 ring-white ring-opacity-50 scale-110' 
-                          : 'hover:ring-2 hover:ring-white hover:ring-opacity-30'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
+                <div className="relative color-dropdown">
+                  <button
+                    onClick={() => setShowColorDropdown(!showColorDropdown)}
+                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div 
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: formData.color }}
+                      />
+                      <span>{availableColors.find(c => c.hex === formData.color)?.name || 'Select Color'}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showColorDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showColorDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {availableColors.map((color) => (
+                        <button
+                          key={color.id}
+                          onClick={() => {
+                            handleColorSelect(color.hex);
+                            setShowColorDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left hover:bg-slate-700 transition-colors duration-200 flex items-center space-x-2 ${
+                            formData.color === color.hex ? 'bg-slate-700' : ''
+                          }`}
+                        >
+                          <div 
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="text-white text-sm">{color.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -505,7 +622,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
                             </div>
                             <div>
                               <h3 className="font-semibold text-white">{integrationDef.name}</h3>
-                              <p className="text-slate-400 text-sm">{integrationDef.description}</p>
+                              <p className="text-slate-400 text-sm ellipsis-2">{integrationDef.description}</p>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -548,7 +665,7 @@ export default function SettingsScreen({ contact, onBack, onSave }: SettingsScre
 
                         {integration.config.description && (
                           <div className="mt-3 pt-3 border-t border-slate-700">
-                            <p className="text-slate-300 text-sm">{integration.config.description}</p>
+                            <p className="text-slate-300 text-sm ellipsis-2">{integration.config.description}</p>
                           </div>
                         )}
                       </div>

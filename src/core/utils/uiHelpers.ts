@@ -53,3 +53,26 @@ export const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }; 
+
+/**
+ * Truncates text to a specified length with ellipsis
+ * @param text - The text to truncate
+ * @param maxLength - Maximum length before truncation
+ * @returns Truncated text with ellipsis if needed
+ */
+export const truncateText = (text: string, maxLength: number): string => {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength).trim() + '...';
+};
+
+/**
+ * CSS classes for consistent text truncation
+ */
+export const truncationClasses = {
+  singleLine: 'truncate',
+  twoLines: 'line-clamp-2',
+  threeLines: 'line-clamp-3',
+  overflowHidden: 'overflow-hidden text-ellipsis whitespace-nowrap'
+}; 

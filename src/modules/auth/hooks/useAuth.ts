@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
+import { secureTokenService } from '../../../core/services/secureTokenService';
 
 // Initialize Supabase client with environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -38,12 +39,17 @@ export function useAuth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthState({
         user: session?.user ?? null,
         session,
         loading: false,
       });
+
+      // Clear tokens on sign out for security
+      if (event === 'SIGNED_OUT' && authState.user) {
+        secureTokenService.clearUserTokens(authState.user.id);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -100,6 +106,11 @@ export function useAuth() {
 
   const signOut = async () => {
     try {
+      // Clear tokens before signing out
+      if (authState.user) {
+        secureTokenService.clearUserTokens(authState.user.id);
+      }
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Signout error:', error);

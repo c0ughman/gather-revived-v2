@@ -42,6 +42,12 @@ class GeminiLiveService {
   private processingInterval: number | null = null;
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
+  
+  // Memory management tracking
+  private activeTimers: Set<number> = new Set();
+  private eventListeners: Map<EventTarget, { event: string, handler: EventListenerOrEventListenerObject }[]> = new Map();
+  private maxAudioChunks: number = 100; // Limit audio buffer size
+  private maxAudioQueueSize: number = 50; // Limit queue size
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -50,6 +56,109 @@ class GeminiLiveService {
     } else {
       console.warn('Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
     }
+  }
+
+  /**
+   * Memory-safe timer management
+   */
+  private setManagedTimeout(callback: () => void, delay: number): number {
+    const timerId = window.setTimeout(() => {
+      this.activeTimers.delete(timerId);
+      callback();
+    }, delay);
+    this.activeTimers.add(timerId);
+    return timerId;
+  }
+
+  private setManagedInterval(callback: () => void, interval: number): number {
+    const timerId = window.setInterval(callback, interval);
+    this.activeTimers.add(timerId);
+    return timerId;
+  }
+
+  // Fast path for critical audio processing - no tracking overhead
+  private setFastInterval(callback: () => void, interval: number): number {
+    return window.setInterval(callback, interval);
+  }
+
+  private setFastTimeout(callback: () => void, delay: number): number {
+    return window.setTimeout(callback, delay);
+  }
+
+  private clearManagedTimer(timerId: number): void {
+    if (this.activeTimers.has(timerId)) {
+      clearTimeout(timerId);
+      clearInterval(timerId);
+      this.activeTimers.delete(timerId);
+    }
+  }
+
+  private clearAllTimers(): void {
+    this.activeTimers.forEach(timerId => {
+      clearTimeout(timerId);
+      clearInterval(timerId);
+    });
+    this.activeTimers.clear();
+  }
+
+  /**
+   * Memory-safe event listener management
+   */
+  private addManagedEventListener(
+    target: EventTarget, 
+    event: string, 
+    handler: EventListenerOrEventListenerObject
+  ): void {
+    target.addEventListener(event, handler);
+    
+    if (!this.eventListeners.has(target)) {
+      this.eventListeners.set(target, []);
+    }
+    this.eventListeners.get(target)!.push({ event, handler });
+  }
+
+  private removeAllEventListeners(): void {
+    this.eventListeners.forEach((listeners, target) => {
+      listeners.forEach(({ event, handler }) => {
+        target.removeEventListener(event, handler);
+      });
+    });
+    this.eventListeners.clear();
+  }
+
+  /**
+   * Audio buffer memory management
+   */
+  private manageAudioBuffers(): void {
+    // Fast check - early return if no cleanup needed
+    if (this.audioChunks.length <= this.maxAudioChunks && this.audioQueue.length <= this.maxAudioQueueSize) {
+      return;
+    }
+
+    // Limit audio chunks to prevent memory overflow
+    if (this.audioChunks.length > this.maxAudioChunks) {
+      const excess = this.audioChunks.length - this.maxAudioChunks;
+      this.audioChunks.splice(0, excess);
+      // Remove console.log to reduce latency in production
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🧹 Cleaned up ${excess} old audio chunks`);
+      }
+    }
+
+    // Limit audio queue size
+    if (this.audioQueue.length > this.maxAudioQueueSize) {
+      const excess = this.audioQueue.length - this.maxAudioQueueSize;
+      this.audioQueue.splice(0, excess);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🧹 Cleaned up ${excess} old audio queue items`);
+      }
+    }
+  }
+
+  private clearAudioBuffers(): void {
+    console.log(`🧹 Clearing ${this.audioChunks.length} audio chunks and ${this.audioQueue.length} queue items`);
+    this.audioChunks.length = 0; // Clear array efficiently
+    this.audioQueue.length = 0;
   }
 
   /**
@@ -106,7 +215,7 @@ class GeminiLiveService {
       
       while ((!this.audioStream || !this.audioContext) && attempts < maxAttempts) {
         console.log(`⏳ Waiting for audio... attempt ${attempts + 1}/${maxAttempts}`);
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => this.setManagedTimeout(resolve, 50));
         attempts++;
       }
 
@@ -121,7 +230,7 @@ class GeminiLiveService {
         console.log("Session already active, ending current session first");
         this.endSession();
         // Minimal cleanup time for fastest restart
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => this.setManagedTimeout(resolve, 10));
       }
 
       this.isSessionActive = true;
@@ -158,21 +267,25 @@ class GeminiLiveService {
         integration => integration.integrationId === 'notion-oauth-action' && integration.config.enabled
       );
 
+      const hasWebSearch = contact.integrations?.some(
+        integration => integration.integrationId === 'web-search' && integration.config.enabled
+      );
+
       const hasNotion = hasNotionSource || hasNotionAction;
       
               console.log(`🔍 Contact integrations:`, contact.integrations);
-        console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}`);
+        console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}, Web Search: ${hasWebSearch}`);
 
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: await this.createSystemPrompt(contact),
-        // ULTRA-AGGRESSIVE VAD for minimal latency
+        // Optimized VAD for better speech detection
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            prefixPaddingMs: 10, // MINIMAL padding for fastest response
-            silenceDurationMs: 100 // QUICK cutoff for faster turn-taking
+            prefixPaddingMs: 300, // Reasonable padding to catch speech start
+            silenceDurationMs: 800 // Allow for natural pauses in speech
           }
         },
         // Speech configuration
@@ -361,6 +474,32 @@ class GeminiLiveService {
         });
       }
 
+      if (hasWebSearch) {
+        functionDeclarations.push({
+          name: 'search_web',
+          description: 'Search the web for current information, news, or any real-time data using Tavily AI search engine. Use when users ask to search, look up, google, or find current information online.',
+          parameters: {
+            type: 'object' as const,
+            properties: {
+              query: {
+                type: 'string' as const,
+                description: 'The search query - what to search for on the web'
+              },
+              searchDepth: {
+                type: 'string' as const,
+                description: 'Search depth for better results',
+                enum: ['basic', 'advanced']
+              },
+              maxResults: {
+                type: 'number' as const,
+                description: 'Maximum number of search results to return (1-20)'
+              }
+            },
+            required: ['query']
+          }
+        });
+      }
+
       // Always add document generation function for voice mode
       functionDeclarations.push({
         name: "generate_document",
@@ -434,7 +573,8 @@ class GeminiLiveService {
     try {
       // Handle tool calls
       if (message.toolCall && this.activeSession) {
-        console.log('🔧 Received tool call:', message.toolCall);
+        const functionNames = message.toolCall.functionCalls?.map((fc: any) => fc.name).join(', ') || 'unknown';
+        console.log(`🔧 Voice: Tool call: ${functionNames}`);
         this.updateState('processing');
         
         const functionResponses = [];
@@ -606,7 +746,7 @@ class GeminiLiveService {
                 properties,
                 filter,
                 sorts,
-                this.currentContact
+                this.currentContact || undefined
               );
               
               functionResponses.push({
@@ -667,10 +807,81 @@ class GeminiLiveService {
               });
             }
           }
+
+          if (fc.name === 'search_web') {
+            try {
+              const { query, searchDepth = 'basic', maxResults = 5 } = fc.args;
+              console.log(`🔍 Voice web search: "${query}"`);
+              
+              const result = await integrationsService.executeWebSearchTool(
+                query,
+                searchDepth,
+                maxResults,
+                true // include answer
+              );
+
+              
+              // Format results for natural voice response - create a conversational summary
+              let voiceResponse = '';
+              
+              if (result.answer) {
+                voiceResponse = result.answer;
+              } else if (result.results && result.results.length > 0) {
+                voiceResponse = `I found ${result.results.length} search results for "${result.query}". `;
+                
+                // Add key information from top results
+                const topResults = result.results.slice(0, 3);
+                const keyInfo = topResults.map((r: any) => {
+                  if (r.content) {
+                    return r.content.substring(0, 150).replace(/[{}[\]]/g, '');
+                  }
+                  return r.title;
+                }).join('. ');
+                
+                voiceResponse += keyInfo;
+              } else {
+                voiceResponse = `I searched for "${result.query}" but didn't find relevant results. You might want to try a different search term.`;
+              }
+              
+              // Clean up any remaining structural characters that might be read aloud
+              voiceResponse = voiceResponse
+                .replace(/[{}[\]]/g, '')
+                .replace(/_/g, ' ')
+                .replace(/\n+/g, '. ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+
+              
+              functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: {
+                  success: true,
+                  content: voiceResponse
+                }
+              });
+            } catch (error) {
+              console.error('❌ Voice web search failed:', error);
+              console.error('❌ Voice search error details:', {
+                message: (error as Error).message,
+                query: fc.args?.query,
+                searchDepth: fc.args?.searchDepth
+              });
+              functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: {
+                  success: false,
+                  error: (error as Error).message || 'Web search failed'
+                }
+              });
+            }
+          }
         }
 
         if (functionResponses.length > 0) {
-          console.log('📤 Sending tool response...');
+          console.log(`📤 Voice: Sending ${functionResponses.length} tool response(s)`);
           this.activeSession.sendToolResponse({ functionResponses });
         }
         return;
@@ -797,6 +1008,7 @@ class GeminiLiveService {
       source.buffer = audioBuffer;
       source.connect(this.audioContext.destination);
       
+      // Direct event assignment for audio sources (managed events can cause latency)
       source.onended = () => {
         this.isPlaying = false;
         
@@ -822,7 +1034,7 @@ class GeminiLiveService {
       this.isPlaying = false;
       // Continue with next chunk if available
       if (this.audioQueue.length > 0) {
-        setTimeout(() => this.playNextAudioChunk(), 1); // Minimal delay
+        this.setFastTimeout(() => this.playNextAudioChunk(), 1); // Minimal delay - FAST PATH
       } else {
         this.updateState('listening');
       }
@@ -877,9 +1089,13 @@ class GeminiLiveService {
       source.connect(processor);
       processor.connect(this.audioContext.destination);
 
-      // Send audio chunks every 32ms for ultra-low latency streaming
-      this.processingInterval = window.setInterval(() => {
+      // Send audio chunks every 32ms for ultra-low latency streaming - USE FAST PATH
+      this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
+        // Only manage buffers occasionally, not every 32ms (causes latency)
+        if (Math.random() < 0.01) { // Only 1% of the time (~every 3 seconds)
+          this.manageAudioBuffers();
+        }
       }, 32);
 
     } catch (error) {
@@ -962,18 +1178,30 @@ class GeminiLiveService {
   }
 
   /**
-   * Stop audio playback (for interruptions)
+   * Stop audio playback with proper cleanup (for interruptions)
    */
   private stopAudioPlayback(): void {
     if (this.currentSource) {
       try {
-        this.currentSource.stop();
+        // Properly disconnect and clean up AudioBufferSourceNode
+        this.currentSource.disconnect();
+        if (this.currentSource.buffer) {
+          this.currentSource.stop();
+        }
+        console.log("✅ Audio source stopped and disconnected");
       } catch (error) {
-        // Ignore errors when stopping
+        // Ignore errors when stopping (source may already be stopped)
+        console.warn("⚠️ Error stopping audio source:", error);
       }
       this.currentSource = null;
     }
     this.isPlaying = false;
+    
+    // Clear the audio queue to free memory
+    if (this.audioQueue.length > 0) {
+      console.log(`🧹 Clearing ${this.audioQueue.length} remaining audio queue items`);
+      this.audioQueue.length = 0;
+    }
   }
 
   /**
@@ -1107,7 +1335,7 @@ class GeminiLiveService {
         
         // Small delay between batches to be respectful to the RDAP service
         if (i + maxConcurrent < domainsToCheck.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => this.setManagedTimeout(resolve, 100));
         }
       }
 
@@ -1240,11 +1468,13 @@ class GeminiLiveService {
    * Create system prompt for the contact
    */
   private async createSystemPrompt(contact: AIContact): Promise<string> {
+    console.log('📝 Voice: Building system prompt...');
+    
     // Get fresh document context from Supabase
     const documentContext = await documentContextService.getAgentDocumentContext(contact);
     
-    // Start with the formatted document context (includes contact description)
-    let systemPrompt = documentContext.formattedContext;
+    // For voice mode, use OPTIMIZED context to reduce latency
+    let systemPrompt = this.buildOptimizedVoiceContext(contact, documentContext);
     
     // Add integration-specific instructions
     if (contact.integrations && contact.integrations.length > 0) {
@@ -1254,6 +1484,7 @@ class GeminiLiveService {
       const hasDomainTool = contact.integrations.some(i => i.integrationId === 'domain-checker-tool' && i.config.enabled);
       const hasWebhookTool = contact.integrations.some(i => i.integrationId === 'webhook-trigger' && i.config.enabled);
       const hasGoogleSheets = contact.integrations.some(i => i.integrationId === 'google-sheets' && i.config.enabled);
+      const hasWebSearch = contact.integrations.some(i => i.integrationId === 'web-search' && i.config.enabled);
       const hasNotion = contact.integrations.some(i => (i.integrationId === 'notion-oauth-source' || i.integrationId === 'notion-oauth-action') && i.config.enabled);
       
       if (hasApiTool) {
@@ -1270,6 +1501,18 @@ class GeminiLiveService {
       
       if (hasGoogleSheets) {
         systemPrompt += '\n- Google Sheets: Use manage_google_sheets to read, write, search, and manage spreadsheet data.';
+      }
+      
+      if (hasWebSearch) {
+        console.log('🔍 Voice: Web search integration detected and enabled');
+        systemPrompt += '\n- Web Search: Use search_web to find current information, news, or real-time data when users ask to search, look up, google, or find current information online.';
+        systemPrompt += '\n  • Trigger phrases: "search up", "look up", "google this", "find information about", "what\'s happening with", "search for"';
+        systemPrompt += '\n  • Always use this for current events, recent news, or any real-time information requests';
+        systemPrompt += '\n  • IMPORTANT: Use search_web function when users clearly ask for current or real-time information';
+        systemPrompt += '\n  • VOICE MODE: When you receive search results, speak the information naturally and conversationally';
+        systemPrompt += '\n  • NEVER read out technical details like "tool response", "data", "content", or mention using functions';
+        systemPrompt += '\n  • Simply present the information as if you naturally knew it, without mentioning the search process';
+        systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
       }
       
       if (hasNotion) {
@@ -1307,9 +1550,58 @@ class GeminiLiveService {
     systemPrompt += '\n- Do not mention document titles, URLs, or file locations - just generate and display the content';
     systemPrompt += '\n- IMPORTANT: Do not mention that you are using a tool or function to generate the document. Simply respond naturally and let the document appear automatically';
     
+    systemPrompt += '\n\n🎤 CRITICAL VOICE MODE INSTRUCTIONS:';
+    systemPrompt += '\n- NEVER read out technical details, data structures, or code-like content';
+    systemPrompt += '\n- NEVER say words like "tool", "function", "response", "data", "content", "underscore", "curly bracket", etc.';
+    systemPrompt += '\n- When you receive information from tools, speak it naturally as if you knew it yourself';
+    systemPrompt += '\n- Present information conversationally without mentioning how you obtained it';
+    systemPrompt += '\n- Focus on the actual information content, not the technical wrapper';
+    
     systemPrompt += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
     
+    console.log(`📏 Voice: System prompt ready (${systemPrompt.length.toLocaleString()} chars)`);
+    
     return systemPrompt;
+  }
+
+  /**
+   * Build optimized context for voice mode to reduce latency
+   */
+  private buildOptimizedVoiceContext(contact: AIContact, documentContext: any): string {
+    let context = `You are ${contact.name}. ${contact.description}`;
+    
+    const allDocuments = [...documentContext.permanentDocuments, ...documentContext.conversationDocuments];
+    
+    if (allDocuments.length > 0) {
+      context += '\n\n=== YOUR KNOWLEDGE BASE (SUMMARIES) ===\n';
+      context += 'You have access to the following documents. Use summaries for quick reference:\n\n';
+      
+      // Use ONLY summaries for voice mode to reduce latency
+      const permanentDocs = documentContext.permanentDocuments;
+      const conversationDocs = documentContext.conversationDocuments;
+      
+      if (permanentDocs.length > 0) {
+        context += '📚 PERMANENT KNOWLEDGE:\n';
+        permanentDocs.forEach((doc: any) => {
+          context += `📄 ${doc.name} (${doc.type}): ${doc.summary || 'No summary available'}\n`;
+        });
+        context += '\n';
+      }
+      
+      if (conversationDocs.length > 0) {
+        context += '💬 CONVERSATION DOCUMENTS:\n';
+        conversationDocs.forEach((doc: any) => {
+          context += `📄 ${doc.name} (${doc.type}): ${doc.summary || 'No summary available'}\n`;
+        });
+        context += '\n';
+      }
+      
+      context += 'Note: Full document content is available if needed, but use these summaries for quick reference in voice conversations.';
+    }
+    
+    console.log(`✅ Voice: Optimized context: ${context.length.toLocaleString()} chars`);
+    
+    return context;
   }
 
   private buildIntegrationContext(contact: AIContact): string {
@@ -1337,34 +1629,67 @@ class GeminiLiveService {
   }
 
   /**
-   * Clean up resources
+   * Clean up resources - Enhanced memory leak prevention
    */
   private cleanup(): void {
+    console.log("🧹 Starting comprehensive cleanup...");
+    
     this.isRecording = false;
     this.isPlaying = false;
     this.isSessionActive = false;
     
+    // Clear all timers (both managed and fast path)
+    this.clearAllTimers();
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
     }
     
-    // Clean up audio processor
-    if (this.audioProcessor) {
-      this.audioProcessor.disconnect();
-      this.audioProcessor = null;
-    }
-    
-    // Clean up audio source
-    if (this.audioSource) {
-      this.audioSource.disconnect();
-      this.audioSource = null;
-    }
-    
+    // Stop and clean up audio playback
     this.stopAudioPlayback();
-    this.activeSession = null;
-    this.audioQueue = [];
+    
+    // Clean up audio processor with proper disconnection
+    if (this.audioProcessor) {
+      try {
+        this.audioProcessor.disconnect();
+        this.audioProcessor = null;
+        console.log("✅ Audio processor cleaned up");
+      } catch (error) {
+        console.warn("⚠️ Error cleaning up audio processor:", error);
+      }
+    }
+    
+    // Clean up audio source with proper disconnection
+    if (this.audioSource) {
+      try {
+        this.audioSource.disconnect();
+        this.audioSource = null;
+        console.log("✅ Audio source cleaned up");
+      } catch (error) {
+        console.warn("⚠️ Error cleaning up audio source:", error);
+      }
+    }
+    
+    // Clear all audio buffers to free memory
+    this.clearAudioBuffers();
+    
+    // Remove all event listeners
+    this.removeAllEventListeners();
+    
+    // Close session with proper cleanup
+    if (this.activeSession) {
+      try {
+        if (typeof this.activeSession.close === 'function') {
+          this.activeSession.close();
+        }
+      } catch (error) {
+        console.warn("⚠️ Error closing session:", error);
+      }
+      this.activeSession = null;
+    }
+    
     this.updateState('idle');
+    console.log("✅ Cleanup completed - memory freed");
   }
 
   /**
@@ -1389,15 +1714,23 @@ class GeminiLiveService {
   }
 
   /**
-   * Stop listening
+   * Stop listening with proper cleanup
    */
   public stopListening(): void {
+    console.log("🛑 Stopping listening with cleanup...");
     this.isRecording = false;
+    
+    // Clear processing interval (fast path timer)
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
     }
+    
+    // Clean up audio buffers to free memory
+    this.manageAudioBuffers();
+    
     this.updateState('idle');
+    console.log("✅ Listening stopped and cleaned up");
   }
 
   /**
@@ -1419,28 +1752,57 @@ class GeminiLiveService {
   }
 
   /**
-   * Completely shutdown the service (called when app closes)
+   * Completely shutdown the service - Enhanced memory cleanup
    */
   public shutdown(): void {
-    console.log("🛑 Shutting down Gemini Live service");
+    console.log("🛑 Shutting down Gemini Live service - Full cleanup");
     
+    // Run comprehensive cleanup first
     this.cleanup();
     
-    // Clean up audio stream only on complete shutdown
+    // Clean up audio stream with proper track stopping
     if (this.audioStream) {
-      this.audioStream.getTracks().forEach(track => track.stop());
-      this.audioStream = null;
+      try {
+        this.audioStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`✅ Stopped audio track: ${track.kind}`);
+        });
+        this.audioStream = null;
+        console.log("✅ Audio stream cleaned up");
+      } catch (error) {
+        console.warn("⚠️ Error cleaning up audio stream:", error);
+      }
     }
     
-    // Close audio context
+    // Close audio context with proper state checking
     if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
+      try {
+        if (this.audioContext.state !== 'closed') {
+          this.audioContext.close().then(() => {
+            console.log("✅ Audio context closed");
+          }).catch(error => {
+            console.warn("⚠️ Error closing audio context:", error);
+          });
+        }
+        this.audioContext = null;
+      } catch (error) {
+        console.warn("⚠️ Error during audio context cleanup:", error);
+        this.audioContext = null;
+      }
     }
     
+    // Final cleanup of references
     this.activeSession = null;
     this.currentContact = null;
-    console.log("✅ Service shutdown complete");
+    this.genAI = null;
+    
+    // Clear callbacks to prevent memory leaks
+    this.onResponseCallback = null;
+    this.onErrorCallback = null;
+    this.onStateChangeCallback = null;
+    this.onDocumentGenerationCallback = null;
+    
+    console.log("✅ Gemini Live service completely shut down - All memory freed");
   }
 
   // Callback setters
