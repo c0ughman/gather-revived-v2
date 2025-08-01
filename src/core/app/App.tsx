@@ -160,6 +160,15 @@ export default function App() {
 
       setContacts(transformedContacts);
       
+      // Pre-cache document context for ultra-fast voice session start
+      if (transformedContacts.length > 0) {
+        import('../modules/voice/services/geminiLiveService').then(({ geminiLiveService }) => {
+          geminiLiveService.preloadMultipleContactsContext(transformedContacts)
+            .then(() => console.log('✅ Pre-cached context for all contacts'))
+            .catch(error => console.warn('⚠️ Failed to pre-cache contexts:', error));
+        });
+      }
+      
       // Initialize integrations
       transformedContacts.forEach(contact => {
         if (contact.integrations) {

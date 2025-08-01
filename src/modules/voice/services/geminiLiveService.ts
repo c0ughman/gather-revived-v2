@@ -208,17 +208,7 @@ class GeminiLiveService {
         throw new Error("Gemini API not initialized - check your API key");
       }
 
-      // Wait for audio to be fully ready with timeout
-      console.log("🔍 Checking audio initialization status...");
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      while ((!this.audioStream || !this.audioContext) && attempts < maxAttempts) {
-        console.log(`⏳ Waiting for audio... attempt ${attempts + 1}/${maxAttempts}`);
-        await new Promise(resolve => this.setManagedTimeout(resolve, 50));
-        attempts++;
-      }
-
+      // Ensure audio is initialized - no polling needed
       if (!this.audioStream || !this.audioContext) {
         throw new Error("Audio not initialized - call initialize() first");
       }
@@ -229,8 +219,7 @@ class GeminiLiveService {
       if (this.isSessionActive) {
         console.log("Session already active, ending current session first");
         this.endSession();
-        // Minimal cleanup time for fastest restart
-        await new Promise(resolve => this.setManagedTimeout(resolve, 10));
+        // No delay needed - cleanup is synchronous
       }
 
       this.isSessionActive = true;
@@ -574,7 +563,7 @@ class GeminiLiveService {
       // Handle tool calls
       if (message.toolCall && this.activeSession) {
         const functionNames = message.toolCall.functionCalls?.map((fc: any) => fc.name).join(', ') || 'unknown';
-        console.log(`🔧 Voice: Tool call: ${functionNames}`);
+        // Voice tool call executed
         this.updateState('processing');
         
         const functionResponses = [];
@@ -881,7 +870,7 @@ class GeminiLiveService {
         }
 
         if (functionResponses.length > 0) {
-          console.log(`📤 Voice: Sending ${functionResponses.length} tool response(s)`);
+          // Sending tool responses
           this.activeSession.sendToolResponse({ functionResponses });
         }
         return;
@@ -889,7 +878,7 @@ class GeminiLiveService {
 
       // Handle interruption
       if (message.serverContent && message.serverContent.interrupted) {
-        console.log("🛑 Interruption detected");
+        // Interruption detected
         this.stopAudioPlayback();
         this.audioQueue = []; // Clear queue on interruption
         this.updateState('listening');
@@ -898,14 +887,14 @@ class GeminiLiveService {
 
       // Handle generation complete
       if (message.serverContent && message.serverContent.generationComplete) {
-        console.log("✅ Generation complete");
+        // Generation complete
         // Don't change state here, let audio finish playing
         return;
       }
 
       // Handle turn complete
       if (message.serverContent && message.serverContent.turnComplete) {
-        console.log("✅ Turn complete");
+        // Turn complete
         // Start playing queued audio if not already playing
         if (!this.isPlaying && this.audioQueue.length > 0) {
           this.playNextAudioChunk();
@@ -934,7 +923,7 @@ class GeminiLiveService {
             
             // Handle audio response - IMMEDIATE PLAYBACK for lowest latency
             if (part.inlineData && part.inlineData.data) {
-              console.log("🔊 Received audio chunk - IMMEDIATE PLAYBACK");
+              // Audio chunk received
               this.updateState('responding');
               const audioData = this.base64ToInt16Array(part.inlineData.data);
               this.playAudioImmediately(audioData);
@@ -946,7 +935,7 @@ class GeminiLiveService {
 
       // Handle direct audio data (fallback)
       if (message.data) {
-        console.log("🔊 Received direct audio data - IMMEDIATE PLAYBACK");
+        // Direct audio data received
         this.updateState('responding');
         const audioData = this.base64ToInt16Array(message.data);
         this.playAudioImmediately(audioData);
@@ -1050,7 +1039,7 @@ class GeminiLiveService {
     }
 
     try {
-      console.log("🎤 Starting audio capture");
+      // Starting audio capture
       this.isRecording = true;
       this.updateState('listening');
 
