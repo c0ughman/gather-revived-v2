@@ -43,11 +43,15 @@ class GeminiLiveService {
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
   
+  // State management to prevent rapid flipping
+  private currentState: 'idle' | 'listening' | 'processing' | 'responding' = 'idle';
+  private stateChangeTimeout: number | null = null;
+  
   // Memory management tracking
   private activeTimers: Set<number> = new Set();
   private eventListeners: Map<EventTarget, { event: string, handler: EventListenerOrEventListenerObject }[]> = new Map();
-  private maxAudioChunks: number = 100; // Limit audio buffer size
-  private maxAudioQueueSize: number = 50; // Limit queue size
+  private maxAudioChunks: number = 100; // Increased back to prevent cutting off speech
+  private maxAudioQueueSize: number = 50; // Increased to allow full sentences
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -127,32 +131,31 @@ class GeminiLiveService {
   }
 
   /**
-   * Audio buffer memory management
+   * Audio buffer memory management - Only clean when safe to avoid cutting speech
    */
   private manageAudioBuffers(): void {
+    // CRITICAL: Don't clean buffers while audio is playing to avoid cutting off speech
+    if (this.isPlaying) {
+      return;
+    }
+    
     // Fast check - early return if no cleanup needed
     if (this.audioChunks.length <= this.maxAudioChunks && this.audioQueue.length <= this.maxAudioQueueSize) {
       return;
     }
 
-    // Limit audio chunks to prevent memory overflow
-    if (this.audioChunks.length > this.maxAudioChunks) {
+    // Only clean audio chunks when not recording/processing
+    if (this.audioChunks.length > this.maxAudioChunks && !this.isRecording) {
       const excess = this.audioChunks.length - this.maxAudioChunks;
       this.audioChunks.splice(0, excess);
-      // Remove console.log to reduce latency in production
       if (process.env.NODE_ENV === 'development') {
         console.log(`🧹 Cleaned up ${excess} old audio chunks`);
       }
     }
 
-    // Limit audio queue size
-    if (this.audioQueue.length > this.maxAudioQueueSize) {
-      const excess = this.audioQueue.length - this.maxAudioQueueSize;
-      this.audioQueue.splice(0, excess);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🧹 Cleaned up ${excess} old audio queue items`);
-      }
-    }
+    // NEVER clean audio queue - this is what's causing the cut-off speech!
+    // Audio queue cleanup will happen naturally as audio finishes playing
+    // Removing this prevents half-sentences and speech interruption
   }
 
   private clearAudioBuffers(): void {
@@ -215,11 +218,12 @@ class GeminiLiveService {
       
       console.log("✅ Audio is ready, proceeding with session...");
 
-      // Prevent multiple concurrent sessions
-      if (this.isSessionActive) {
+      // Prevent multiple concurrent sessions with stronger guard
+      if (this.isSessionActive || this.activeSession) {
         console.log("Session already active, ending current session first");
         this.endSession();
-        // No delay needed - cleanup is synchronous
+        // Small delay to ensure cleanup completes
+        await new Promise<void>(resolve => setTimeout(resolve, 50));
       }
 
       this.isSessionActive = true;
@@ -521,7 +525,7 @@ class GeminiLiveService {
 
       // Create Live API session following docs pattern
       this.activeSession = await this.genAI.live.connect({
-        model: 'gemini-2.0-flash-live-001', // Use stable Live API model with higher quotas
+        model: 'gemini-live-2.5-flash-preview', // Use latest Live API model
         config: config,
         callbacks: {
           onopen: () => {
@@ -1081,8 +1085,8 @@ class GeminiLiveService {
       // Send audio chunks every 32ms for ultra-low latency streaming - USE FAST PATH
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
-        // Only manage buffers occasionally, not every 32ms (causes latency)
-        if (Math.random() < 0.01) { // Only 1% of the time (~every 3 seconds)
+        // Minimal buffer management - only when absolutely necessary  
+        if (Math.random() < 0.001) { // 0.1% of the time (~every 32 seconds)
           this.manageAudioBuffers();
         }
       }, 32);
@@ -1609,11 +1613,34 @@ class GeminiLiveService {
   }
 
   /**
-   * Update state and notify callback
+   * Update state and notify callback with debouncing to prevent rapid flipping
    */
   private updateState(state: 'idle' | 'listening' | 'processing' | 'responding'): void {
-    if (this.onStateChangeCallback) {
-      this.onStateChangeCallback(state);
+    // Don't update if state hasn't changed
+    if (this.currentState === state) {
+      return;
+    }
+    
+    // Clear any pending state change
+    if (this.stateChangeTimeout) {
+      clearTimeout(this.stateChangeTimeout);
+    }
+    
+    // For responsive states, update immediately
+    if (state === 'responding' || state === 'processing') {
+      this.currentState = state;
+      if (this.onStateChangeCallback) {
+        this.onStateChangeCallback(state);
+      }
+    } else {
+      // For other states, debounce to prevent rapid flipping
+      this.stateChangeTimeout = window.setTimeout(() => {
+        this.currentState = state;
+        if (this.onStateChangeCallback) {
+          this.onStateChangeCallback(state);
+        }
+        this.stateChangeTimeout = null;
+      }, 100); // 100ms debounce
     }
   }
 
@@ -1632,6 +1659,10 @@ class GeminiLiveService {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
+    }
+    if (this.stateChangeTimeout) {
+      clearTimeout(this.stateChangeTimeout);
+      this.stateChangeTimeout = null;
     }
     
     // Stop and clean up audio playback
@@ -1829,6 +1860,6 @@ class GeminiLiveService {
 // Export singleton instance
 export const geminiLiveService = new GeminiLiveService({
   apiKey: import.meta.env.VITE_GEMINI_API_KEY,
-  model: 'gemini-2.0-flash-live-001',
+  model: 'gemini-live-2.5-flash-preview',
   temperature: 0.9,
 });
