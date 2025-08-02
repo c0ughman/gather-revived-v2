@@ -1,6 +1,7 @@
 import { Integration, IntegrationConfig } from '../types/integrations';
 import { notionService } from '../notion/notionService';
 import { notionDataFormatter } from '../notion/notionDataFormatter';
+import { firecrawlService } from '../firecrawl/firecrawlService';
 import { AIContact } from '../../../core/types/types';
 
 // In-memory cache for integration data
@@ -31,6 +32,8 @@ class IntegrationsService {
           return await this.executeFinancialMarkets(config);
         case 'notion-oauth-source':
           return await this.executeNotionSource(config);
+        case 'firecrawl-web-scraping':
+          return await this.executeFirecrawlScraping(config);
         default:
           throw new Error(`Integration ${integration.id} not implemented`);
       }
@@ -220,10 +223,10 @@ class IntegrationsService {
    * Execute Google News integration
    */
   private async executeGoogleNews(config: IntegrationConfig): Promise<any> {
-    const { topic = 'technology', country = 'US', language = 'en' } = config.settings;
+    const { topic = 'technology', country = 'US' } = config.settings;
     
     // Use a free news API
-    const url = `https://newsapi.org/v2/top-headlines?q=${encodeURIComponent(topic)}&country=${country.toLowerCase()}&language=${language}&apiKey=sample-key`;
+    const url = `https://newsapi.org/v2/top-headlines?q=${encodeURIComponent(topic)}&country=${country.toLowerCase()}&apiKey=sample-key`;
     
     // For demo purposes, return mock data
     return {
@@ -324,6 +327,64 @@ class IntegrationsService {
         { id: "db2", name: "Projects", entryCount: 5 },
         { id: "db3", name: "Team Members", entryCount: 12 }
       ]
+    };
+  }
+
+  /**
+   * Execute Firecrawl Web Scraping integration
+   */
+  private async executeFirecrawlScraping(config: IntegrationConfig): Promise<any> {
+    const { 
+      urls, 
+      extractType = 'text', 
+      includeImages = false, 
+      maxPages = 10, 
+      crawlDepth = 1 
+    } = config.settings || {};
+    
+    // API key is now handled by environment variable
+    const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+    if (!apiKey) {
+      throw new Error('Firecrawl API key not configured. Please set VITE_FIRECRAWL_API_KEY environment variable.');
+    }
+
+    // Check if URLs are configured
+    if (!urls) {
+      return {
+        success: false,
+        error: 'URLs to scrape are required. Please configure the integration with URLs to scrape.',
+        message: 'Please add URLs to the Firecrawl integration configuration before using it.'
+      };
+    }
+
+    // Parse URLs from textarea
+    const urlList = urls.split('\n')
+      .map(url => url.trim())
+      .filter(url => url.length > 0);
+
+    if (urlList.length === 0) {
+      throw new Error('At least one valid URL is required');
+    }
+
+    const firecrawlConfig = {
+      apiKey,
+      extractType: extractType as 'text' | 'markdown' | 'html' | 'screenshot',
+      includeImages: includeImages === 'true',
+      maxPages: parseInt(maxPages.toString()) || 10,
+      crawlDepth: parseInt(crawlDepth.toString()) || 1
+    };
+
+    const result = await firecrawlService.executeScraping(urlList, firecrawlConfig);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Firecrawl scraping failed');
+    }
+
+    return {
+      success: true,
+      pages: result.pages || [],
+      metadata: result.metadata,
+      formattedResults: firecrawlService.formatScrapingResults(result)
     };
   }
 
@@ -613,6 +674,51 @@ class IntegrationsService {
       }
     } catch (error) {
       console.error(`❌ Notion operation failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute Firecrawl tool operation
+   */
+  async executeFirecrawlToolOperation(
+    url: string,
+    extractType: string = 'text',
+    includeImages: boolean = false,
+    maxPages: number = 5,
+    contact?: AIContact
+  ): Promise<any> {
+    try {
+      console.log(`🕷️ Executing Firecrawl tool operation for URL: ${url}`);
+      
+      // Get API key from environment variable
+      const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+      if (!apiKey) {
+        throw new Error('Firecrawl API key not configured. Please set VITE_FIRECRAWL_API_KEY environment variable.');
+      }
+      
+      const firecrawlConfig = {
+        apiKey,
+        extractType: extractType as 'text' | 'markdown' | 'html' | 'screenshot',
+        includeImages,
+        maxPages
+      };
+
+      const result = await firecrawlService.executeDynamicScraping(url, firecrawlConfig, contact);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Firecrawl tool operation failed');
+      }
+
+      return {
+        success: true,
+        url,
+        pages: result.pages || [],
+        metadata: result.metadata,
+        formattedResults: firecrawlService.formatScrapingResults(result)
+      };
+    } catch (error) {
+      console.error(`❌ Firecrawl tool operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }

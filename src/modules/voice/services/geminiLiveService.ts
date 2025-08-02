@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 import { AIContact } from '../../../core/types/types';
-import { integrationsService } from '../../integrations';
+import { integrationsService, firecrawlService } from '../../integrations';
 import { documentService, documentContextService } from '../../fileManagement';
 import { DomainChecker } from '../../../core/utils/domainChecker';
 
@@ -35,6 +35,14 @@ class GeminiLiveService {
   private onStateChangeCallback: ((state: 'idle' | 'listening' | 'processing' | 'responding') => void) | null = null;
   private onDocumentGenerationCallback: ((document: { content: string; wordCount?: number }) => void) | null = null;
 
+  // Document generation tracking
+  private documentGenerationInProgress: Set<string> = new Set();
+  private lastDocumentGenerationTime: number = 0;
+  
+  // Audio interruption tracking
+  private lastInterruptionTime: number = 0;
+  private speechStartTime: number = 0;
+
   // Audio processing - ULTRA LOW LATENCY OPTIMIZED
   private audioChunks: Float32Array[] = [];
   private audioQueue: Int16Array[] = [];
@@ -50,8 +58,8 @@ class GeminiLiveService {
   // Memory management tracking
   private activeTimers: Set<number> = new Set();
   private eventListeners: Map<EventTarget, { event: string, handler: EventListenerOrEventListenerObject }[]> = new Map();
-  private maxAudioChunks: number = 100; // Increased back to prevent cutting off speech
-  private maxAudioQueueSize: number = 50; // Increased to allow full sentences
+  private maxAudioChunks: number = 500; // MASSIVELY increased to prevent any speech cutoffs
+  private maxAudioQueueSize: number = 200; // MASSIVELY increased to allow full conversations
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -131,37 +139,62 @@ class GeminiLiveService {
   }
 
   /**
-   * Audio buffer memory management - Only clean when safe to avoid cutting speech
+   * Audio buffer memory management - Smart cleanup that prevents speech cutoffs
    */
   private manageAudioBuffers(): void {
-    // CRITICAL: Don't clean buffers while audio is playing to avoid cutting off speech
-    if (this.isPlaying) {
+    // CRITICAL: Don't clean buffers during any audio activity
+    if (this.isPlaying || this.isRecording || this.currentState === 'responding' || this.currentState === 'processing') {
       return;
     }
     
-    // Fast check - early return if no cleanup needed
-    if (this.audioChunks.length <= this.maxAudioChunks && this.audioQueue.length <= this.maxAudioQueueSize) {
+    const now = Date.now();
+    
+    // Don't clean if speech started recently (within 2 seconds)
+    if (this.speechStartTime > 0 && (now - this.speechStartTime) < 2000) {
       return;
     }
-
-    // Only clean audio chunks when not recording/processing
-    if (this.audioChunks.length > this.maxAudioChunks && !this.isRecording) {
+    
+    // Don't clean if recent interruption (user might be speaking)
+    if (this.lastInterruptionTime > 0 && (now - this.lastInterruptionTime) < 3000) {
+      return; 
+    }
+    
+    // Only clean when buffers are EXTREMELY large and no recent activity
+    if (now - this.lastDocumentGenerationTime < 5000) {
+      return; // Don't clean if recent activity
+    }
+    
+    // Only clean audio input chunks (not output queue) and only when extremely excessive
+    if (this.audioChunks.length > this.maxAudioChunks * 2) { // Only when 2x over limit
       const excess = this.audioChunks.length - this.maxAudioChunks;
       this.audioChunks.splice(0, excess);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🧹 Cleaned up ${excess} old audio chunks`);
-      }
+      console.log(`🧹 SMART cleanup: Removed ${excess} old input audio chunks`);
     }
 
-    // NEVER clean audio queue - this is what's causing the cut-off speech!
-    // Audio queue cleanup will happen naturally as audio finishes playing
-    // Removing this prevents half-sentences and speech interruption
+    // ABSOLUTELY NEVER clean audioQueue - this is the output speech that users hear
+    // Let it clean up naturally through playback completion
   }
 
   private clearAudioBuffers(): void {
     console.log(`🧹 Clearing ${this.audioChunks.length} audio chunks and ${this.audioQueue.length} queue items`);
     this.audioChunks.length = 0; // Clear array efficiently
     this.audioQueue.length = 0;
+  }
+
+  /**
+   * Safe buffer cleanup - only call when session is ending or definitely safe
+   */
+  private safeBufferCleanup(): void {
+    // Only cleanup when absolutely safe - session ending
+    if (this.audioChunks.length > 0) {
+      console.log(`🧹 SAFE cleanup: Removing ${this.audioChunks.length} input audio chunks`);
+      this.audioChunks.length = 0;
+    }
+    // Reset all timing tracking
+    this.documentGenerationInProgress.clear();
+    this.lastDocumentGenerationTime = 0;
+    this.lastInterruptionTime = 0;
+    this.speechStartTime = 0;
   }
 
   /**
@@ -280,10 +313,13 @@ class GeminiLiveService {
             silenceDurationMs: 200 // ULTRA-LOW: Interrupt quickly rather than wait
           }
         },
-        // Speech configuration - Remove explicit voice to enable language-appropriate selection
+        // Speech configuration
         speechConfig: {
-          // Language will be auto-detected from user input and system prompt
-          // Voice will be selected automatically based on detected language
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: this.getVoiceForContact(contact)
+            }
+          }
         }
       };
 
@@ -489,25 +525,61 @@ class GeminiLiveService {
         });
       }
 
-      // Always add document generation function for voice mode
+      // Always add Firecrawl scraping function since it's configured via environment variable
       functionDeclarations.push({
-        name: "generate_document",
-        description: "Generate a written document when user asks to write something down, put something on paper, write an essay, create a document, or produce written content. Use when user says phrases like 'write that down', 'put that on paper', 'write me this', 'write an essay', 'write X words on', 'give me X words on', etc.",
+        name: 'scrape_website',
+        description: 'Extract content from websites when users ask to scrape, crawl, or get content from specific URLs. Use when user asks to go to a website and get its content.',
         parameters: {
-          type: "object" as const,
+          type: 'object' as const,
           properties: {
-            content: {
-              type: "string" as const,
-              description: "The content to write in the document, formatted in markdown"
+            url: {
+              type: 'string' as const,
+              description: 'The URL to scrape content from'
             },
-            wordCount: {
-              type: "number" as const,
-              description: "Target word count if specified by the user"
+            extractType: {
+              type: 'string' as const,
+              description: 'Type of content to extract',
+              enum: ['text', 'markdown', 'html', 'screenshot']
+            },
+            includeImages: {
+              type: 'boolean' as const,
+              description: 'Whether to include images',
+              default: false
+            },
+            maxPages: {
+              type: 'number' as const,
+              description: 'Maximum number of pages to scrape',
+              default: 5
             }
           },
-          required: ["content"]
+          required: ['url']
         }
       });
+
+      // Only add document generation function if callback is properly set
+      if (this.onDocumentGenerationCallback) {
+        functionDeclarations.push({
+          name: "generate_document",
+          description: "Generate a written document when user asks to write something down, put something on paper, write an essay, create a document, or produce written content. Use when user says phrases like 'write that down', 'put that on paper', 'write me this', 'write an essay', 'write X words on', 'give me X words on', etc.",
+          parameters: {
+            type: "object" as const,
+            properties: {
+              content: {
+                type: "string" as const,
+                description: "The content to write in the document, formatted in markdown"
+              },
+              wordCount: {
+                type: "number" as const,
+                description: "Target word count if specified by the user"
+              }
+            },
+            required: ["content"]
+          }
+        });
+        console.log('📄 Document generation tool enabled - callback registered');
+      } else {
+        console.warn('⚠️ Document generation tool disabled - callback not registered');
+      }
 
       if (functionDeclarations.length > 0) {
         config.tools = [{ functionDeclarations }];
@@ -762,14 +834,58 @@ class GeminiLiveService {
           if (fc.name === 'generate_document') {
             try {
               const { content, wordCount } = fc.args;
-              console.log(`📄 Generating document`);
+              const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              console.log(`📄 Generating document ${documentId} (${wordCount ? `${wordCount} words` : 'no word limit'})`);
               
-              // Trigger the document generation callback
-              if (this.onDocumentGenerationCallback) {
-                this.onDocumentGenerationCallback({
-                  content,
+              // Validate document generation system is ready
+              if (!this.onDocumentGenerationCallback) {
+                console.error('❌ Document generation callback not registered - system not ready');
+                throw new Error('Document generation system is not ready. Please try again in a moment.');
+              }
+
+              // Check for rate limiting (max 1 document per 2 seconds)
+              const now = Date.now();
+              if (now - this.lastDocumentGenerationTime < 2000) {
+                console.warn('⚠️ Document generation rate limited');
+                throw new Error('Please wait a moment before generating another document.');
+              }
+
+              // Validate content
+              if (!content || typeof content !== 'string' || content.trim().length === 0) {
+                console.error('❌ Invalid document content provided');
+                throw new Error('Document content is empty or invalid. Please provide valid content to generate.');
+              }
+
+              // Check if too many documents are being generated
+              if (this.documentGenerationInProgress.size >= 3) {
+                console.warn('⚠️ Too many document generations in progress');
+                throw new Error('Too many documents are being generated. Please wait for them to complete.');
+              }
+
+              console.log(`📄 Document content validated (${content.length} characters)`);
+              
+              // Track this document generation
+              this.documentGenerationInProgress.add(documentId);
+              this.lastDocumentGenerationTime = now;
+              
+              // Execute callback with improved error handling
+              try {
+                this.onDocumentGenerationCallback!({
+                  content: content.trim(),
                   wordCount
                 });
+                console.log(`✅ Document generation callback triggered for ${documentId}`);
+                
+                // Clean up tracking after a reasonable delay (fire-and-forget)
+                this.setManagedTimeout(() => {
+                  this.documentGenerationInProgress.delete(documentId);
+                  console.log(`🧹 Cleaned up document generation tracking for ${documentId}`);
+                }, 10000); // 10 second cleanup
+                
+              } catch (callbackError) {
+                this.documentGenerationInProgress.delete(documentId);
+                console.error('❌ Document generation callback failed:', callbackError);
+                throw new Error(`Document generation callback failed: ${(callbackError as Error).message}`);
               }
               
               functionResponses.push({
@@ -778,20 +894,31 @@ class GeminiLiveService {
                 response: {
                   success: true,
                   data: {
-                    content,
+                    content: content.trim(),
                     wordCount,
-                    message: "Content is ready."
+                    documentId,
+                    message: "Document generated successfully and should appear shortly."
                   }
                 }
               });
             } catch (error) {
               console.error('❌ Document generation failed:', error);
+              const errorMessage = (error as Error).message || 'Document generation failed due to an unknown error';
+              console.error('❌ Document generation error details:', {
+                content: fc.args?.content ? `${fc.args.content.substring(0, 100)}...` : 'undefined',
+                wordCount: fc.args?.wordCount,
+                callbackRegistered: !!this.onDocumentGenerationCallback,
+                inProgress: this.documentGenerationInProgress.size,
+                timeSinceLastGeneration: Date.now() - this.lastDocumentGenerationTime,
+                errorMessage
+              });
+              
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
                 response: {
                   success: false,
-                  error: (error as Error).message || 'Document generation failed'
+                  error: errorMessage
                 }
               });
             }
@@ -867,6 +994,101 @@ class GeminiLiveService {
               });
             }
           }
+
+          if (fc.name === 'scrape_website') {
+            try {
+              const { url, extractType = 'text', includeImages = false, maxPages = 5 } = fc.args;
+              console.log(`🕷️ Voice website scraping: "${url}"`);
+              
+              // Check if Firecrawl API key is configured (no need for user to configure integration)
+              const firecrawlApiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+              if (!firecrawlApiKey) {
+                throw new Error('Firecrawl API key not configured. Please set VITE_FIRECRAWL_API_KEY environment variable.');
+              }
+
+              // Check if a request is already in progress
+              if (firecrawlService.isRequestInProgress()) {
+                const queueStatus = firecrawlService.getQueueStatus();
+                throw new Error(`A Firecrawl request is already in progress. Queue status: ${queueStatus.queueLength} pending requests. Please wait a moment and try again.`);
+              }
+
+              const result = await integrationsService.executeFirecrawlToolOperation(
+                url,
+                extractType,
+                includeImages,
+                maxPages,
+                this.currentContact || undefined
+              );
+
+              // Format results for natural voice response
+              let voiceResponse = '';
+              
+              if (result.success && result.pages && result.pages.length > 0) {
+                voiceResponse = `I successfully scraped ${result.pages.length} page(s) from ${url}. `;
+                
+                // Add summary of content
+                const totalContent = result.pages.reduce((acc: number, page: any) => 
+                  acc + (page.content?.length || 0), 0
+                );
+                
+                voiceResponse += `I extracted ${totalContent} characters of content. `;
+                
+                // Add key information from first page
+                const firstPage = result.pages[0];
+                if (firstPage.title) {
+                  voiceResponse += `The page title is "${firstPage.title}". `;
+                }
+                
+                if (firstPage.content) {
+                  const preview = firstPage.content.substring(0, 200).replace(/[{}[\]]/g, '');
+                  voiceResponse += `Here's a preview: ${preview}.`;
+                }
+              } else {
+                voiceResponse = `I attempted to scrape ${url} but didn't find any content. The page might be empty or inaccessible.`;
+              }
+              
+              // Clean up any remaining structural characters that might be read aloud
+              voiceResponse = voiceResponse
+                .replace(/[{}[\]]/g, '')
+                .replace(/_/g, ' ')
+                .replace(/\n+/g, '. ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: {
+                  success: true,
+                  content: voiceResponse
+                }
+              });
+                         } catch (error) {
+               console.error('❌ Voice website scraping failed:', error);
+               console.error('❌ Voice scraping error details:', {
+                 message: (error as Error).message,
+                 url: fc.args?.url,
+                 extractType: fc.args?.extractType
+               });
+               
+               // Provide a helpful error message for voice
+               let errorMessage = (error as Error).message || 'Website scraping failed';
+               if (errorMessage.includes('Invalid URL')) {
+                 errorMessage = 'I tried to scrape that website, but the Firecrawl service rejected the URL. This might be due to the website being restricted or the API key having limitations. You could try a different website or contact support to check your API key settings.';
+               } else if (errorMessage.includes('Invalid Firecrawl API key')) {
+                 errorMessage = 'The Firecrawl API key appears to be invalid. Please check your API key in the .env file or get a new one from https://firecrawl.dev. The web scraping feature won\'t work until this is fixed.';
+               }
+               
+               functionResponses.push({
+                 id: fc.id,
+                 name: fc.name,
+                 response: {
+                   success: false,
+                   error: errorMessage
+                 }
+               });
+             }
+          }
         }
 
         if (functionResponses.length > 0) {
@@ -876,11 +1098,13 @@ class GeminiLiveService {
         return;
       }
 
-      // Handle interruption
+      // Handle interruption - Allow user to interrupt but track timing
       if (message.serverContent && message.serverContent.interrupted) {
-        // Interruption detected
+        this.lastInterruptionTime = Date.now();
+        console.log("🛑 User interruption detected - stopping current speech");
+        // Always honor interruption signals - user wants to speak
         this.stopAudioPlayback();
-        this.audioQueue = []; // Clear queue on interruption
+        this.audioQueue = []; // Clear remaining speech queue on user interruption
         this.updateState('listening');
         return;
       }
@@ -921,9 +1145,13 @@ class GeminiLiveService {
               }
             }
             
-            // Handle audio response - IMMEDIATE PLAYBACK for lowest latency
+            // Handle audio response - IMMEDIATE PLAYBACK for lowest latency  
             if (part.inlineData && part.inlineData.data) {
-              // Audio chunk received
+              // Audio chunk received - mark speech start time
+              if (this.speechStartTime === 0) {
+                this.speechStartTime = Date.now();
+                console.log("🎵 Speech started");
+              }
               this.updateState('responding');
               const audioData = this.base64ToInt16Array(part.inlineData.data);
               this.playAudioImmediately(audioData);
@@ -1005,7 +1233,9 @@ class GeminiLiveService {
         if (this.audioQueue.length > 0) {
           this.playNextAudioChunk();
         } else {
-          // Return to listening state
+          // Speech completed - reset timing and return to listening state
+          this.speechStartTime = 0;
+          console.log("🎵 Speech completed");
           if (this.activeSession) {
             this.updateState('listening');
           } else {
@@ -1081,10 +1311,9 @@ class GeminiLiveService {
       // Send audio chunks every 16ms for MAXIMUM responsiveness - ZERO LATENCY PATH
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
-        // Minimal buffer management - only when absolutely necessary  
-        if (Math.random() < 0.001) { // 0.1% of the time (~every 16 seconds)
-          this.manageAudioBuffers();
-        }
+        // COMPLETELY DISABLE automatic buffer management during audio processing
+        // Only clean up when session ends or is explicitly stopped
+        // This prevents any chance of cutting off speech mid-sentence
       }, 16);
 
     } catch (error) {
@@ -1186,9 +1415,12 @@ class GeminiLiveService {
     }
     this.isPlaying = false;
     
+    // Reset speech timing when stopping
+    this.speechStartTime = 0;
+    
     // Clear the audio queue to free memory
     if (this.audioQueue.length > 0) {
-      console.log(`🧹 Clearing ${this.audioQueue.length} remaining audio queue items`);
+      console.log(`🧹 Clearing ${this.audioQueue.length} remaining audio queue items due to interruption`);
       this.audioQueue.length = 0;
     }
   }
@@ -1475,6 +1707,7 @@ class GeminiLiveService {
       const hasWebhookTool = contact.integrations.some(i => i.integrationId === 'webhook-trigger' && i.config.enabled);
       const hasGoogleSheets = contact.integrations.some(i => i.integrationId === 'google-sheets' && i.config.enabled);
       const hasWebSearch = contact.integrations.some(i => i.integrationId === 'web-search' && i.config.enabled);
+      const hasFirecrawl = contact.integrations.some(i => i.integrationId === 'firecrawl-tool' && i.config.enabled);
       const hasNotion = contact.integrations.some(i => (i.integrationId === 'notion-oauth-source' || i.integrationId === 'notion-oauth-action') && i.config.enabled);
       
       if (hasApiTool) {
@@ -1505,6 +1738,17 @@ class GeminiLiveService {
         systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
       }
       
+      // Always add Firecrawl instructions since it's configured via environment variable
+      console.log('🕷️ Voice: Firecrawl web scraping available');
+      systemPrompt += '\n- Web Scraping: Use scrape_website to extract content from websites when users ask to scrape, crawl, or get content from specific URLs.';
+      systemPrompt += '\n  • Trigger phrases: "scrape", "crawl", "extract from website", "get content from", "go to [URL] and tell me", "what\'s on [URL]"';
+      systemPrompt += '\n  • Use when users ask to visit a specific website and get its content';
+      systemPrompt += '\n  • IMPORTANT: Use scrape_website function when users ask to go to a website or get content from a URL';
+      systemPrompt += '\n  • VOICE MODE: When you receive scraping results, speak the information naturally and conversationally';
+      systemPrompt += '\n  • NEVER read out technical details like "tool response", "data", "content", or mention using functions';
+      systemPrompt += '\n  • Simply present the information as if you naturally knew it, without mentioning the scraping process';
+      systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
+      
       if (hasNotion) {
         systemPrompt += '\n- Notion Integration: Use manage_notion to work with Notion pages and databases. You can:';
         systemPrompt += '\n  • search_databases: Find and list all databases';
@@ -1530,15 +1774,20 @@ class GeminiLiveService {
       systemPrompt += '\n\n' + integrationContext;
     }
     
-    // Add document generation instructions
-    systemPrompt += '\n\nDOCUMENT GENERATION INSTRUCTIONS:';
-    systemPrompt += '\n- Use the generate_document function when users ask you to write something down, put something on paper, create written content, or produce documents';
-    systemPrompt += '\n- Trigger phrases include: "write that down", "put that on paper", "write me this", "write an essay", "write X words on", "give me X words on", "create a document", "make me a report", etc.';
-    systemPrompt += '\n- Generate well-formatted markdown content with proper headings, paragraphs, lists, and structure';
-    systemPrompt += '\n- If the user specifies a word count (e.g., "write 100 words on..."), aim to meet that target';
-    systemPrompt += '\n- The document will be displayed in a clean interface for the user to read and scroll through';
-    systemPrompt += '\n- Do not mention document titles, URLs, or file locations - just generate and display the content';
-    systemPrompt += '\n- IMPORTANT: Do not mention that you are using a tool or function to generate the document. Simply respond naturally and let the document appear automatically';
+    // Add document generation instructions only if the tool is available
+    if (this.onDocumentGenerationCallback) {
+      systemPrompt += '\n\nDOCUMENT GENERATION INSTRUCTIONS:';
+      systemPrompt += '\n- Use the generate_document function when users ask you to write something down, put something on paper, create written content, or produce documents';
+      systemPrompt += '\n- Trigger phrases include: "write that down", "put that on paper", "write me this", "write an essay", "write X words on", "give me X words on", "create a document", "make me a report", etc.';
+      systemPrompt += '\n- Generate well-formatted markdown content with proper headings, paragraphs, lists, and structure';
+      systemPrompt += '\n- If the user specifies a word count (e.g., "write 100 words on..."), aim to meet that target';
+      systemPrompt += '\n- The document will be displayed in a clean interface for the user to read and scroll through';
+      systemPrompt += '\n- Do not mention document titles, URLs, or file locations - just generate and display the content';
+      systemPrompt += '\n- IMPORTANT: Do not mention that you are using a tool or function to generate the document. Simply respond naturally and let the document appear automatically';
+      systemPrompt += '\n- If document generation fails, explain the issue to the user and suggest they try again';
+    } else {
+      systemPrompt += '\n\nNOTE: Document generation is currently unavailable. If users ask to write something down or create documents, politely explain that the document generation feature is not available right now.';
+    }
     
     systemPrompt += '\n\n🎤 CRITICAL VOICE MODE INSTRUCTIONS:';
     systemPrompt += '\n- NEVER read out technical details, data structures, or code-like content';
@@ -1547,14 +1796,7 @@ class GeminiLiveService {
     systemPrompt += '\n- Present information conversationally without mentioning how you obtained it';
     systemPrompt += '\n- Focus on the actual information content, not the technical wrapper';
     
-    systemPrompt += '\n\n🌍 CRITICAL MULTILINGUAL VOICE INSTRUCTIONS:';  
-    systemPrompt += '\n- ESPAÑOL: Habla con acento NATIVO español, NO con acento americano/inglés';
-    systemPrompt += '\n- FRANÇAIS: Parlez avec un accent NATIF français, PAS avec un accent anglais';
-    systemPrompt += '\n- DEUTSCH: Sprechen Sie mit NATIVEM deutschen Akzent, NICHT mit englischem Akzent';
-    systemPrompt += '\n- ALWAYS match the native pronunciation, accent, and speech patterns of the user\'s language';
-    systemPrompt += '\n- NEVER use English pronunciation when speaking other languages';
-    systemPrompt += '\n- Your voice must sound like a native speaker of whatever language you\'re using';
-    systemPrompt += '\n- Language detection: Automatically adapt voice/accent to detected input language'
+
     systemPrompt += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
     
     console.log(`📏 Voice: System prompt ready (${systemPrompt.length.toLocaleString()} chars)`);
@@ -1698,6 +1940,9 @@ class GeminiLiveService {
     // Clear all audio buffers to free memory
     this.clearAudioBuffers();
     
+    // Now it's safe to do a thorough cleanup since session is ending
+    this.safeBufferCleanup();
+    
     // Remove all event listeners
     this.removeAllEventListeners();
     
@@ -1722,7 +1967,8 @@ class GeminiLiveService {
    */
   public forceStopSpeaking(): void {
     if (this.isPlaying) {
-      console.log("🛑 Force stopping speech");
+      console.log("🛑 User force stopping speech");
+      this.lastInterruptionTime = Date.now(); // Track manual interruption
       this.stopAudioPlayback();
       this.audioQueue = []; // Clear remaining queue
       this.updateState('listening');
@@ -1751,11 +1997,11 @@ class GeminiLiveService {
       this.processingInterval = null;
     }
     
-    // Clean up audio buffers to free memory
-    this.manageAudioBuffers();
+    // DON'T call manageAudioBuffers() here - it could interfere with ongoing speech
+    // Let buffers clean up naturally or during full session cleanup
     
     this.updateState('idle');
-    console.log("✅ Listening stopped and cleaned up");
+    console.log("✅ Listening stopped - speech buffers preserved");
   }
 
   /**
@@ -1821,11 +2067,15 @@ class GeminiLiveService {
     this.currentContact = null;
     this.genAI = null;
     
-    // Clear callbacks to prevent memory leaks
+    // Clear callbacks and document generation tracking
     this.onResponseCallback = null;
     this.onErrorCallback = null;
     this.onStateChangeCallback = null;
     this.onDocumentGenerationCallback = null;
+    
+    // Clear document generation tracking
+    this.documentGenerationInProgress.clear();
+    this.lastDocumentGenerationTime = 0;
     
     console.log("✅ Gemini Live service completely shut down - All memory freed");
   }
@@ -1845,6 +2095,33 @@ class GeminiLiveService {
 
   public onDocumentGeneration(callback: (document: { content: string; wordCount?: number }) => void): void {
     this.onDocumentGenerationCallback = callback;
+    console.log('📄 Document generation callback registered - paper tool now available');
+  }
+
+  /**
+   * Check if document generation system is ready
+   */
+  public isDocumentGenerationReady(): boolean {
+    return !!this.onDocumentGenerationCallback;
+  }
+
+  /**
+   * Get document generation status for debugging
+   */
+  public getDocumentGenerationStatus(): { 
+    ready: boolean; 
+    callbackRegistered: boolean; 
+    inProgress: number;
+    lastGenerationTime: number;
+    timeSinceLastGeneration: number;
+  } {
+    return {
+      ready: this.isDocumentGenerationReady(),
+      callbackRegistered: !!this.onDocumentGenerationCallback,
+      inProgress: this.documentGenerationInProgress.size,
+      lastGenerationTime: this.lastDocumentGenerationTime,
+      timeSinceLastGeneration: Date.now() - this.lastDocumentGenerationTime
+    };
   }
 
   // Status getters
