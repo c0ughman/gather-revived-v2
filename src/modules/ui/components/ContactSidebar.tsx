@@ -94,83 +94,110 @@ export default function ContactSidebar({
   const displayContacts = getFilteredContacts();
 
   return (
-    <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
-        <div className="flex items-center justify-between mb-4">
-          <div 
-            className="flex items-center space-x-3 cursor-pointer"
-            onClick={onHomeClick}
-          >
-            <div>
-              <h1 className="text-xl font-bold text-white">Gather</h1>
-              <div className="flex items-center space-x-2">
-                <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
-                <SubscriptionBadge />
+    <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter relative">
+      {/* Fixed Header with Glassmorphism - Similar to chat header */}
+      <div 
+        className="fixed top-0 left-0 w-80 z-30 border-b border-slate-700"
+        style={{
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          backgroundColor: 'rgba(2, 10, 22, 0.08)'
+        }}
+      >
+        {/* Header */}
+        <div className="p-4 border-b border-slate-700/50">
+          <div className="flex items-center justify-between mb-4">
+            <div 
+              className="flex items-center space-x-3 cursor-pointer"
+              onClick={onHomeClick}
+            >
+              <div>
+                <h1 className="text-xl font-bold text-white">Gather</h1>
+                <div className="flex items-center space-x-2">
+                  <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
+                  <SubscriptionBadge />
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search or start a new chat"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 font-inter"
+            />
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search or start a new chat"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 font-inter"
-          />
+        {/* Filter Tabs */}
+        <div className="px-4 py-3 border-b border-slate-700/50">
+          <div className="flex space-x-1">
+            {filters.map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 font-inter ${
+                  activeFilter === filter
+                    ? 'bg-[#186799] text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Navigation Section */}
+        <div className="px-4 py-2 space-y-1">
+          <button 
+            onClick={onHomeClick}
+            className="flex items-center space-x-3 w-full text-left hover:bg-slate-700 p-2 rounded-lg transition-colors duration-200"
+          >
+            <Home className="w-5 h-5 text-slate-400" />
+            <span className="text-slate-300 font-inter">Home</span>
+          </button>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="px-4 py-3 border-b border-slate-700 bg-glass-panel glass-effect">
-        <div className="flex space-x-1">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 font-inter ${
-                activeFilter === filter
-                  ? 'bg-[#186799] text-white'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
+      {/* Fixed Create Agent Section with Glassmorphism */}
+      <div 
+        className="fixed bottom-0 left-0 w-80 z-30 border-t border-slate-700"
+        style={{
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.05)',
+          backgroundColor: 'rgba(2, 10, 22, 0.08)'
+        }}
+      >
+        <div className="p-4">
+          <button
+            onClick={onCreateAgent}
+            className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors duration-200 w-full justify-center"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create New Agent</span>
+          </button>
         </div>
       </div>
 
-      {/* Navigation Section */}
-      <div className="px-4 py-2 border-b border-slate-700 bg-glass-panel glass-effect space-y-1">
-        <button 
-          onClick={onHomeClick}
-          className="flex items-center space-x-3 w-full text-left hover:bg-slate-700 p-2 rounded-lg transition-colors duration-200"
-        >
-          <Home className="w-5 h-5 text-slate-400" />
-          <span className="text-slate-300 font-inter">Home</span>
-        </button>
-      </div>
-
-      {/* Contact List */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Contact List - Scrollable with padding for both top and bottom fixed sections */}
+      <div className="flex-1 overflow-y-auto" style={{ paddingTop: '260px', paddingBottom: '80px' }}>
         {displayContacts.length === 0 ? (
           <div className="p-4 text-center">
             <div className="text-slate-500 mb-4">
               <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No agents yet</p>
-              <p className="text-xs">Create your first AI agent to get started</p>
+              <p className="text-xs">Use the "Create New Agent" button below to get started</p>
             </div>
-            <button
-              onClick={onCreateAgent}
-              className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors duration-200 w-full justify-center"
-            >
-              <Plus className="w-4 h-4 text-slate-300" />
-              <span>Create Agent</span>
-            </button>
+            {/* Add extra space to ensure content goes behind the bottom section */}
+            <div style={{ height: '120px' }}></div>
           </div>
         ) : (
           <div className="space-y-1">
@@ -227,17 +254,6 @@ export default function ContactSidebar({
             ))}
           </div>
         )}
-      </div>
-
-      {/* Footer with Create Agent Button */}
-      <div className="p-4 border-t border-slate-700">
-        <button
-          onClick={onCreateAgent}
-          className="flex items-center space-x-2 px-4 py-2  hover:bg-slate-600 text-slate-300 rounded-lg transition-colors duration-200 w-full justify-center"
-        >
-          <Plus className="w-4 h-4 text-slate-400" />
-          <span>Create Agent</span>
-        </button>
       </div>
     </div>
   );
