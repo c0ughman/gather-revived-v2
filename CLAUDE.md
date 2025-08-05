@@ -9,10 +9,17 @@ Gather is a React-based AI assistant platform that allows users to create, manag
 ## Development Commands
 
 ### Core Development
-- `npm run dev` - Start development server
+- `npm run dev` - Start development server (Vite)
 - `npm run build` - Build for production
 - `npm run lint` - Run ESLint on TypeScript files
 - `npm run preview` - Preview production build
+
+### Supabase Commands
+- `npx supabase start` - Start local Supabase instance
+- `npx supabase stop` - Stop local Supabase instance
+- `npx supabase db reset` - Reset local database
+- `npx supabase migration new <name>` - Create new migration
+- `npx supabase db push` - Push migrations to remote database
 
 ### Environment Setup
 - Create `.env` file with required environment variables:
@@ -20,6 +27,7 @@ Gather is a React-based AI assistant platform that allows users to create, manag
   - `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key
   - `VITE_GOOGLE_API_KEY` - Google Generative AI API key
   - `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+  - Additional API keys may be required for integrations (Notion, Firecrawl, etc.)
 
 ## Architecture Overview
 
@@ -63,16 +71,32 @@ Key tables managed through `supabaseService`:
 
 ### Integration System
 
-Supports configurable integrations with:
-- Notion (OAuth-based page/database access)
-- Google Sheets (API-based spreadsheet access)
-- Zapier/N8N webhooks
-- Custom API endpoints
+The application supports two types of integrations:
+
+**Source Integrations** (Data Fetching):
+- HTTP API Requests - Generic REST API calls
+- Web Search (Tavily) - AI-powered web search
+- Google News - Latest news articles
+- RSS Feed Reader - Parse RSS/Atom feeds
+- Financial Markets - Crypto/stock data
+- Notion (OAuth) - Access pages and databases
+- Firecrawl - Advanced web scraping
+
+**Action Integrations** (AI Tools):
+- API Request Tool - Dynamic API calls during conversation
+- Domain Checker - Check domain availability
+- Zapier Webhook - Trigger Zaps and automations
+- N8N Workflow - Execute n8n workflows
+- Custom Webhook - Generic webhook triggers
+- Google Sheets - Full CRUD operations
+- Notion Actions (OAuth) - Create/update content
+- Firecrawl Tool - Dynamic web scraping
 
 Integrations can be triggered:
 - Periodically (configurable intervals)
 - On chat start
 - Both
+- On-demand (action integrations)
 
 ### Document Processing
 
@@ -95,7 +119,12 @@ Multi-format document support:
 All API keys and sensitive data must be stored as environment variables with the `VITE_` prefix for client-side access.
 
 ### State Synchronization
-The app uses a shared state pattern for settings across different views. Changes to agent configuration are synchronized between SettingsScreen and SettingsSidebar through parent component state.
+The app uses a shared state pattern for settings across different views. Changes to agent configuration are synchronized between SettingsScreen and SettingsSidebar through parent component state managed in App.tsx:
+
+- `settingsFormData` - Basic agent configuration (name, description, color, voice, avatar)
+- `settingsIntegrations` - Integration instances with configurations
+- `settingsDocuments` - Uploaded documents and knowledge base
+- `settingsHasChanges` - Tracks unsaved changes for UI feedback
 
 ### Error Handling
 - Database operations should handle connection failures gracefully
@@ -127,3 +156,18 @@ The app uses a shared state pattern for settings across different views. Changes
 2. Modify agent configuration schema in core types
 3. Update settings UI to expose new configuration options
 4. Ensure database schema supports new fields
+
+### Voice Call Integration
+Voice calls use Google's Gemini Live API with special features:
+- Real-time voice conversation with AI agents
+- Paper tool for document generation during calls
+- Document context integration for agent knowledge
+- Voice interruption handling and optimizations
+- Multi-language accent support
+
+### OAuth Integration Flow
+1. OAuth configurations are defined in `src/modules/oauth/data/oauthConfigs.ts`
+2. OAuth callbacks are handled by `OAuthCallback.tsx` component
+3. Tokens are managed through `oauthService.ts` and stored securely
+4. Integration templates support `requiresOAuth: true` flag
+5. Supported providers: Notion (with plans for more)

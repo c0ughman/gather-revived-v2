@@ -49,8 +49,13 @@ class GeminiService {
     chatHistory: Message[],
     conversationDocuments: DocumentInfo[] = []
   ): Promise<string> {
+    // ⚠️ LEGACY METHOD - AI generation moved to Python backend
+    // This method should not be called directly - use enhancedAiService instead
+    console.warn('❌ Using legacy geminiService.generateResponse() - should use enhancedAiService.generateResponse()');
+    console.warn('🔄 This will still work as fallback, but Python backend provides better performance');
+    
     try {
-      console.log(`🤖 Generating response for ${contact.name}`);
+      console.log(`🤖 Generating response for ${contact.name} (legacy frontend method)`);
 
       // Check if contact has integrations
       const hasApiTool = contact.integrations?.some(

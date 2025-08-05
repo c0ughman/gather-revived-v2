@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, File, X, AlertCircle, CheckCircle, FileText, Code, Database, FileImage, Presentation, Sheet } from 'lucide-react';
 import { DocumentInfo } from '../../fileManagement/types/documents';
-import { documentService } from '../../fileManagement/services/documentService';
+import { enhancedDocumentService } from '../../fileManagement/services/enhancedDocumentService';
 
 interface DocumentUploadProps {
   onDocumentUploaded: (document: DocumentInfo) => void;
@@ -46,7 +46,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
     for (const file of files) {
       try {
         console.log(`📁 Processing file: ${file.name} (${Math.round(file.size / 1024)}KB)`);
-        const document = await documentService.processFile(file);
+        const document = await enhancedDocumentService.processFile(file);
         console.log(`✅ Successfully processed: ${file.name}`);
         onDocumentUploaded(document);
       } catch (error) {
@@ -58,7 +58,8 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
     setIsProcessing(false);
   };
 
-  const supportedExtensions = documentService.getSupportedExtensions();
+  // Use a default set of extensions for now - this will be enhanced in the component lifecycle
+  const supportedExtensions = ['pdf', 'docx', 'txt', 'xlsx', 'pptx', 'csv', 'ppt', 'doc', 'rtf', 'md'];
   const acceptString = supportedExtensions.map(ext => `.${ext}`).join(',');
 
   return (

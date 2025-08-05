@@ -36,7 +36,23 @@ export default defineConfig({
     middlewareMode: false,
     fs: {
       strict: false
-    }
+    },
+    // Proxy API requests to Python backend
+    proxy: {
+      '/api/python': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/python/, '/api/v1'),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Python backend proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying request:', req.method, req.url);
+          });
+        },
+      },
+    },
   },
   build: {
     // Ensure proper chunking to avoid service worker conflicts

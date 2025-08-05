@@ -14,7 +14,7 @@ import { ChatScreen } from '../../modules/chat';
 import { AIContact, Message, CallState } from '../types/types';
 import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
-import { geminiService } from '../../modules/fileManagement/services/geminiService';
+import { enhancedAiService } from '../../modules/fileManagement/services/enhancedAiService';
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
 import { IntegrationInstance } from '../../modules/integrations/types/integrations';
@@ -67,10 +67,54 @@ export default function App() {
   useEffect(() => {
     if (user && !dataLoading) {
       loadUserData();
+      
+      // Register document generation callback for paper tool
+      geminiLiveService.onDocumentGeneration((document) => {
+        console.log('📄 Document generated from voice call:', {
+          contentLength: document.content.length,
+          wordCount: document.wordCount
+        });
+        
+        // Create a new document info object
+        const documentInfo: DocumentInfo = {
+          id: `voice-doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: `Voice Generated Document ${new Date().toLocaleString()}`,
+          type: 'text/markdown',
+          size: new Blob([document.content]).size,
+          uploadedAt: new Date(),
+          content: document.content,
+          summary: `Generated from voice call${document.wordCount ? ` (${document.wordCount} words)` : ''}`,
+          extractedText: document.content,
+          metadata: {
+            source: 'voice-call',
+            wordCount: document.wordCount,
+            generatedAt: new Date().toISOString()
+          }
+        };
+        
+        // Add to conversation documents - use a callback to get current state
+        setConversationDocuments(prev => {
+          // Find the currently active contact from the current state
+          const currentContactId = Object.keys(prev).find(id => 
+            prev[id] && prev[id].length >= 0 // Just check if this contact has a document array
+          ) || 'default';
+          
+          return {
+            ...prev,
+            [currentContactId]: [...(prev[currentContactId] || []), documentInfo]
+          };
+        });
+        
+        console.log('✅ Document generated and will be added to active conversation');
+      });
+      
     } else if (!user) {
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
+      
+      // Clear callbacks when user logs out
+      geminiLiveService.onDocumentGeneration(() => {});
     }
   }, [user]);
 
@@ -160,14 +204,7 @@ export default function App() {
 
       setContacts(transformedContacts);
       
-      // Pre-cache document context for ultra-fast voice session start
-      if (transformedContacts.length > 0) {
-        import('../modules/voice/services/geminiLiveService').then(({ geminiLiveService }) => {
-          geminiLiveService.preloadMultipleContactsContext(transformedContacts)
-            .then(() => console.log('✅ Pre-cached context for all contacts'))
-            .catch(error => console.warn('⚠️ Failed to pre-cache contexts:', error));
-        });
-      }
+      // Document context will be loaded on-demand during voice sessions for better performance
       
       // Initialize integrations
       transformedContacts.forEach(contact => {
@@ -533,7 +570,7 @@ export default function App() {
       const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
 
       // Generate AI response using the enhanced service
-      const response = await geminiService.generateResponse(
+      const response = await enhancedAiService.generateResponse(
         selectedContact,
         content,
         chatHistory,
