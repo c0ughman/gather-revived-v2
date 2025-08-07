@@ -290,52 +290,6 @@ export const sourceIntegrations: Integration[] = [
     ],
     tags: ['finance', 'crypto', 'stocks', 'trading', 'markets', 'prices']
   },
-  // UPDATED: Notion OAuth Source Integration - No client fields needed
-  {
-    id: 'notion-oauth-source',
-    name: 'Notion (OAuth)',
-    description: 'Connect to your Notion workspace to read pages, databases, and content automatically',
-    category: 'source',
-    icon: 'FileText',
-    color: '#000000',
-    requiresApiKey: false,
-    requiresOAuth: true,
-    oauthProvider: 'notion',
-    fields: [
-      {
-        id: 'dataType',
-        name: 'Data to Fetch',
-        type: 'select',
-        required: true,
-        options: [
-          { value: 'pages', label: 'Pages' },
-          { value: 'databases', label: 'Databases' },
-          { value: 'both', label: 'Pages and Databases' }
-        ],
-        defaultValue: 'both',
-        description: 'What type of Notion content to fetch'
-      },
-      {
-        id: 'includeContent',
-        name: 'Include Page Content',
-        type: 'select',
-        required: false,
-        options: [
-          { value: 'true', label: 'Yes - Include full content' },
-          { value: 'false', label: 'No - Metadata only' }
-        ],
-        defaultValue: 'true',
-        description: 'Whether to fetch full page content or just metadata'
-      }
-    ],
-    examples: [
-      'Sync your Notion pages for AI reference',
-      'Monitor database changes automatically',
-      'Access your knowledge base content',
-      'Track project updates from Notion'
-    ],
-    tags: ['notion', 'oauth', 'pages', 'databases', 'knowledge', 'sync']
-  },
   {
     id: 'firecrawl-web-scraping',
     name: 'Firecrawl Web Scraping',
@@ -798,42 +752,6 @@ export const actionIntegrations: Integration[] = [
       'Export data from rows 5-15'
     ],
     tags: ['spreadsheet', 'data', 'google', 'sheets', 'database', 'crm', 'crud', 'automation']
-  },
-  // UPDATED: Notion OAuth Action Integration - No client fields needed
-  {
-    id: 'notion-oauth-action',
-    name: 'Notion Actions (OAuth)',
-    description: 'Create pages, update databases, and manage your Notion workspace with natural language commands',
-    category: 'action',
-    icon: 'FileText',
-    color: '#000000',
-    requiresApiKey: false,
-    requiresOAuth: true,
-    oauthProvider: 'notion',
-    fields: [
-      {
-        id: 'allowedActions',
-        name: 'Allowed Actions',
-        type: 'select',
-        required: true,
-        options: [
-          { value: 'read', label: 'Read Only - View pages and databases' },
-          { value: 'write', label: 'Write - Create and update content' },
-          { value: 'full', label: 'Full Access - Read, write, and manage' }
-        ],
-        defaultValue: 'write',
-        description: 'What actions the AI can perform in your Notion workspace'
-      }
-    ],
-    examples: [
-      'Create a new page in my project database',
-      'Update the status of a task to completed',
-      'Add a new entry to my reading list',
-      'Search for pages containing specific keywords',
-      'Create a meeting notes page with agenda',
-      'Update database properties and values'
-    ],
-    tags: ['notion', 'oauth', 'create', 'update', 'pages', 'databases', 'action']
   },
   {
     id: 'firecrawl-tool',

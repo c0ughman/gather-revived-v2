@@ -19,7 +19,14 @@
       "Bash(curl:*)",
       "Bash(node:*)",
       "Bash(find:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(git commit:*)",
+      "Bash(rm:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote remove:*)"
     ],
     "deny": []
   }

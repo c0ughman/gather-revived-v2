@@ -4,7 +4,6 @@ import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
 import CallScreen from '../../modules/voice/components/CallScreen';
 import { geminiLiveService } from '../../modules/voice';
-import OAuthCallback from '../../modules/oauth/components/OAuthCallback';
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
 import PricingPage from '../../components/PricingPage';
@@ -17,6 +16,7 @@ import { documentContextService } from '../../modules/fileManagement/services/do
 import { enhancedAiService } from '../../modules/fileManagement/services/enhancedAiService';
 import { supabaseService } from '../../modules/database/services/supabaseService';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
+import { documentApiService } from '../services/documentApiService';
 import { IntegrationInstance } from '../../modules/integrations/types/integrations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
@@ -38,7 +38,6 @@ export default function App() {
     status: 'ended'
   });
   const [showSidebar, setShowSidebar] = useState(true);
-  const [oauthMessage, setOauthMessage] = useState<string | null>(null);
   
   // Shared state for settings synchronization
   const [settingsFormData, setSettingsFormData] = useState({
@@ -124,29 +123,6 @@ export default function App() {
     }
   }, [user, currentView]);
 
-  // Handle OAuth success/error messages
-  useEffect(() => {
-    const handleLocationState = () => {
-      const state = window.history.state?.usr;
-      if (state?.oauthSuccess) {
-        setOauthMessage(`✅ ${state.provider} connected successfully!`);
-        // Mark as connected in localStorage for the OAuth component
-        if (user) {
-          localStorage.setItem(`oauth_connected_${state.provider}_${user.id}`, 'true');
-        }
-        // Clear the state
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(() => setOauthMessage(null), 5000);
-      } else if (state?.oauthError) {
-        setOauthMessage(`❌ OAuth error: ${state.error}`);
-        // Clear the state
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(() => setOauthMessage(null), 8000);
-      }
-    };
-
-    handleLocationState();
-  }, [user]);
 
   const loadUserData = async () => {
     if (!user || dataLoading) return;
@@ -651,7 +627,7 @@ export default function App() {
           if (existingContact?.integrations) {
             for (const integration of existingContact.integrations) {
               try {
-                await supabaseService.deleteAgentIntegration(integration.id);
+                await documentApiService.deleteIntegration(integration.id);
               } catch (error) {
                 console.error(`Failed to delete integration ${integration.id}:`, error);
               }
@@ -684,7 +660,7 @@ export default function App() {
           if (existingContact?.documents) {
             for (const document of existingContact.documents) {
               try {
-                await supabaseService.deleteAgentDocument(document.id);
+                await documentApiService.deleteDocument(document.id);
               } catch (error) {
                 console.error(`Failed to delete document ${document.id}:`, error);
               }
@@ -873,22 +849,9 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/oauth/callback/:provider" element={<OAuthCallback />} />
         <Route path="/success" element={<SuccessPage />} />
         <Route path="*" element={
           <div className="h-screen flex bg-glass-bg">
-            {/* OAuth Success/Error Message */}
-            {oauthMessage && (
-              <div className="fixed top-4 right-4 z-50 max-w-md">
-                <div className={`p-4 rounded-lg border ${
-                  oauthMessage.includes('✅') 
-                    ? 'bg-green-900 bg-opacity-90 border-green-700 text-green-300' 
-                    : 'bg-red-900 bg-opacity-90 border-red-700 text-red-300'
-                } backdrop-blur-sm`}>
-                  <p className="text-sm font-medium">{oauthMessage}</p>
-              </div>
-              </div>
-            )}
 
             {/* Left Sidebar - Contacts */}
             <div className="w-80 border-r border-slate-700">

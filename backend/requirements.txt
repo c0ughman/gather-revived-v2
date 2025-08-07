@@ -4,6 +4,7 @@ uvicorn[standard]
 
 # HTTP Client for external APIs
 httpx
+aiohttp
 aiofiles
 
 # Data Validation
@@ -28,6 +29,10 @@ python-pptx
 
 # AI/ML libraries
 google-generativeai
+
+# Integration libraries
+feedparser
+python-whois
 
 # Development & Testing
 pytest

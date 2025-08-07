@@ -7,6 +7,7 @@ import DocumentUpload, { DocumentList } from './DocumentUpload';
 import IntegrationsLibrary from './IntegrationsLibrary';
 import IntegrationSetup from './IntegrationSetup';
 import { getIntegrationById } from '../../integrations/data/integrations';
+import { documentApiService } from '../../../core/services/documentApiService';
 
 interface SettingsScreenProps {
   contact: AIContact;
@@ -116,22 +117,45 @@ export default function SettingsScreen({
     setUploadError(error);
   };
 
-  const handleRemoveDocument = (documentId: string) => {
-    if (onDocumentsChange) {
-      onDocumentsChange(documents.filter(doc => doc.id !== documentId));
-    } else {
-      setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      setLocalHasChanges(true);
+  const handleRemoveDocument = async (documentId: string) => {
+    try {
+      // Delete from database via backend API
+      await documentApiService.deleteDocument(documentId);
+      console.log('✅ Document deleted from database via backend:', documentId);
+      
+      // Then remove from UI state
+      if (onDocumentsChange) {
+        onDocumentsChange(documents.filter(doc => doc.id !== documentId));
+      } else {
+        setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId));
+        setLocalHasChanges(true);
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete document:', error);
+      // Show error to user
+      setUploadError(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleClearAllDocuments = () => {
+  const handleClearAllDocuments = async () => {
     if (confirm('Are you sure you want to remove all documents? This action cannot be undone.')) {
-      if (onDocumentsChange) {
-        onDocumentsChange([]);
-      } else {
-        setLocalDocuments([]);
-        setLocalHasChanges(true);
+      try {
+        // Delete all documents from database via backend API
+        for (const doc of documents) {
+          await documentApiService.deleteDocument(doc.id);
+        }
+        console.log('✅ All documents deleted from database via backend');
+        
+        // Clear from UI state
+        if (onDocumentsChange) {
+          onDocumentsChange([]);
+        } else {
+          setLocalDocuments([]);
+          setLocalHasChanges(true);
+        }
+      } catch (error) {
+        console.error('❌ Failed to clear all documents:', error);
+        setUploadError(`Failed to clear all documents: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   };

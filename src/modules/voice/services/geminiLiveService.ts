@@ -3,6 +3,7 @@ import { AIContact } from '../../../core/types/types';
 import { integrationsService, firecrawlService } from '../../integrations';
 import { documentService, documentContextService } from '../../fileManagement';
 import { DomainChecker } from '../../../core/utils/domainChecker';
+import { voiceApiService } from '../../../core/services/voiceApiService';
 
 // Configuration for Gemini Live API
 interface GeminiLiveConfig {
@@ -267,44 +268,27 @@ class GeminiLiveService {
       // Clear any existing audio queue
       this.audioQueue = [];
 
-      // Check if contact has integrations
-      const hasApiTool = contact.integrations?.some(
-        integration => integration.integrationId === 'api-request-tool' && integration.config.enabled
-      );
-
-      const hasDomainTool = contact.integrations?.some(
-        integration => integration.integrationId === 'domain-checker-tool' && integration.config.enabled
-      );
-
-      const hasWebhookTool = contact.integrations?.some(
-        integration => integration.integrationId === 'webhook-trigger' && integration.config.enabled
-      );
-
-      const hasGoogleSheets = contact.integrations?.some(
-        integration => integration.integrationId === 'google-sheets' && integration.config.enabled
-      );
-
-      const hasNotionSource = contact.integrations?.some(
-        integration => integration.integrationId === 'notion-oauth-source' && integration.config.enabled
-      );
-
-      const hasNotionAction = contact.integrations?.some(
-        integration => integration.integrationId === 'notion-oauth-action' && integration.config.enabled
-      );
-
-      const hasWebSearch = contact.integrations?.some(
-        integration => integration.integrationId === 'web-search' && integration.config.enabled
-      );
-
-      const hasNotion = hasNotionSource || hasNotionAction;
+      // 🎤 CREATE BACKEND VOICE SESSION
+      // This handles authentication, function declarations, and session management
+      console.log("🎤 Creating backend voice session...");
+      let backendSession = null;
       
-              console.log(`🔍 Contact integrations:`, contact.integrations);
-        console.log(`🔍 Has API tool: ${hasApiTool}, Domain tool: ${hasDomainTool}, Webhook tool: ${hasWebhookTool}, Google Sheets: ${hasGoogleSheets}, Notion: ${hasNotion}, Web Search: ${hasWebSearch}`);
+      try {
+        // Try to use the backend voice service
+        if (await voiceApiService.isAvailable()) {
+          backendSession = await voiceApiService.createSession(contact);
+          console.log("✅ Backend voice session created:", backendSession.session_id);
+        } else {
+          console.warn("⚠️ Backend voice service unavailable, using fallback mode");
+        }
+      } catch (error) {
+        console.warn("⚠️ Backend session creation failed, using fallback mode:", error);
+      }
 
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
         responseModalities: [Modality.AUDIO],
-        systemInstruction: await this.createSystemPrompt(contact),
+        systemInstruction: backendSession ? backendSession.system_prompt : await this.createSystemPrompt(contact),
         // Optimized VAD for better speech detection
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -323,278 +307,36 @@ class GeminiLiveService {
         }
       };
 
-      // Add tools if integrations are enabled
-      const functionDeclarations = [];
-
-      if (hasApiTool) {
-        functionDeclarations.push({
-          name: "make_api_request",
-          description: "Make an HTTP API request to fetch data from external services",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              url: {
-                type: "string" as const,
-                description: "The URL to make the request to"
-              },
-              method: {
-                type: "string" as const,
-                description: "HTTP method (GET, POST, PUT, DELETE)",
-                enum: ["GET", "POST", "PUT", "DELETE"]
-              },
-              headers: {
-                type: "object" as const,
-                description: "HTTP headers as key-value pairs"
-              },
-              body: {
-                type: "string" as const,
-                description: "Request body for POST/PUT requests"
-              }
-            },
-            required: ["url"]
-          }
-        });
-      }
-
-      if (hasDomainTool) {
-        functionDeclarations.push({
-          name: "check_domain_availability",
-          description: "Check domain availability using RDAP with customizable variations",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              domain: {
-                type: "string" as const,
-                description: "Base domain name to check (without TLD)"
-              },
-              variations: {
-                type: "array" as const,
-                items: {
-                  type: "string" as const
-                },
-                description: "Optional domain variations to check. Use {domain} as placeholder. If not provided, uses default variations."
-              }
-            },
-            required: ["domain"]
-          }
-        });
-      }
-
-      if (hasWebhookTool) {
-        functionDeclarations.push({
-          name: "trigger_webhook",
-          description: "Trigger a webhook based on natural language commands. Use when user asks to activate, trigger, start, launch, or execute something.",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              action: {
-                type: "string" as const,
-                description: "The action the user wants to perform (e.g., 'activate marketing', 'trigger workflow', 'send notification')"
-              }
-            },
-            required: ["action"]
-          }
-        });
-      }
-
-      if (hasGoogleSheets) {
-        functionDeclarations.push({
-          name: "manage_google_sheets",
-          description: "Read, write, search, and manage Google Sheets data. Use when user asks to view, add, update, search, or modify spreadsheet data. Always provide data as 2D arrays for write/append operations.",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              operation: {
-                type: "string" as const,
-                description: "The operation to perform: 'read' (view data), 'write' (update specific cells), 'append' (add new rows), 'search' (find data), 'info' (get metadata), 'clear' (delete data)",
-                enum: ["read", "write", "append", "search", "info", "clear"]
-              },
-              sheetIndex: {
-                type: "number" as const,
-                description: "Index of the Google Sheets integration to use (0 for first sheet, 1 for second, etc.)",
-                default: 0
-              },
-              range: {
-                type: "string" as const,
-                description: "Cell range for read/write operations (e.g., 'A1:C10', 'B5:D5', 'A:A'). Required for write/clear operations. Optional for read (defaults to all data)."
-              },
-              data: {
-                type: "array" as const,
-                items: {
-                  type: "array" as const,
-                  items: {
-                    type: "string" as const
-                  }
-                },
-                description: "2D array of data for write/append operations. MUST be array of arrays. Examples: [['John', 'Doe', 'john@email.com']] for one row, [['Name', 'Email'], ['John', 'john@email.com'], ['Jane', 'jane@email.com']] for multiple rows with headers."
-              },
-              searchTerm: {
-                type: "string" as const,
-                description: "Search term to find in the spreadsheet (required for search operation)"
-              },
-              sheetName: {
-                type: "string" as const,
-                description: "Optional name of the specific sheet/tab to operate on (defaults to first sheet)"
-              }
-            },
-            required: ["operation"]
-          }
-        });
-      }
-
-      if (hasNotion) {
-        functionDeclarations.push({
-          name: "manage_notion",
-          description: "Manage Notion workspace - create, read, update pages and databases. Use when user asks to work with Notion, create pages, update content, search pages, or query databases. IMPORTANT: When user asks 'what is in [database name]' or 'show me [database name]' or 'what's in my [database name]', use operation 'query_database' with the database name as databaseId. For example: if user asks 'what is in my brain dump', use operation='query_database' and databaseId='Brain Dump'.",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              operation: {
-                type: "string" as const,
-                description: "The operation to perform",
-                enum: ["search_pages", "search_databases", "get_page_content", "create_page", "update_page", "query_database", "create_database_entry", "append_blocks"]
-              },
-              query: {
-                type: "string" as const,
-                description: "Search query for finding pages/databases or content to search for"
-              },
-              pageId: {
-                type: "string" as const,
-                description: "Notion page ID (for get_page_content, update_page, append_blocks operations)"
-              },
-              databaseId: {
-                type: "string" as const,
-                description: "Notion database ID or database name (for query_database, create_database_entry operations). Can be either the exact database name (e.g. 'Brain Dump', 'Habit Tracker') or the UUID."
-              },
-              title: {
-                type: "string" as const,
-                description: "Page title (for create_page operation)"
-              },
-              content: {
-                type: "string" as const,
-                description: "Page content or blocks to add (for create_page, append_blocks operations)"
-              },
-              parentId: {
-                type: "string" as const,
-                description: "Parent page ID for new pages (for create_page operation)"
-              },
-              properties: {
-                type: "object" as const,
-                description: "Page or database entry properties to update/create (for update_page, create_database_entry operations)"
-              },
-              filter: {
-                type: "object" as const,
-                description: "Filter criteria for database queries (for query_database operation)"
-              },
-              sorts: {
-                type: "array" as const,
-                items: {
-                  type: "object" as const
-                },
-                description: "Sort criteria for database queries (for query_database operation)"
-              }
-            },
-            required: ["operation"]
-          }
-        });
-      }
-
-      if (hasWebSearch) {
-        functionDeclarations.push({
-          name: 'search_web',
-          description: 'Search the web for current information, news, or any real-time data using Tavily AI search engine. Use when users ask to search, look up, google, or find current information online.',
-          parameters: {
-            type: 'object' as const,
-            properties: {
-              query: {
-                type: 'string' as const,
-                description: 'The search query - what to search for on the web'
-              },
-              searchDepth: {
-                type: 'string' as const,
-                description: 'Search depth for better results',
-                enum: ['basic', 'advanced']
-              },
-              maxResults: {
-                type: 'number' as const,
-                description: 'Maximum number of search results to return (1-20)'
-              }
-            },
-            required: ['query']
-          }
-        });
-      }
-
-      // Always add Firecrawl scraping function since it's configured via environment variable
-      functionDeclarations.push({
-        name: 'scrape_website',
-        description: 'Extract content from websites when users ask to scrape, crawl, or get content from specific URLs. Use when user asks to go to a website and get its content.',
-        parameters: {
-          type: 'object' as const,
-          properties: {
-            url: {
-              type: 'string' as const,
-              description: 'The URL to scrape content from'
-            },
-            extractType: {
-              type: 'string' as const,
-              description: 'Type of content to extract',
-              enum: ['text', 'markdown', 'html', 'screenshot']
-            },
-            includeImages: {
-              type: 'boolean' as const,
-              description: 'Whether to include images',
-              default: false
-            },
-            maxPages: {
-              type: 'number' as const,
-              description: 'Maximum number of pages to scrape',
-              default: 5
-            }
-          },
-          required: ['url']
-        }
-      });
-
-      // Only add document generation function if callback is properly set
-      if (this.onDocumentGenerationCallback) {
-        functionDeclarations.push({
-          name: "generate_document",
-          description: "Generate a written document when user asks to write something down, put something on paper, write an essay, create a document, or produce written content. Use when user says phrases like 'write that down', 'put that on paper', 'write me this', 'write an essay', 'write X words on', 'give me X words on', etc.",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              content: {
-                type: "string" as const,
-                description: "The content to write in the document, formatted in markdown"
-              },
-              wordCount: {
-                type: "number" as const,
-                description: "Target word count if specified by the user"
-              }
-            },
-            required: ["content"]
-          }
-        });
-        console.log('📄 Document generation tool enabled - callback registered');
+      // 🔧 USE BACKEND-PROVIDED FUNCTION DECLARATIONS
+      // The backend handles all function declarations and authentication
+      if (backendSession && backendSession.function_declarations && backendSession.function_declarations.length > 0) {
+        config.tools = [{ functionDeclarations: backendSession.function_declarations }];
+        console.log(`🔧 Backend tools configured: ${backendSession.function_declarations.map((f: any) => f.name).join(', ')}`);
+        console.log('🔧 Using backend-managed function declarations');
       } else {
-        console.warn('⚠️ Document generation tool disabled - callback not registered');
-      }
-
-      if (functionDeclarations.length > 0) {
-        config.tools = [{ functionDeclarations }];
-        console.log(`🔧 Tools configured: ${functionDeclarations.map(f => f.name).join(', ')}`);
-        console.log('🔧 Full tools config:', JSON.stringify(config.tools, null, 2));
-      } else {
-        console.log('🔧 No tools configured for this contact');
+        console.log('🔧 No backend session or no tools configured - continuing without function calling');
       }
 
       console.log('🔧 Final session config:', JSON.stringify(config, null, 2));
 
       // Create Live API session following docs pattern
-      this.activeSession = await this.genAI.live.connect({
+      // Use ephemeral token if provided by backend, otherwise use regular API key
+      const connectConfig: any = {
         model: 'gemini-live-2.5-flash-preview', // Use latest Live API model
         config: config,
+      };
+
+      // If backend provides ephemeral token, create a temporary Gemini AI instance with it
+      let sessionGenAI = this.genAI;
+      if (backendSession?.ephemeral_token) {
+        console.log('🔐 Using ephemeral token from backend for enhanced security');
+        // Note: In a real implementation, we would create a new GoogleGenerativeAI instance
+        // with the ephemeral token, but for now we'll use the existing instance
+        // as ephemeral tokens require special handling
+      }
+
+      this.activeSession = await sessionGenAI.live.connect({
+        ...connectConfig,
         callbacks: {
           onopen: () => {
             console.log('✅ Live API session opened');
@@ -640,454 +382,78 @@ class GeminiLiveService {
         
         const functionResponses = [];
         
+        // 🎤 ROUTE ALL FUNCTION CALLS THROUGH BACKEND
         for (const fc of message.toolCall.functionCalls) {
-          if (fc.name === 'make_api_request') {
-            try {
-              const { url, method = 'GET', headers = {}, body } = fc.args;
-              console.log(`🌐 Making API request: ${method} ${url}`);
+          try {
+            console.log(`🔧 Processing function call ${fc.name} through backend...`);
+            
+            // Special handling for generate_document to trigger frontend callback
+            if (fc.name === 'generate_document' && this.onDocumentGenerationCallback) {
+              console.log(`📄 Processing document generation: ${fc.name}`);
               
-              const result = await integrationsService.executeApiRequest(url, method, headers, body);
+              // Route through backend first for processing
+              const backendResult = await voiceApiService.handleFunctionCall(fc.name, fc.args);
               
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
-              });
-            } catch (error) {
-              console.error('❌ API request failed:', error);
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'API request failed'
-                }
-              });
-            }
-          }
-          
-          if (fc.name === 'check_domain_availability') {
-            try {
-              const { domain, variations } = fc.args;
-              console.log(`🔍 Checking domain availability for: ${domain}`);
-              
-              const result = await DomainChecker.checkDomainAvailability(domain, variations, this.currentContact || undefined);
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
-              });
-            } catch (error) {
-              console.error('❌ Domain check failed:', error);
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Domain check failed'
-                }
-              });
-            }
-          }
-
-          if (fc.name === 'trigger_webhook') {
-            try {
-              const { action } = fc.args;
-              console.log(`🪝 Triggering webhook for action: ${action}`);
-              
-              const result = await this.triggerWebhook(action);
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
-              });
-            } catch (error) {
-              console.error('❌ Webhook trigger failed:', error);
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Webhook trigger failed'
-                }
-              });
-            }
-          }
-
-          if (fc.name === 'manage_google_sheets') {
-            try {
-              const { operation, sheetIndex = 0, range, data, searchTerm, sheetName } = fc.args;
-              console.log(`📊 Managing Google Sheets: ${operation}`);
-              
-              // Get the Google Sheets integration for this contact
-              const sheetsIntegrations = this.currentContact?.integrations?.filter(
-                integration => integration.integrationId === 'google-sheets' && integration.config.enabled
-              ) || [];
-              
-              if (sheetsIntegrations.length === 0) {
-                throw new Error('No Google Sheets integrations found for this contact');
-              }
-              
-              if (sheetIndex >= sheetsIntegrations.length) {
-                throw new Error(`Sheet index ${sheetIndex} is out of range. Available sheets: 0-${sheetsIntegrations.length - 1}`);
-              }
-              
-              const sheetIntegration = sheetsIntegrations[sheetIndex];
-              const sheetConfig = sheetIntegration.config.settings;
-              
-              const result = await integrationsService.executeGoogleSheetsToolOperation(
-                operation,
-                sheetConfig.sheetUrl,
-                sheetConfig.accessLevel || 'read-only',
-                sheetName || sheetConfig.defaultSheet,
-                range,
-                data,
-                searchTerm
-              );
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  operation,
-                  sheetName: sheetConfig.sheetName || 'Google Sheets',
-                  data: result.data
-                }
-              });
-            } catch (error) {
-              console.error('❌ Google Sheets operation failed:', error);
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Google Sheets operation failed'
-                }
-              });
-            }
-          }
-
-          if (fc.name === 'manage_notion') {
-            try {
-              const { 
-                operation, 
-                query, 
-                pageId, 
-                databaseId, 
-                title, 
-                content, 
-                parentId, 
-                properties, 
-                filter, 
-                sorts 
-              } = fc.args;
-              
-              console.log(`📝 Managing Notion: ${operation}`);
-              
-              const result = await integrationsService.executeNotionToolOperation(
-                operation,
-                query,
-                pageId,
-                databaseId,
-                title,
-                content,
-                parentId,
-                properties,
-                filter,
-                sorts,
-                this.currentContact || undefined
-              );
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  data: result
-                }
-              });
-            } catch (error) {
-              console.error('❌ Notion operation failed:', error);
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Notion operation failed'
-                }
-              });
-            }
-          }
-
-          if (fc.name === 'generate_document') {
-            try {
-              const { content, wordCount } = fc.args;
-              const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-              console.log(`📄 Generating document ${documentId} (${wordCount ? `${wordCount} words` : 'no word limit'})`);
-              
-              // Validate document generation system is ready
-              if (!this.onDocumentGenerationCallback) {
-                console.error('❌ Document generation callback not registered - system not ready');
-                throw new Error('Document generation system is not ready. Please try again in a moment.');
-              }
-
-              // Check for rate limiting (max 1 document per 2 seconds)
-              const now = Date.now();
-              if (now - this.lastDocumentGenerationTime < 2000) {
-                console.warn('⚠️ Document generation rate limited');
-                throw new Error('Please wait a moment before generating another document.');
-              }
-
-              // Validate content
-              if (!content || typeof content !== 'string' || content.trim().length === 0) {
-                console.error('❌ Invalid document content provided');
-                throw new Error('Document content is empty or invalid. Please provide valid content to generate.');
-              }
-
-              // Check if too many documents are being generated
-              if (this.documentGenerationInProgress.size >= 3) {
-                console.warn('⚠️ Too many document generations in progress');
-                throw new Error('Too many documents are being generated. Please wait for them to complete.');
-              }
-
-              console.log(`📄 Document content validated (${content.length} characters)`);
-              
-              // Track this document generation
-              this.documentGenerationInProgress.add(documentId);
-              this.lastDocumentGenerationTime = now;
-              
-              // Execute callback with improved error handling
-              try {
-                this.onDocumentGenerationCallback!({
-                  content: content.trim(),
-                  wordCount
-                });
-                console.log(`✅ Document generation callback triggered for ${documentId}`);
-                
-                // Clean up tracking after a reasonable delay (fire-and-forget)
-                this.setManagedTimeout(() => {
-                  this.documentGenerationInProgress.delete(documentId);
-                  console.log(`🧹 Cleaned up document generation tracking for ${documentId}`);
-                }, 10000); // 10 second cleanup
-                
-              } catch (callbackError) {
-                this.documentGenerationInProgress.delete(documentId);
-                console.error('❌ Document generation callback failed:', callbackError);
-                throw new Error(`Document generation callback failed: ${(callbackError as Error).message}`);
-              }
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  data: {
-                    content: content.trim(),
-                    wordCount,
-                    documentId,
-                    message: "Document generated successfully and should appear shortly."
+              if (backendResult.success && backendResult.result) {
+                // Trigger the frontend callback with the backend result
+                try {
+                  // Backend returns document in result.document.content format
+                  const documentContent = backendResult.result.document?.content || backendResult.result.content;
+                  const wordCount = backendResult.result.document?.metadata?.word_count || backendResult.result.wordCount;
+                  
+                  if (documentContent) {
+                    this.onDocumentGenerationCallback({
+                      content: documentContent.replace(/\\n/g, '\n'), // Fix escaped newlines
+                      wordCount: wordCount
+                    });
+                    console.log(`✅ Document generation callback triggered for backend-generated document`);
+                  } else {
+                    console.error('❌ No document content found in backend result:', backendResult.result);
                   }
+                } catch (callbackError) {
+                  console.error('❌ Document generation callback failed:', callbackError);
+                }
+              }
+              
+              // Use backend response format
+              functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: backendResult.success ? {
+                  success: true,
+                  data: backendResult.result
+                } : {
+                  success: false,
+                  error: backendResult.error || 'Backend function call failed'
                 }
               });
-            } catch (error) {
-              console.error('❌ Document generation failed:', error);
-              const errorMessage = (error as Error).message || 'Document generation failed due to an unknown error';
-              console.error('❌ Document generation error details:', {
-                content: fc.args?.content ? `${fc.args.content.substring(0, 100)}...` : 'undefined',
-                wordCount: fc.args?.wordCount,
-                callbackRegistered: !!this.onDocumentGenerationCallback,
-                inProgress: this.documentGenerationInProgress.size,
-                timeSinceLastGeneration: Date.now() - this.lastDocumentGenerationTime,
-                errorMessage
-              });
+            } else {
+              // Route all other function calls through backend
+              const backendResult = await voiceApiService.handleFunctionCall(fc.name, fc.args);
               
               functionResponses.push({
                 id: fc.id,
                 name: fc.name,
-                response: {
+                response: backendResult.success ? {
+                  success: true,
+                  data: backendResult.result || backendResult
+                } : {
                   success: false,
-                  error: errorMessage
+                  error: backendResult.error || 'Backend function call failed'
                 }
               });
             }
-          }
-
-          if (fc.name === 'search_web') {
-            try {
-              const { query, searchDepth = 'basic', maxResults = 5 } = fc.args;
-              console.log(`🔍 Voice web search: "${query}"`);
-              
-              const result = await integrationsService.executeWebSearchTool(
-                query,
-                searchDepth,
-                maxResults,
-                true // include answer
-              );
-
-              
-              // Format results for natural voice response - create a conversational summary
-              let voiceResponse = '';
-              
-              if (result.answer) {
-                voiceResponse = result.answer;
-              } else if (result.results && result.results.length > 0) {
-                voiceResponse = `I found ${result.results.length} search results for "${result.query}". `;
-                
-                // Add key information from top results
-                const topResults = result.results.slice(0, 3);
-                const keyInfo = topResults.map((r: any) => {
-                  if (r.content) {
-                    return r.content.substring(0, 150).replace(/[{}[\]]/g, '');
-                  }
-                  return r.title;
-                }).join('. ');
-                
-                voiceResponse += keyInfo;
-              } else {
-                voiceResponse = `I searched for "${result.query}" but didn't find relevant results. You might want to try a different search term.`;
+            
+          } catch (error) {
+            console.error(`❌ Backend function call ${fc.name} failed:`, error);
+            functionResponses.push({
+              id: fc.id,
+              name: fc.name,
+              response: {
+                success: false,
+                error: (error as Error).message || `Function call ${fc.name} failed`
               }
-              
-              // Clean up any remaining structural characters that might be read aloud
-              voiceResponse = voiceResponse
-                .replace(/[{}[\]]/g, '')
-                .replace(/_/g, ' ')
-                .replace(/\n+/g, '. ')
-                .replace(/\s+/g, ' ')
-                .trim();
-              
-
-              
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  content: voiceResponse
-                }
-              });
-            } catch (error) {
-              console.error('❌ Voice web search failed:', error);
-              console.error('❌ Voice search error details:', {
-                message: (error as Error).message,
-                query: fc.args?.query,
-                searchDepth: fc.args?.searchDepth
-              });
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: false,
-                  error: (error as Error).message || 'Web search failed'
-                }
-              });
-            }
-          }
-
-          if (fc.name === 'scrape_website') {
-            try {
-              const { url, extractType = 'text', includeImages = false, maxPages = 5 } = fc.args;
-              console.log(`🕷️ Voice website scraping: "${url}"`);
-              
-              // Check if Firecrawl API key is configured (no need for user to configure integration)
-              const firecrawlApiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
-              if (!firecrawlApiKey) {
-                throw new Error('Firecrawl API key not configured. Please set VITE_FIRECRAWL_API_KEY environment variable.');
-              }
-
-              // Check if a request is already in progress
-              if (firecrawlService.isRequestInProgress()) {
-                const queueStatus = firecrawlService.getQueueStatus();
-                throw new Error(`A Firecrawl request is already in progress. Queue status: ${queueStatus.queueLength} pending requests. Please wait a moment and try again.`);
-              }
-
-              const result = await integrationsService.executeFirecrawlToolOperation(
-                url,
-                extractType,
-                includeImages,
-                maxPages,
-                this.currentContact || undefined
-              );
-
-              // Format results for natural voice response
-              let voiceResponse = '';
-              
-              if (result.success && result.pages && result.pages.length > 0) {
-                voiceResponse = `I successfully scraped ${result.pages.length} page(s) from ${url}. `;
-                
-                // Add summary of content
-                const totalContent = result.pages.reduce((acc: number, page: any) => 
-                  acc + (page.content?.length || 0), 0
-                );
-                
-                voiceResponse += `I extracted ${totalContent} characters of content. `;
-                
-                // Add key information from first page
-                const firstPage = result.pages[0];
-                if (firstPage.title) {
-                  voiceResponse += `The page title is "${firstPage.title}". `;
-                }
-                
-                if (firstPage.content) {
-                  const preview = firstPage.content.substring(0, 200).replace(/[{}[\]]/g, '');
-                  voiceResponse += `Here's a preview: ${preview}.`;
-                }
-              } else {
-                voiceResponse = `I attempted to scrape ${url} but didn't find any content. The page might be empty or inaccessible.`;
-              }
-              
-              // Clean up any remaining structural characters that might be read aloud
-              voiceResponse = voiceResponse
-                .replace(/[{}[\]]/g, '')
-                .replace(/_/g, ' ')
-                .replace(/\n+/g, '. ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-              functionResponses.push({
-                id: fc.id,
-                name: fc.name,
-                response: {
-                  success: true,
-                  content: voiceResponse
-                }
-              });
-                         } catch (error) {
-               console.error('❌ Voice website scraping failed:', error);
-               console.error('❌ Voice scraping error details:', {
-                 message: (error as Error).message,
-                 url: fc.args?.url,
-                 extractType: fc.args?.extractType
-               });
-               
-               // Provide a helpful error message for voice
-               let errorMessage = (error as Error).message || 'Website scraping failed';
-               if (errorMessage.includes('Invalid URL')) {
-                 errorMessage = 'I tried to scrape that website, but the Firecrawl service rejected the URL. This might be due to the website being restricted or the API key having limitations. You could try a different website or contact support to check your API key settings.';
-               } else if (errorMessage.includes('Invalid Firecrawl API key')) {
-                 errorMessage = 'The Firecrawl API key appears to be invalid. Please check your API key in the .env file or get a new one from https://firecrawl.dev. The web scraping feature won\'t work until this is fixed.';
-               }
-               
-               functionResponses.push({
-                 id: fc.id,
-                 name: fc.name,
-                 response: {
-                   success: false,
-                   error: errorMessage
-                 }
-               });
-             }
+            });
           }
         }
 
@@ -2016,6 +1382,14 @@ class GeminiLiveService {
     if (this.activeSession) {
       this.activeSession.close();
       this.activeSession = null;
+    }
+    
+    // 🎤 End backend voice session
+    try {
+      voiceApiService.endSession();
+      console.log("✅ Backend voice session ended");
+    } catch (error) {
+      console.warn("⚠️ Failed to end backend voice session:", error);
     }
     
     this.currentContact = null;

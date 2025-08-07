@@ -279,3 +279,61 @@ if settings.DEBUG:
             "results": results,
             "errors": errors
         }
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    current_user = Depends(get_current_user)
+):
+    """
+    Delete a document from the database.
+    Only the document owner can delete their documents.
+    """
+    try:
+        logger.info(f"🗑️ Deleting document {document_id} for user {current_user.id}")
+        
+        # Use the document service to delete the document
+        await document_service.delete_document(document_id, current_user.id)
+        
+        logger.info(f"✅ Successfully deleted document {document_id}")
+        
+        return {
+            "success": True,
+            "message": f"Document {document_id} deleted successfully"
+        }
+        
+    except ValueError as e:
+        logger.error(f"❌ Document deletion error: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"❌ Unexpected error deleting document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Development endpoint (no auth required in DEBUG mode)
+if settings.DEBUG:
+    @router.delete("/dev/{document_id}")
+    async def dev_delete_document(document_id: str):
+        """
+        Development endpoint for deleting documents without authentication
+        Only available when DEBUG=True
+        """
+        try:
+            logger.info(f"🧪 DEV: Deleting document {document_id}")
+            
+            # Use the document service to delete the document (with dev user)
+            await document_service.delete_document(document_id, "dev_user")
+            
+            logger.info(f"✅ DEV: Successfully deleted document {document_id}")
+            
+            return {
+                "success": True,
+                "development_mode": True,
+                "message": f"Document {document_id} deleted successfully"
+            }
+            
+        except ValueError as e:
+            logger.error(f"❌ DEV: Document deletion error: {e}")
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            logger.error(f"❌ DEV: Unexpected error deleting document {document_id}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")

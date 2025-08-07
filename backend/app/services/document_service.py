@@ -510,6 +510,47 @@ The AI can still reference this document by name but won't have access to its co
             # Binary files
             'pdf', 'docx', 'pptx', 'xlsx', 'xls'
         ]
+    
+    async def delete_document(self, document_id: str, user_id: str) -> bool:
+        """Delete a document from the database (user must own the document)"""
+        logger.info(f"🗑️ Deleting document {document_id} for user {user_id}")
+        
+        try:
+            # Import here to avoid circular import
+            from supabase import create_client
+            from ..core.config import settings
+            
+            # Initialize Supabase client
+            if not settings.SUPABASE_SERVICE_ROLE_KEY:
+                raise ValueError("Supabase service role key not configured")
+            supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+            
+            # First, verify the document belongs to the user's agent
+            document_check = supabase.table("agent_documents").select("id, agent_id").eq("id", document_id).execute()
+            
+            if not document_check.data:
+                raise ValueError(f"Document {document_id} not found")
+            
+            agent_id = document_check.data[0]["agent_id"]
+            
+            # Verify the agent belongs to the user
+            agent_check = supabase.table("user_agents").select("id").eq("id", agent_id).eq("user_id", user_id).execute()
+            
+            if not agent_check.data:
+                raise ValueError(f"Document {document_id} does not belong to user {user_id}")
+            
+            # Delete the document
+            delete_result = supabase.table("agent_documents").delete().eq("id", document_id).execute()
+            
+            if not delete_result.data:
+                raise ValueError(f"Failed to delete document {document_id}")
+            
+            logger.info(f"✅ Successfully deleted document {document_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error deleting document {document_id}: {e}")
+            raise
 
 # Create singleton instance
 document_service = DocumentService()

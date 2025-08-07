@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Save, X, Play, AlertCircle, CheckCircle, Globe, Search, Rss, Newspaper, Cloud, TrendingUp, Calendar, Building2, Database, FileText } from 'lucide-react';
 import { Integration, IntegrationConfig, IntegrationField } from '../../integrations/types/integrations';
 import { integrationsService } from '../../integrations/core/integrationsService';
-import OAuthConnect from '../../oauth/components/OAuthConnect';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 interface IntegrationSetupProps {
@@ -10,372 +9,275 @@ interface IntegrationSetupProps {
   existingConfig?: IntegrationConfig;
   onSave: (config: IntegrationConfig) => void;
   onCancel: () => void;
-  className?: string;
 }
 
-const iconMap = {
-  Globe,
-  Search,
-  Rss,
-  Newspaper,
-  Cloud,
-  TrendingUp,
-  Calendar,
-  Building2,
-  Database,
-  FileText
-};
-
-const triggerOptions = [
-  { value: 'chat-start', label: 'On Chat Start', description: 'Fetch data when conversation begins' },
-  { value: 'periodic', label: 'Periodic', description: 'Fetch data at regular intervals' },
-  { value: 'both', label: 'Both', description: 'Fetch on chat start and periodically' }
-];
-
-const intervalOptions = [
-  { value: 5, label: '5 minutes' },
-  { value: 10, label: '10 minutes' },
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' },
-  { value: 360, label: '6 hours' },
-  { value: 720, label: '12 hours' },
-  { value: 1440, label: '24 hours' }
-];
-
-export default function IntegrationSetup({ integration, existingConfig, onSave, onCancel, className = '' }: IntegrationSetupProps) {
+export default function IntegrationSetup({
+  integration,
+  existingConfig,
+  onSave,
+  onCancel
+}: IntegrationSetupProps) {
   const { user } = useAuth();
+
   const [config, setConfig] = useState<IntegrationConfig>({
     integrationId: integration.id,
-    enabled: existingConfig?.enabled ?? true,
+    enabled: existingConfig?.enabled ?? false,
     settings: existingConfig?.settings ?? {},
-    trigger: existingConfig?.trigger ?? 'chat-start',
-    intervalMinutes: existingConfig?.intervalMinutes ?? 30,
-    description: existingConfig?.description ?? '',
-    oauthTokenId: existingConfig?.oauthTokenId,
-    oauthConnected: existingConfig?.oauthConnected ?? false
+    // OAuth removed - no longer supported
+    oauthTokenId: '',
+    oauthConnected: false
   });
 
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const IconComponent = iconMap[integration.icon as keyof typeof iconMap] || Database;
-
-  const handleFieldChange = (fieldId: string, value: any) => {
+  const handleFieldChange = (field: IntegrationField, value: string) => {
     setConfig(prev => ({
       ...prev,
       settings: {
         ...prev.settings,
-        [fieldId]: value
+        [field.id]: value
       }
     }));
-    setHasUnsavedChanges(true);
-  };
-
-  const handleConfigChange = (field: keyof IntegrationConfig, value: any) => {
-    setConfig(prev => ({ ...prev, [field]: value }));
-    setHasUnsavedChanges(true);
-  };
-
-  const handleOAuthSuccess = (tokenId: string) => {
-    console.log('OAuth connection successful, token ID:', tokenId);
-    setConfig(prev => ({
-      ...prev,
-      oauthTokenId: tokenId,
-      oauthConnected: true
-    }));
-    setHasUnsavedChanges(true);
-    setTestResult({
-      success: true,
-      message: 'OAuth connection successful! Integration is now ready to use.'
-    });
-  };
-
-  const handleOAuthError = (error: string) => {
-    console.error('OAuth connection failed:', error);
-    setTestResult({
-      success: false,
-      message: `OAuth connection failed: ${error}`
-    });
+    setTestResult(null);
   };
 
   const handleTest = async () => {
-    setIsTesting(true);
+    if (!user) return;
+
+    setIsLoading(true);
     setTestResult(null);
 
     try {
-      // For OAuth integrations, check if connected first
-      if (integration.requiresOAuth && !config.oauthConnected) {
+      // Check if this is an OAuth integration that has been disabled
+      if (integration.requiresOAuth) {
         setTestResult({
           success: false,
-          message: 'Please connect your account first using the OAuth button above.'
+          message: `❌ ${integration.name} integration has been disabled. OAuth integrations were incorrectly configured and have been removed.`
         });
         return;
       }
 
-      const result = await integrationsService.executeIntegration(integration, config);
+      // Test the integration
+      await integrationsService.executeIntegration(integration, config);
       setTestResult({
         success: true,
-        message: 'Integration test successful!',
-        data: result
+        message: '✅ Integration test successful!'
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Integration test failed:', error);
       setTestResult({
         success: false,
-        message: `Test failed: ${error instanceof Error ? error.message : String(error)}`
+        message: error.message || 'Integration test failed'
       });
     } finally {
-      setIsTesting(false);
+      setIsLoading(false);
     }
   };
 
-  const handleSave = () => {
-    // Save the integration regardless of OAuth status
-    // OAuth can be connected later
+  const handleSave = async () => {
+    if (!user) return;
+
+    // Check if this is an OAuth integration that has been disabled
+    if (integration.requiresOAuth) {
+      setTestResult({
+        success: false,
+        message: `❌ Cannot save ${integration.name} integration. OAuth integrations have been removed due to incorrect configuration.`
+      });
+      return;
+    }
+
     onSave(config);
-    setHasUnsavedChanges(false);
   };
 
-  const renderField = (field: IntegrationField) => {
-    const value = config.settings[field.id] || field.defaultValue || '';
-
-    switch (field.type) {
-      case 'text':
-      case 'url':
-      case 'number':
-        return (
-          <input
-            type={field.type}
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
-            required={field.required}
-          />
-        );
-
-      case 'textarea':
-        return (
-          <textarea
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder}
-            rows={3}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none text-sm"
-            required={field.required}
-          />
-        );
-
-      case 'select':
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
-            required={field.required}
-          >
-            {field.options?.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        );
-
-      default:
-        return null;
-    }
+  const iconMap = {
+    Globe: Globe,
+    Search: Search,
+    Rss: Rss,
+    Newspaper: Newspaper,
+    Cloud: Cloud,
+    TrendingUp: TrendingUp,
+    Calendar: Calendar,
+    Building2: Building2,
+    Database: Database,
+    FileText: FileText
   };
+
+  const IconComponent = iconMap[integration.icon as keyof typeof iconMap] || Globe;
 
   return (
-    <div className={`bg-glass-panel glass-effect rounded-xl border border-slate-700 ${className}`}>
-      {/* Header */}
-      <div className="p-4 border-b border-slate-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div
-              className="p-2 rounded-lg"
-              style={{ backgroundColor: integration.color + '20', color: integration.color }}
-            >
-              <IconComponent className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">{integration.name}</h2>
-                              <p className="text-slate-400 text-sm ellipsis-2">{integration.description}</p>
-            </div>
+    <div className="bg-glass-panel rounded-lg p-6 border border-glass-border">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <div 
+            className="w-12 h-12 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: integration.color }}
+          >
+            <IconComponent className="w-6 h-6 text-white" />
           </div>
+          <div>
+            <h2 className="text-xl font-semibold text-white">{integration.name}</h2>
+            <p className="text-gray-400 text-sm">{integration.description}</p>
+          </div>
+        </div>
+        <div className="flex space-x-2">
           <button
             onClick={onCancel}
-            className="p-1 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors flex items-center space-x-2"
           >
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4" />
+            <span>Cancel</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={integration.requiresOAuth}
+            className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
+              integration.requiresOAuth
+                ? 'bg-red-900 text-red-300 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-500'
+            }`}
+          >
+            <Save className="w-4 h-4" />
+            <span>{integration.requiresOAuth ? 'Disabled' : 'Save'}</span>
           </button>
         </div>
       </div>
 
-      {/* Configuration Form */}
-      <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-        {/* OAuth Connection - Show first if required */}
-        {integration.requiresOAuth && (
-          <div>
-            <label className="block text-xs font-medium text-white mb-2">
-              Account Connection
-              {!config.oauthConnected && <span className="text-yellow-400 ml-1">(Optional - can connect later)</span>}
-            </label>
-            <OAuthConnect
-              provider={integration.oauthProvider || integration.id}
-              onSuccess={handleOAuthSuccess}
-              onError={handleOAuthError}
-            />
-            <p className="text-slate-400 text-xs mt-1">
-              {config.oauthConnected 
-                ? `✅ Connected to ${integration.name}. Integration is ready to use.`
-                : `You can save this integration now and connect to ${integration.name} later.`
-              }
-            </p>
-          </div>
-        )}
-
-        {/* Integration Fields */}
-        {integration.fields.map(field => (
-          <div key={field.id}>
-            <label className="block text-xs font-medium text-white mb-2">
-              {field.name}
-              {field.required && <span className="text-red-400 ml-1">*</span>}
-            </label>
-            {renderField(field)}
-            {field.description && (
-                              <p className="text-slate-400 text-xs mt-1 ellipsis-2">{field.description}</p>
-            )}
-          </div>
-        ))}
-
-        {/* Trigger Configuration - Only for source integrations */}
-        {integration.category === 'source' && (
-          <div>
-            <label className="block text-xs font-medium text-white mb-2">
-              Execution Trigger
-            </label>
-            <div className="space-y-2">
-              {triggerOptions.map(option => (
-                <label key={option.value} className="flex items-start space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="trigger"
-                    value={option.value}
-                    checked={config.trigger === option.value}
-                    onChange={(e) => handleConfigChange('trigger', e.target.value)}
-                    className="mt-0.5 text-[#186799] bg-slate-700 border-slate-600 focus:ring-[#186799]"
-                  />
-                  <div>
-                    <div className="text-white font-medium text-sm">{option.label}</div>
-                    <div className="text-slate-400 text-xs ellipsis-2">{option.description}</div>
-                  </div>
-                </label>
-              ))}
+      {/* OAuth Disabled Warning */}
+      {integration.requiresOAuth && (
+        <div className="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-700 rounded-lg">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-red-400 font-medium">OAuth Integration Disabled</h3>
+              <p className="text-red-300 text-sm mt-1">
+                {integration.name} integration has been removed because OAuth was incorrectly configured. 
+                All integrations now work through the Python backend without OAuth dependencies.
+              </p>
             </div>
           </div>
-        )}
-
-        {/* Interval Configuration - Only for periodic triggers */}
-        {integration.category === 'source' && (config.trigger === 'periodic' || config.trigger === 'both') && (
-          <div>
-            <label className="block text-xs font-medium text-white mb-2">
-              Execution Interval
-            </label>
-            <select
-              value={config.intervalMinutes}
-              onChange={(e) => handleConfigChange('intervalMinutes', parseInt(e.target.value))}
-              className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
-            >
-              {intervalOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Description */}
-        <div>
-          <label className="block text-xs font-medium text-white mb-2">
-            Description
-          </label>
-          <textarea
-            value={config.description}
-            onChange={(e) => handleConfigChange('description', e.target.value)}
-            placeholder="Describe how this integration will be used..."
-            rows={2}
-            className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none text-sm"
-          />
         </div>
+      )}
 
-        {/* Test Results */}
-        {testResult && (
-          <div className={`p-3 rounded-lg border ${
-            testResult.success 
-              ? 'border-green-700 bg-green-900 bg-opacity-20' 
-              : 'border-red-700 bg-red-900 bg-opacity-20'
-          }`}>
-            <div className="flex items-center space-x-2 mb-2">
-              {testResult.success ? (
-                <CheckCircle className="w-4 h-4 text-green-400" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-red-400" />
-              )}
-              <span className={`font-medium text-sm ${
-                testResult.success ? 'text-green-300' : 'text-red-300'
-              }`}>
-                {testResult.message}
-              </span>
-            </div>
-            {testResult.success && testResult.data && (
-              <div className="mt-2">
-                <p className="text-slate-300 text-xs mb-1">Preview:</p>
-                <pre className="text-xs text-slate-400 bg-slate-800 p-2 rounded overflow-x-auto">
-                  {JSON.stringify(testResult.data, null, 2).substring(0, 300)}
-                  {JSON.stringify(testResult.data, null, 2).length > 300 ? '...' : ''}
-                </pre>
-              </div>
-            )}
+      {/* Form Fields */}
+      {!integration.requiresOAuth && (
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <input
+              type="checkbox"
+              id="enabled"
+              checked={config.enabled}
+              onChange={(e) => setConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+              className="rounded border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
+            />
+            <label htmlFor="enabled" className="text-white font-medium">
+              Enable Integration
+            </label>
           </div>
-        )}
 
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-700">
+          {integration.fields.map((field) => (
+            <div key={field.id}>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                {field.name}
+                {field.required && <span className="text-red-400 ml-1">*</span>}
+              </label>
+              
+              {field.type === 'select' ? (
+                <select
+                  value={config.settings[field.id] || field.defaultValue || ''}
+                  onChange={(e) => handleFieldChange(field, e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {field.options?.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : field.type === 'textarea' ? (
+                <textarea
+                  value={config.settings[field.id] || field.defaultValue || ''}
+                  onChange={(e) => handleFieldChange(field, e.target.value)}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+              ) : field.type === 'password' ? (
+                <input
+                  type="password"
+                  value={config.settings[field.id] || field.defaultValue || ''}
+                  onChange={(e) => handleFieldChange(field, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              ) : (
+                <input
+                  type={field.type}
+                  value={config.settings[field.id] || field.defaultValue || ''}
+                  onChange={(e) => handleFieldChange(field, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              )}
+              
+              {field.description && (
+                <p className="text-xs text-gray-400 mt-1">{field.description}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Test Integration Button */}
+      {!integration.requiresOAuth && config.enabled && (
+        <div className="mb-6">
           <button
             onClick={handleTest}
-            disabled={isTesting}
-            className="flex items-center space-x-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-full transition-colors duration-200 text-sm"
+            disabled={isLoading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
           >
-            <Play className="w-3 h-3" />
-            <span>{isTesting ? 'Testing...' : 'Test'}</span>
+            <Play className="w-4 h-4" />
+            <span>{isLoading ? 'Testing...' : 'Test Integration'}</span>
           </button>
+        </div>
+      )}
 
+      {/* Test Result */}
+      {testResult && (
+        <div className={`p-4 rounded-lg border ${
+          testResult.success 
+            ? 'bg-green-900 bg-opacity-30 border-green-700' 
+            : 'bg-red-900 bg-opacity-30 border-red-700'
+        }`}>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={onCancel}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors duration-200 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className={`flex items-center space-x-2 px-3 py-2 text-white rounded-full transition-colors duration-200 text-sm ${
-                hasUnsavedChanges 
-                  ? 'bg-[#186799] hover:bg-[#1a5a7a]' 
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
-            >
-              <Save className="w-3 h-3" />
-              <span>{hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
-            </button>
+            {testResult.success ? (
+              <CheckCircle className="w-5 h-5 text-green-400" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-400" />
+            )}
+            <p className={`text-sm ${
+              testResult.success ? 'text-green-300' : 'text-red-300'
+            }`}>
+              {testResult.message}
+            </p>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Integration Examples */}
+      {integration.examples && integration.examples.length > 0 && (
+        <div className="mt-6 p-4 bg-gray-800 bg-opacity-50 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-300 mb-2">Example Use Cases:</h4>
+          <ul className="text-xs text-gray-400 space-y-1">
+            {integration.examples.map((example, index) => (
+              <li key={index} className="flex items-start space-x-2">
+                <span className="text-gray-500">•</span>
+                <span>{example}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

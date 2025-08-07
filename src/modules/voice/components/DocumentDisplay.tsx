@@ -56,6 +56,11 @@ export default function DocumentDisplay({
 
   const handleCopy = async () => {
     try {
+      if (!content) {
+        setError('No content to copy');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
       await navigator.clipboard.writeText(content);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -68,6 +73,11 @@ export default function DocumentDisplay({
 
   const handleDownload = () => {
     try {
+      if (!content) {
+        setError('No content to download');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
       const blob = new Blob([content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -134,7 +144,7 @@ export default function DocumentDisplay({
             <div>
               <h1 className="text-xl font-bold text-gray-900">Generated Document</h1>
               <p className="text-sm text-gray-500 mt-1">
-                {new Date().toLocaleDateString()} • {content.split(' ').length} words
+                {new Date().toLocaleDateString()} • {content ? content.split(' ').length : 0} words
                 {totalDocuments > 1 && (
                   <span className="ml-2">• Document {documentIndex + 1} of {totalDocuments}</span>
                 )}
@@ -304,7 +314,7 @@ export default function DocumentDisplay({
                 ),
               }}
             >
-              {content}
+              {content || 'Loading document content...'}
             </ReactMarkdown>
           </div>
         </div>
