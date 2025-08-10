@@ -1,7 +1,6 @@
 import { AIContact } from '../../../core/types/types';
 import { DocumentInfo } from '../types/documents';
-import { supabaseService } from '../../database/services/supabaseService';
-import { documentService } from './documentService';
+import { supabaseService } from '../../database';
 
 export interface AgentDocumentContext {
   permanentDocuments: DocumentInfo[];
@@ -83,14 +82,14 @@ class DocumentContextService {
       if (permanentDocs.length > 0) {
         context += '📚 PERMANENT KNOWLEDGE:\n';
         permanentDocs.forEach(doc => {
-          context += documentService.formatDocumentForAI(doc) + '\n\n';
+          context += this.formatDocumentForAI(doc) + '\n\n';
         });
       }
       
       if (conversationDocs.length > 0) {
         context += '💬 CONVERSATION DOCUMENTS:\n';
         conversationDocs.forEach(doc => {
-          context += documentService.formatDocumentForAI(doc) + '\n\n';
+          context += this.formatDocumentForAI(doc) + '\n\n';
         });
       }
       
@@ -148,6 +147,51 @@ class DocumentContextService {
       conversationCount: conversation.length,
       totalSize
     };
+  }
+
+  /**
+   * Format document for AI context
+   */
+  private formatDocumentForAI(document: DocumentInfo): string {
+    let formatted = `📄 Document: ${document.name}\n`;
+    formatted += `📊 Type: ${document.type}, Size: ${this.formatFileSize(document.size)}\n`;
+    
+    if (document.summary) {
+      formatted += `📝 Summary: ${document.summary}\n`;
+    }
+    
+    if (document.extractedText) {
+      // Include up to 2000 characters of content
+      const content = document.extractedText.substring(0, 2000);
+      formatted += `📖 Content:\n${content}`;
+      
+      if (document.extractedText.length > 2000) {
+        formatted += '\n[Content truncated...]';
+      }
+    } else if (document.content) {
+      // Fallback to content field
+      const content = document.content.substring(0, 2000);
+      formatted += `📖 Content:\n${content}`;
+      
+      if (document.content.length > 2000) {
+        formatted += '\n[Content truncated...]';
+      }
+    }
+    
+    return formatted;
+  }
+
+  /**
+   * Format file size for display
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 }
 

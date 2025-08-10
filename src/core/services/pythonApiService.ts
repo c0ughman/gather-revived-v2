@@ -13,7 +13,7 @@ class PythonApiService {
 
   constructor() {
     // Use environment variable to determine Python backend URL
-    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8001';
+    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000';
     console.log('🐍 Python API Service initialized:', this.baseUrl);
   }
 
@@ -344,13 +344,11 @@ class PythonApiService {
   }
 
   /**
-   * Check if a feature should use Python backend
+   * Update base URL if needed
    */
-  shouldUsePythonBackend(feature: 'documents' | 'ai'): boolean {
-    const usePython = import.meta.env.VITE_USE_PYTHON_BACKEND === 'true';
-    
-    // You can customize this logic based on feature flags, user preferences, etc.
-    return usePython;
+  updateBaseUrl(newUrl: string): void {
+    this.baseUrl = newUrl;
+    console.log('🔄 Python API Service URL updated:', this.baseUrl);
   }
 }
 

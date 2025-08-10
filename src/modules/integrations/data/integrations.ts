@@ -732,8 +732,7 @@ export const actionIntegrations: Integration[] = [
         required: false,
         options: [
           { value: 'never', label: 'Never - Manual requests only' },
-          { value: 'on-chat', label: 'On Chat Start - Sync when conversation begins' },
-          { value: 'periodic', label: 'Periodic - Sync every 5 minutes' }
+          { value: 'on-chat', label: 'On Chat Start - Sync when conversation begins' }
         ],
         defaultValue: 'never',
         description: 'When should the AI automatically refresh data from your spreadsheet?'

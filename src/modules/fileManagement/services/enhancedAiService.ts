@@ -1,34 +1,25 @@
 /**
- * Enhanced AI Service
+ * AI Service - Backend Only
  * 
- * This service provides a unified interface for AI generation that can use either:
- * 1. Frontend processing (original TypeScript implementation)
- * 2. Python backend processing (new FastAPI implementation)
- * 
- * The service automatically chooses the best option based on configuration and availability.
+ * This service provides AI generation using only the Python backend.
+ * All frontend fallbacks have been removed as requested.
  */
 
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../types/documents';
-import { geminiService } from './geminiService';
 import { pythonApiService } from '../../../core/services/pythonApiService';
 
 class EnhancedAiService {
-  private usePythonBackend: boolean;
-  private pythonBackendAvailable: boolean = false;
+  private backendAvailable: boolean = false;
 
   constructor() {
-    this.usePythonBackend = import.meta.env.VITE_USE_PYTHON_BACKEND === 'true';
-    
     // Check Python backend availability on initialization
-    this.checkPythonBackendAvailability();
-    
-    console.log('🤖 Enhanced AI Service initialized');
-    console.log(`🔧 Use Python Backend: ${this.usePythonBackend}`);
+    this.checkBackendAvailability();
+    console.log('🤖 AI Service initialized (Backend-only)');
   }
 
   /**
-   * Generate AI response with automatic backend selection
+   * Generate AI response using Python backend only
    */
   async generateResponse(
     contact: AIContact,
@@ -36,80 +27,50 @@ class EnhancedAiService {
     chatHistory: Message[],
     conversationDocuments: DocumentInfo[] = []
   ): Promise<string> {
-    const backend = await this.selectBackend();
-    
-    console.log(`🤖 Generating response using ${backend} backend for ${contact.name}`);
+    console.log(`🤖 Generating response using Python backend for ${contact.name}`);
+
+    if (!this.backendAvailable) {
+      await this.checkBackendAvailability();
+      if (!this.backendAvailable) {
+        throw new Error('Python backend is not available. Please ensure the backend server is running.');
+      }
+    }
 
     try {
-      if (backend === 'python') {
-        return await pythonApiService.generateAIResponse(
-          contact,
-          userMessage,
-          chatHistory,
-          conversationDocuments
-        );
-      } else {
-        return await geminiService.generateResponse(
-          contact,
-          userMessage,
-          chatHistory,
-          conversationDocuments
-        );
-      }
+      return await pythonApiService.generateAIResponse(
+        contact,
+        userMessage,
+        chatHistory,
+        conversationDocuments
+      );
     } catch (error) {
-      console.error(`❌ ${backend} backend failed for AI generation, trying fallback`);
-      
-      // Fallback to other backend if available
-      if (backend === 'python' && this.canUseFrontend()) {
-        console.log('🔄 Falling back to frontend AI generation');
-        return await geminiService.generateResponse(
-          contact,
-          userMessage,
-          chatHistory,
-          conversationDocuments
-        );
-      } else if (backend === 'frontend' && this.pythonBackendAvailable) {
-        console.log('🔄 Falling back to Python backend');
-        return await pythonApiService.generateAIResponse(
-          contact,
-          userMessage,
-          chatHistory,
-          conversationDocuments
-        );
-      }
-      
-      throw error;
+      console.error(`❌ Backend failed for AI generation:`, error);
+      // Mark backend as unavailable and re-throw error
+      this.backendAvailable = false;
+      throw new Error(`AI generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
-   * Summarize document with automatic backend selection
+   * Summarize document using Python backend only
    */
   async summarizeDocument(documentContent: string, filename: string): Promise<string> {
-    const backend = await this.selectBackend();
-    
-    console.log(`📄 Summarizing document using ${backend} backend: ${filename}`);
+    console.log(`📄 Summarizing document using Python backend: ${filename}`);
+
+    if (!this.backendAvailable) {
+      await this.checkBackendAvailability();
+      if (!this.backendAvailable) {
+        throw new Error('Python backend is not available. Please ensure the backend server is running.');
+      }
+    }
 
     try {
-      if (backend === 'python') {
-        return await pythonApiService.summarizeDocument(documentContent, filename);
-      } else {
-        // Fallback: Create a simple summary without external API call
-        return this.createSimpleSummary(documentContent, filename);
-      }
+      return await pythonApiService.summarizeDocument(documentContent, filename);
     } catch (error) {
-      console.error(`❌ ${backend} backend failed for document summarization, trying fallback`);
-      
-      // Fallback to other backend if available
-      if (backend === 'python' && this.canUseFrontend()) {
-        console.log('🔄 Falling back to simple summarization');
-        return this.createSimpleSummary(documentContent, filename);
-      } else if (backend === 'frontend' && this.pythonBackendAvailable) {
-        console.log('🔄 Falling back to Python backend');
-        return await pythonApiService.summarizeDocument(documentContent, filename);
-      }
-      
-      throw error;
+      console.error(`❌ Backend failed for document summarization:`, error);
+      // Mark backend as unavailable and re-throw error
+      this.backendAvailable = false;
+      throw new Error(`Document summarization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -117,37 +78,25 @@ class EnhancedAiService {
    * Get service status and capabilities
    */
   async getServiceStatus(): Promise<{
-    frontend: { available: boolean; features: string[] };
-    python: { available: boolean; features: string[] };
-    selected: string;
-    fallback: boolean;
+    backend: { available: boolean; features: string[] };
+    status: string;
   }> {
-    const frontendAvailable = this.canUseFrontend();
-    await this.checkPythonBackendAvailability();
+    await this.checkBackendAvailability();
 
     return {
-      frontend: {
-        available: frontendAvailable,
+      backend: {
+        available: this.backendAvailable,
         features: [
           'Google Gemini API integration',
-          'Response generation',
-          'Document summarization',
-          'Chat history processing'
-        ]
-      },
-      python: {
-        available: this.pythonBackendAvailable,
-        features: [
-          'Google Gemini API integration',
-          'Response generation with better performance',
+          'Response generation with optimized performance',
           'Document summarization',
           'Chat history processing',
           'Advanced prompt optimization',
-          'Better error handling'
+          'Server-side error handling',
+          'Secure API key management'
         ]
       },
-      selected: await this.selectBackend(),
-      fallback: frontendAvailable && this.pythonBackendAvailable
+      status: this.backendAvailable ? 'Backend Ready' : 'Backend Unavailable'
     };
   }
 
@@ -155,64 +104,28 @@ class EnhancedAiService {
    * Force refresh of Python backend availability
    */
   async refreshBackendStatus(): Promise<void> {
-    await this.checkPythonBackendAvailability();
-    console.log(`🔄 AI backend status refreshed - Python available: ${this.pythonBackendAvailable}`);
-  }
-
-  /**
-   * Select the best backend for AI processing
-   */
-  private async selectBackend(): Promise<'python' | 'frontend'> {
-    // If Python backend is preferred and available, use it
-    if (this.usePythonBackend && this.pythonBackendAvailable) {
-      return 'python';
-    }
-    
-    // If Python backend is available but not preferred, still use it for better performance
-    if (this.pythonBackendAvailable && !this.canUseFrontend()) {
-      return 'python';
-    }
-    
-    // Default to frontend
-    return 'frontend';
+    await this.checkBackendAvailability();
+    console.log(`🔄 AI backend status refreshed - Available: ${this.backendAvailable}`);
   }
 
   /**
    * Check if Python backend is available
    */
-  private async checkPythonBackendAvailability(): Promise<void> {
+  private async checkBackendAvailability(): Promise<void> {
     try {
-      this.pythonBackendAvailable = await pythonApiService.isAvailable();
+      this.backendAvailable = await pythonApiService.isAvailable();
+      console.log(`🔍 Backend availability check: ${this.backendAvailable ? 'Available' : 'Unavailable'}`);
     } catch (error) {
-      this.pythonBackendAvailable = false;
+      console.warn('Backend availability check failed:', error);
+      this.backendAvailable = false;
     }
   }
 
   /**
-   * Check if frontend processing is available
+   * Get backend availability status
    */
-  private canUseFrontend(): boolean {
-    // Frontend is always available (unless we're in a worker context or similar)
-    return typeof window !== 'undefined';
-  }
-
-  /**
-   * Create a simple document summary without external API calls
-   * This serves as a fallback when Python backend is unavailable
-   */
-  private createSimpleSummary(documentContent: string, filename: string): string {
-    const wordCount = documentContent.split(/\s+/).filter(word => word.trim()).length;
-    const charCount = documentContent.length;
-    const lineCount = documentContent.split('\n').length;
-    
-    // Extract first few sentences as preview
-    const sentences = documentContent.match(/[^\.!?]+[\.!?]+/g) || [];
-    const preview = sentences.slice(0, 2).join(' ').substring(0, 200);
-    
-    return `📁 Document: ${filename}\n` +
-           `📊 Statistics: ${wordCount} words, ${charCount} characters, ${lineCount} lines\n` +
-           `📖 Preview: ${preview}${preview.length === 200 ? '...' : ''}\n` +
-           `⚠️ Simple fallback summary (Python backend unavailable)`;
+  isBackendAvailable(): boolean {
+    return this.backendAvailable;
   }
 }
 

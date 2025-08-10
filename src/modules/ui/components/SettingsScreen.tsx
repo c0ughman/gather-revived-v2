@@ -667,15 +667,9 @@ export default function SettingsScreen({
 
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="text-slate-400">Trigger:</span>
-                            <span className="text-white ml-2 capitalize">{integration.config.trigger}</span>
+                            <span className="text-slate-400">Type:</span>
+                            <span className="text-white ml-2 capitalize">{integration.integrationId}</span>
                           </div>
-                          {integration.config.intervalMinutes && (
-                            <div>
-                              <span className="text-slate-400">Interval:</span>
-                              <span className="text-white ml-2">{integration.config.intervalMinutes} minutes</span>
-                            </div>
-                          )}
                           <div>
                             <span className="text-slate-400">Status:</span>
                             <span className={`ml-2 capitalize ${

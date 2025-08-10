@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, File, X, AlertCircle, CheckCircle, FileText, Code, Database, FileImage, Presentation, Sheet } from 'lucide-react';
 import { DocumentInfo } from '../../fileManagement/types/documents';
-import { enhancedDocumentService } from '../../fileManagement/services/enhancedDocumentService';
+import { enhancedAiService } from '../../fileManagement/services/enhancedAiService';
+import { pythonApiService } from '../../../core/services/pythonApiService';
 
 interface DocumentUploadProps {
   onDocumentUploaded: (document: DocumentInfo) => void;
@@ -46,7 +47,7 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
     for (const file of files) {
       try {
         console.log(`📁 Processing file: ${file.name} (${Math.round(file.size / 1024)}KB)`);
-        const document = await enhancedDocumentService.processFile(file);
+        const document = await pythonApiService.processDocument(file);
         console.log(`✅ Successfully processed: ${file.name}`);
         onDocumentUploaded(document);
       } catch (error) {

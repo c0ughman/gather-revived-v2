@@ -14,22 +14,23 @@ class DocumentApiServiceImpl implements DocumentApiService {
 
   constructor() {
     // Use same backend URL as voice service
-    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8001';
+    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000';
     console.log('📄 Document API Service initialized:', this.baseUrl);
   }
 
   async deleteDocument(documentId: string): Promise<{ success: boolean; message: string }> {
     try {
-      console.log(`🗑️ Deleting document ${documentId} via backend API`);
+      console.log(`🗑️ Deleting document ${documentId} via backend database API`);
 
       const authToken = this.getAuthToken();
       console.log(`🔐 Auth token length: ${authToken.length}, first 20 chars: ${authToken.substring(0, 20)}`);
       
-      // Use dev endpoint for now to bypass auth issues
-      const response = await fetch(`${this.baseUrl}/api/v1/documents/dev/${documentId}`, {
+      // Use the new database endpoint
+      const response = await fetch(`${this.baseUrl}/api/v1/database/documents/${documentId}`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
         }
       });
 
@@ -68,7 +69,7 @@ class DocumentApiServiceImpl implements DocumentApiService {
         console.warn(`Backend integration deletion not available, falling back to direct Supabase`);
         
         // Import here to avoid circular dependency
-        const { supabaseService } = await import('../../modules/database/services/supabaseService');
+        const { supabaseService } = await import('../../modules/database');
         await supabaseService.deleteAgentIntegration(integrationId);
         
         return { success: true, message: `Integration ${integrationId} deleted via fallback` };

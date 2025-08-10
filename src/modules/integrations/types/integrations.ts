@@ -29,8 +29,6 @@ export interface IntegrationConfig {
   integrationId: string;
   enabled: boolean;
   settings: Record<string, any>;
-  trigger: 'periodic' | 'chat-start' | 'both' | 'manual';
-  intervalMinutes?: number;
   description: string;
   // OAuth specific fields
   oauthTokenId?: string;

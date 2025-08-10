@@ -40,7 +40,7 @@ class VoiceApiService {
 
   constructor() {
     // Use environment variable to determine Python backend URL
-    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8001';
+    this.baseUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000';
     console.log('🎤 Voice API Service initialized:', this.baseUrl);
   }
 
@@ -66,6 +66,7 @@ class VoiceApiService {
       console.log(`🎤 Creating voice session for ${contact.name} via Python backend`);
 
       const requestBody = {
+        id: contact.id,
         name: contact.name,
         description: contact.description,
         integrations: contact.integrations,

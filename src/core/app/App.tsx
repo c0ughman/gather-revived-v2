@@ -14,7 +14,7 @@ import { AIContact, Message, CallState } from '../types/types';
 import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
 import { enhancedAiService } from '../../modules/fileManagement/services/enhancedAiService';
-import { supabaseService } from '../../modules/database/services/supabaseService';
+import { supabaseService } from '../../modules/database';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
 import { documentApiService } from '../services/documentApiService';
 import { IntegrationInstance } from '../../modules/integrations/types/integrations';
@@ -50,6 +50,7 @@ export default function App() {
   const [settingsIntegrations, setSettingsIntegrations] = useState<IntegrationInstance[]>([]);
   const [settingsDocuments, setSettingsDocuments] = useState<DocumentInfo[]>([]);
   const [settingsHasChanges, setSettingsHasChanges] = useState(false);
+  const [isCleaningDocuments, setIsCleaningDocuments] = useState(false);
 
   // Update call duration
   useEffect(() => {
@@ -182,24 +183,7 @@ export default function App() {
       
       // Document context will be loaded on-demand during voice sessions for better performance
       
-      // Initialize integrations
-      transformedContacts.forEach(contact => {
-        if (contact.integrations) {
-          contact.integrations.forEach(integrationInstance => {
-            const integration = getIntegrationById(integrationInstance.integrationId);
-            if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-              integrationsService.startPeriodicExecution(
-                contact.id, 
-                integration, 
-                integrationInstance.config, 
-                (contactId, data) => {
-                  console.log(`Integration data updated for contact ${contactId}`);
-                }
-              );
-            }
-          });
-        }
-      });
+      // Integration initialization (scheduling removed - integrations now execute on-demand only)
 
       console.log('✅ User data loaded successfully');
 
@@ -467,6 +451,46 @@ export default function App() {
   };
 
   const handleSettingsDocumentsChange = (documents: DocumentInfo[]) => {
+    // Prevent re-entrancy
+    if (isCleaningDocuments) {
+      console.log('🚫 Skipping document cleanup - already in progress');
+      setSettingsDocuments(documents);
+      setSettingsHasChanges(true);
+      return;
+    }
+    
+    // If documents are being removed, clean up localStorage messages that reference them
+    if (selectedContact && documents.length < settingsDocuments.length) {
+      const removedDocuments = settingsDocuments.filter(
+        oldDoc => !documents.find(newDoc => newDoc.id === oldDoc.id)
+      );
+      
+      if (removedDocuments.length > 0) {
+        setIsCleaningDocuments(true);
+        console.log(`🧹 Cleaning up ${removedDocuments.length} documents from localStorage messages`);
+        
+        // Remove the documents from any message attachments
+        setMessages(prevMessages => 
+          prevMessages.map(message => {
+            if (message.contactId === selectedContact.id && message.attachments) {
+              const filteredAttachments = message.attachments.filter(
+                attachment => !removedDocuments.find(removedDoc => removedDoc.id === attachment.id)
+              );
+              
+              return {
+                ...message,
+                attachments: filteredAttachments.length > 0 ? filteredAttachments : undefined
+              };
+            }
+            return message;
+          })
+        );
+        
+        console.log(`✅ Cleaned up localStorage messages for ${removedDocuments.length} deleted documents`);
+        setIsCleaningDocuments(false);
+      }
+    }
+    
     setSettingsDocuments(documents);
     setSettingsHasChanges(true);
   };
@@ -622,17 +646,19 @@ export default function App() {
         });
 
         // Handle integrations updates
-        if (contact.integrations) {
-          // For simplicity, we'll delete all existing integrations and recreate them
-          if (existingContact?.integrations) {
-            for (const integration of existingContact.integrations) {
-              try {
-                await documentApiService.deleteIntegration(integration.id);
-              } catch (error) {
-                console.error(`Failed to delete integration ${integration.id}:`, error);
-              }
+        // Delete all existing integrations first
+        if (existingContact?.integrations) {
+          for (const integration of existingContact.integrations) {
+            try {
+              await supabaseService.deleteAgentIntegration(integration.id);
+            } catch (error) {
+              console.error(`Failed to delete integration ${integration.id}:`, error);
             }
           }
+        }
+
+        // Create new integrations if any
+        if (contact.integrations) {
 
           // Create new integrations
           const savedIntegrations = [];
@@ -758,22 +784,7 @@ export default function App() {
         }
       });
 
-      // Restart integrations with new configuration
-      if (contact.integrations) {
-        contact.integrations.forEach(integrationInstance => {
-          const integration = getIntegrationById(integrationInstance.integrationId);
-          if (integration && integrationInstance.config.enabled && integration.category !== 'action') {
-            integrationsService.startPeriodicExecution(
-              contact.id, 
-              integration, 
-              integrationInstance.config, 
-              (contactId, data) => {
-                console.log(`Integration data updated for contact ${contactId}`);
-              }
-            );
-          }
-        });
-      }
+      // Integration scheduling removed - all integrations now execute on-demand only
 
       setSelectedContact(contact);
       console.log('✅ Contact saved successfully');

@@ -8,6 +8,7 @@ import DocumentUpload, { DocumentList } from './DocumentUpload';
 import IntegrationsLibrary from './IntegrationsLibrary';
 import IntegrationSetup from './IntegrationSetup';
 import { Integration, IntegrationConfig } from '../../integrations/types/integrations';
+import { documentApiService } from '../../../core/services/documentApiService';
 
 interface SettingsSidebarProps {
   contact: AIContact | null;
@@ -182,13 +183,51 @@ export default function SettingsSidebar({
     setUploadError(error);
   };
 
-  const handleRemoveDocument = (documentId: string) => {
+  const [deletingDocuments, setDeletingDocuments] = useState<Set<string>>(new Set());
+
+  const handleRemoveDocument = async (documentId: string) => {
+    // Prevent multiple simultaneous deletions of the same document
+    if (deletingDocuments.has(documentId)) {
+      console.log(`⏭️ Document ${documentId} is already being deleted, skipping`);
+      return;
+    }
+    
+    setDeletingDocuments(prev => new Set([...prev, documentId]));
+    
+    try {
+      // First, try to delete from database
+      console.log(`🗑️ Deleting document ${documentId} from database`);
+      await documentApiService.deleteDocument(documentId);
+      console.log(`✅ Successfully deleted document ${documentId} from database`);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Check if this is a "document not found" error (frontend-only document)
+      if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+        console.log(`📝 Document ${documentId} was frontend-only, removing from local state`);
+      } else {
+        console.error(`❌ Failed to delete document ${documentId} from database:`, error);
+        // For other errors, we'll still continue to remove from frontend for better UX
+      }
+    } finally {
+      // Clean up the tracking set
+      setDeletingDocuments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(documentId);
+        return newSet;
+      });
+    }
+    
+    // Always remove from local state (whether database deletion succeeded or failed)
     if (onDocumentsChange) {
       onDocumentsChange(documents.filter(doc => doc.id !== documentId));
     } else {
       setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId));
       setLocalHasChanges(true);
     }
+    
+    console.log(`✅ Document ${documentId} removed from frontend`);
   };
 
   // Integration handlers
@@ -617,8 +656,7 @@ export default function SettingsSidebar({
                       </div>
                     </div>
                     <div className="text-xs text-slate-400 truncate">
-                      Trigger: {integration.config.trigger}
-                      {integration.config.intervalMinutes && ` • ${integration.config.intervalMinutes}m`}
+                      Status: {integration.status === 'active' ? 'Active' : 'Inactive'}
                     </div>
                   </div>
                 );

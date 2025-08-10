@@ -20,8 +20,6 @@ export interface DataFetchingConfig {
   method: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: string;
-  trigger: 'periodic' | 'chat-start' | 'both';
-  intervalMinutes?: number; // Only for periodic
   lastFetched?: Date;
   lastData?: any;
   description: string; // What this data is for
