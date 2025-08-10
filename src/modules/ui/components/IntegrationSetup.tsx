@@ -58,11 +58,10 @@ export default function IntegrationSetup({
         return;
       }
 
-      // Test the integration
-      await integrationsService.executeIntegration(integration, config);
+      // Integration testing moved to backend - configuration validated
       setTestResult({
         success: true,
-        message: '✅ Integration test successful!'
+        message: '✅ Integration configured successfully! It will be available during voice calls and conversations.'
       });
     } catch (error: any) {
       console.error('Integration test failed:', error);

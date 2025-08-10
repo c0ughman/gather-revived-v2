@@ -273,23 +273,7 @@ export default function App() {
       [contact.id]: allAttachments
     }));
 
-    // Execute integrations on chat start if configured
-    if (contact.integrations) {
-      for (const integrationInstance of contact.integrations) {
-        const integration = getIntegrationById(integrationInstance.integrationId);
-        if (integration && 
-            integration.category !== 'action' &&
-            integrationInstance.config.enabled && 
-            (integrationInstance.config.trigger === 'chat-start' || integrationInstance.config.trigger === 'both')) {
-          try {
-            const data = await integrationsService.executeIntegration(integration, integrationInstance.config);
-            integrationsService.storeIntegrationData(contact.id, integration.id, data);
-          } catch (error) {
-            console.error(`Failed to execute integration ${integration.name}:`, error);
-          }
-        }
-      }
-    }
+    // Integration execution moved to backend - all integrations now execute on-demand during conversations
   };
 
   const handleCallClick = (contact: AIContact) => {
