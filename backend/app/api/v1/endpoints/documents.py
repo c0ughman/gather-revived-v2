@@ -8,6 +8,46 @@ from ....core.config import settings
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+async def ensure_dev_user_agent_exists(supabase, dev_user_id: str, dev_agent_id: str):
+    """Ensure the dev user profile and agent exist for development mode"""
+    try:
+        # Check if dev user profile exists
+        user_result = supabase.table("user_profiles").select("id").eq("id", dev_user_id).execute()
+        if not user_result.data:
+            # Create dev user profile
+            user_profile = {
+                "id": dev_user_id,
+                "display_name": "Dev User",
+                "created_at": "now()",
+                "updated_at": "now()"
+            }
+            supabase.table("user_profiles").insert(user_profile).execute()
+            logger.info(f"🔧 DEV: Created dev user profile {dev_user_id}")
+        
+        # Check if dev agent exists
+        agent_result = supabase.table("user_agents").select("id").eq("id", dev_agent_id).execute()
+        if not agent_result.data:
+            # Create dev agent
+            dev_agent = {
+                "id": dev_agent_id,
+                "user_id": dev_user_id,
+                "name": "Dev Agent",
+                "description": "Development mode agent for testing documents",
+                "initials": "DA",
+                "color": "#3b82f6",
+                "voice": "Puck",
+                "status": "online",
+                "last_seen": "now",
+                "created_at": "now()",
+                "updated_at": "now()"
+            }
+            supabase.table("user_agents").insert(dev_agent).execute()
+            logger.info(f"🔧 DEV: Created dev agent {dev_agent_id}")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ DEV: Failed to ensure dev user/agent exists: {e}")
+        # Continue anyway - the service role key should bypass RLS
+
 @router.post("/process", response_model=Dict[str, Any])
 async def process_document(
     file: UploadFile = File(...),
@@ -205,6 +245,37 @@ if settings.DEBUG:
                 content_type=file.content_type or ""
             )
             
+            # For dev mode, also save the document to database 
+            # We'll use a default agent_id of 'dev_agent' for development
+            try:
+                from supabase import create_client
+                from ....core.config import settings
+                
+                supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
+                supabase = create_client(settings.SUPABASE_URL, supabase_key)
+                
+                # Save to agent_documents table with basic fields only
+                import uuid
+                dev_user_id = "550e8400-e29b-41d4-a716-446655440001"  # Fixed dev user UUID
+                dev_agent_id = "550e8400-e29b-41d4-a716-446655440000"  # Fixed UUID for dev mode
+                
+                # Ensure dev user and agent exist
+                await ensure_dev_user_agent_exists(supabase, dev_user_id, dev_agent_id)
+                
+                document_row = {
+                    "id": document_info["id"],
+                    "agent_id": dev_agent_id,
+                    "name": document_info["name"],
+                    "content": document_info["content"]
+                }
+                
+                result = supabase.table("agent_documents").insert(document_row).execute()
+                logger.info(f"💾 DEV: Saved document {document_info['id']} to database")
+                
+            except Exception as db_error:
+                logger.warning(f"⚠️ DEV: Failed to save document to database: {db_error}")
+                # Continue anyway - document processing succeeded even if DB save failed
+            
             logger.info(f"✅ DEV: Successfully processed {file.filename}")
             
             return {
@@ -337,3 +408,64 @@ if settings.DEBUG:
         except Exception as e:
             logger.error(f"❌ DEV: Unexpected error deleting document {document_id}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/dev/debug-storage")
+async def debug_storage():
+    """Debug endpoint to understand document storage and persistence"""
+    try:
+        from supabase import create_client
+        
+        # Use anon key for basic access
+        supabase_key = settings.SUPABASE_ANON_KEY
+        supabase = create_client(settings.SUPABASE_URL, supabase_key)
+        
+        # Check all tables for any data
+        debug_info = {}
+        
+        tables = ["user_profiles", "user_agents", "agent_documents", "agent_integrations"]
+        for table in tables:
+            try:
+                result = supabase.table(table).select("*").limit(10).execute()
+                debug_info[table] = {
+                    "count": len(result.data) if result.data else 0,
+                    "sample": result.data[:3] if result.data else []
+                }
+            except Exception as e:
+                debug_info[table] = {"error": str(e)}
+        
+        return {
+            "success": True,
+            "development_mode": True,
+            "debug_info": debug_info,
+            "message": "Debug information collected"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ DEV: Debug endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=f"Debug error: {str(e)}")
+
+@router.get("/dev/list-all")
+async def dev_list_all_documents():
+    """Development endpoint to list all documents in the database for debugging"""
+    try:
+        logger.info("🔍 DEV: Listing all documents in database")
+        
+        from supabase import create_client
+        
+        supabase_key = settings.SUPABASE_ANON_KEY
+        supabase = create_client(settings.SUPABASE_URL, supabase_key)
+        
+        all_docs = supabase.table("agent_documents").select("*").execute()
+        user_agents = supabase.table("user_agents").select("*").execute()
+        
+        return {
+            "success": True,
+            "development_mode": True,
+            "agent_documents_count": len(all_docs.data or []),
+            "user_agents_count": len(user_agents.data or []),
+            "message": f"Found {len(all_docs.data or [])} documents, {len(user_agents.data or [])} agents"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ DEV: Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")

@@ -520,10 +520,13 @@ The AI can still reference this document by name but won't have access to its co
             from supabase import create_client
             from ..core.config import settings
             
-            # Initialize Supabase client
-            if not settings.SUPABASE_SERVICE_ROLE_KEY:
-                raise ValueError("Supabase service role key not configured")
-            supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+            # Initialize Supabase client - try service role first, fallback to anon for dev
+            supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
+            if not supabase_key:
+                raise ValueError("No Supabase key configured")
+                
+            supabase = create_client(settings.SUPABASE_URL, supabase_key)
+            logger.info(f"🔑 Using Supabase key type: {'service_role' if settings.SUPABASE_SERVICE_ROLE_KEY else 'anon'}")
             
             # First, verify the document belongs to the user's agent
             document_check = supabase.table("agent_documents").select("id, agent_id").eq("id", document_id).execute()

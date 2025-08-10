@@ -145,6 +145,53 @@ async def get_available_models():
         "api_provider": "Google Generative AI"
     }
 
+@router.post("/dev/generate-response")
+async def dev_generate_ai_response(request: ChatRequest):
+    """
+    Development endpoint for AI generation with function calling.
+    No authentication required for testing.
+    """
+    try:
+        logger.info(f"🧪 DEV: Generating AI response")
+        
+        # Validate request
+        if not request.contact:
+            raise HTTPException(status_code=400, detail="Contact information is required")
+        
+        if not request.user_message.strip():
+            raise HTTPException(status_code=400, detail="User message cannot be empty")
+        
+        # Generate response with function calling support
+        response = await ai_service.generate_response(
+            contact=request.contact,
+            user_message=request.user_message,
+            chat_history=request.chat_history,
+            conversation_documents=request.conversation_documents
+        )
+        
+        logger.info(f"✅ DEV: Successfully generated AI response ({len(response)} characters)")
+        
+        return {
+            "success": True,
+            "response": response,
+            "development_mode": True,
+            "metadata": {
+                "contact_name": request.contact.get('name', 'AI'),
+                "response_length": len(response),
+                "processed_documents": len(request.conversation_documents or []),
+                "history_length": len(request.chat_history),
+                "functions_available": ["search_web", "scrape_website"]
+            }
+        }
+        
+    except ValueError as e:
+        logger.error(f"❌ DEV: AI generation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        logger.error(f"❌ DEV: Unexpected error in AI generation: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
 @router.post("/test-generation")
 async def test_ai_generation(current_user = Depends(get_current_user)):
     """

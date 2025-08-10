@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 import uuid
 
 from .integrations_service import integrations_service
+from .database_service import database_service
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class VoiceService:
         }
         logger.info(f"📋 Registered {len(self.function_handlers)} function handlers")
 
-    async def create_session(self, user_id: str, contact: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_session(self, user_id: str, contact: Dict[str, Any], user_token: str = None) -> Dict[str, Any]:
         """
         Create a new voice session with ephemeral authentication
         
@@ -72,7 +73,7 @@ class VoiceService:
                 "created_at": datetime.utcnow().isoformat(),
                 "ephemeral_token": ephemeral_token,
                 "function_declarations": self._get_function_declarations(contact),
-                "system_prompt": self._build_system_prompt(contact),
+                "system_prompt": await self._build_system_prompt(contact, user_id, user_token),
                 "status": "initialized"
             }
             
@@ -306,13 +307,74 @@ class VoiceService:
         logger.info(f"📋 Generated {len(function_declarations)} function declarations")
         return function_declarations
 
-    def _build_system_prompt(self, contact: Dict[str, Any]) -> str:
+    async def _build_system_prompt(self, contact: Dict[str, Any], user_id: str, user_token: str = None) -> str:
         """
-        Build system prompt for the voice session
+        Build system prompt for the voice session including document context
         """
-        system_prompt = f"""You are {contact.get('name', 'Assistant')}, {contact.get('description', 'a helpful AI assistant')}.
+        # Get fresh document context from database
+        agent_id = contact.get('id')
+        document_context = {"permanentDocuments": [], "conversationDocuments": []}
+        
+        logger.info(f'🔍 Building system prompt for contact: {contact.get("name")} with ID: {agent_id}')
+        logger.info(f'📋 Contact data keys: {list(contact.keys())}')
+        
+        if agent_id:
+            try:
+                logger.info(f'📚 Loading document context for agent: {contact.get("name")} (ID: {agent_id})')
+                document_context = await database_service.get_all_agent_context(agent_id, user_token)
+                logger.info(f'✅ Loaded {len(document_context["permanentDocuments"])} permanent + {len(document_context["conversationDocuments"])} conversation documents')
+                
+                # Check if database returned empty but contact has documents (database failure case)
+                total_db_docs = len(document_context["permanentDocuments"]) + len(document_context["conversationDocuments"])
+                contact_documents = contact.get('documents', [])
+                
+                if total_db_docs == 0 and contact_documents:
+                    logger.warning(f'⚠️ Database returned no documents but contact has {len(contact_documents)} documents - using fallback')
+                    document_context = {
+                        "permanentDocuments": contact_documents,
+                        "conversationDocuments": []
+                    }
+                    
+            except Exception as e:
+                logger.warning(f'⚠️ Failed to load document context for agent {agent_id}: {e}')
+                # Fallback: use documents from contact data if database fails
+                contact_documents = contact.get('documents', [])
+                if contact_documents:
+                    logger.info(f'📁 Using fallback: {len(contact_documents)} documents from contact data')
+                    document_context = {
+                        "permanentDocuments": contact_documents,
+                        "conversationDocuments": []
+                    }
+                else:
+                    logger.info('📁 No documents in contact data either')
+        
+        # Build base prompt with name and description
+        system_prompt = f"You are {contact.get('name', 'Assistant')}, {contact.get('description', 'a helpful AI assistant')}."
+        
+        # Add document context if available
+        all_documents = document_context["permanentDocuments"] + document_context["conversationDocuments"]
+        if all_documents:
+            system_prompt += '\n\n=== YOUR KNOWLEDGE BASE ===\n'
+            system_prompt += 'You have access to the following documents. Use this information to provide accurate and detailed responses:\n\n'
+            
+            permanent_docs = document_context["permanentDocuments"]
+            conversation_docs = document_context["conversationDocuments"]
+            
+            if permanent_docs:
+                system_prompt += '📚 PERMANENT KNOWLEDGE:\n'
+                for doc in permanent_docs:
+                    system_prompt += self._format_document_for_ai(doc) + '\n\n'
+            
+            if conversation_docs:
+                system_prompt += '💬 CONVERSATION DOCUMENTS:\n'
+                for doc in conversation_docs:
+                    system_prompt += self._format_document_for_ai(doc) + '\n\n'
+            
+            system_prompt += 'This is your knowledge base. Reference this information throughout conversations to provide accurate responses.\n'
 
-🎤 VOICE MODE INSTRUCTIONS:
+        system_prompt += """
+
+VOICE MODE INSTRUCTIONS:
 - Speak naturally and conversationally
 - Keep responses concise but helpful
 - Use a warm, friendly tone
@@ -337,7 +399,56 @@ CRITICAL VOICE MODE INSTRUCTIONS:
 - Use natural speech patterns and contractions
 - If you need to pause, use natural speech fillers like "let me think..." rather than silence"""
 
+        logger.info(f'📝 Final system prompt length: {len(system_prompt)} characters')
+        if all_documents:
+            logger.info(f'📚 System prompt includes {len(all_documents)} documents')
+        else:
+            logger.warning('⚠️ No documents included in system prompt')
+        
         return system_prompt
+
+    def _format_document_for_ai(self, document: Dict[str, Any]) -> str:
+        """
+        Format document for AI context (similar to frontend formatDocumentForAI)
+        """
+        formatted = f'📄 Document: {document.get("name", "Untitled")}\n'
+        formatted += f'📊 Type: {document.get("file_type", document.get("type", "unknown"))}, Size: {self._format_file_size(document.get("file_size", document.get("size", 0)))}\n'
+        
+        if document.get("summary"):
+            formatted += f'📝 Summary: {document.get("summary")}\n'
+        
+        # Include full document content (up to 2000 characters like frontend)
+        content = None
+        if document.get("extracted_text"):
+            content = document.get("extracted_text")
+        elif document.get("content"):
+            content = document.get("content")
+            
+        if content:
+            # Limit content to 2000 characters for voice mode (to reduce latency)
+            content_excerpt = content[:2000] if len(content) > 2000 else content
+            formatted += f'📖 Content:\n{content_excerpt}'
+            
+            if len(content) > 2000:
+                formatted += '\n[Content truncated...]'
+        
+        return formatted
+
+    def _format_file_size(self, bytes_size: int) -> str:
+        """Format file size for display"""
+        if bytes_size == 0:
+            return '0 Bytes'
+        
+        k = 1024
+        sizes = ['Bytes', 'KB', 'MB', 'GB']
+        i = 0
+        size = float(bytes_size)
+        
+        while size >= k and i < len(sizes) - 1:
+            size /= k
+            i += 1
+        
+        return f"{size:.2f} {sizes[i]}"
 
     async def handle_function_call(self, session_id: str, function_name: str, function_args: Dict[str, Any]) -> Dict[str, Any]:
         """

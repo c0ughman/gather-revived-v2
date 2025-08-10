@@ -110,18 +110,77 @@ class IntegrationsService:
     async def execute_web_search_tool(self, query: str, search_depth: str = "basic", max_results: int = 5, include_answer: bool = True) -> Dict[str, Any]:
         """Execute web search using Tavily API"""
         try:
-            # This would need the Tavily API key from environment
-            # For now, return a mock response indicating the service needs configuration
-            logger.info(f"🔍 Web search request: {query}")
+            from ..core.config import settings
             
-            # Mock response structure based on what frontend expects
-            return {
-                "success": True,
+            if not settings.TAVILY_API_KEY:
+                logger.error("❌ Tavily API key not configured")
+                return {
+                    "success": False,
+                    "error": "Tavily API key not configured in backend environment"
+                }
+            
+            logger.info(f"🔍 Web search request: {query} (depth: {search_depth}, max: {max_results})")
+            
+            # Tavily API endpoint
+            tavily_url = "https://api.tavily.com/search"
+            
+            payload = {
+                "api_key": settings.TAVILY_API_KEY,
                 "query": query,
-                "results": [],
-                "answer": "Web search functionality requires Tavily API configuration in the backend.",
-                "message": "Web search service needs to be configured with Tavily API key"
+                "search_depth": search_depth,
+                "include_answer": include_answer,
+                "include_images": False,
+                "include_raw_content": False,
+                "max_results": max_results,
+                "include_domains": [],
+                "exclude_domains": []
             }
+            
+            # Create SSL context to handle certificate issues
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
+                    tavily_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                    headers={"Content-Type": "application/json"}
+                ) as response:
+                    
+                    if not response.ok:
+                        error_text = await response.text()
+                        logger.error(f"❌ Tavily API error: {response.status} - {error_text}")
+                        return {
+                            "success": False,
+                            "error": f"Tavily API error: {response.status}"
+                        }
+                    
+                    result = await response.json()
+                    
+                    # Format response to match expected structure
+                    formatted_results = []
+                    if "results" in result:
+                        for item in result["results"]:
+                            formatted_results.append({
+                                "title": item.get("title", ""),
+                                "url": item.get("url", ""),
+                                "content": item.get("content", ""),
+                                "score": item.get("score", 0)
+                            })
+                    
+                    return {
+                        "success": True,
+                        "query": query,
+                        "results": formatted_results,
+                        "answer": result.get("answer", ""),
+                        "search_depth": search_depth,
+                        "total_results": len(formatted_results)
+                    }
             
         except Exception as e:
             logger.error(f"❌ Web search failed: {e}")
@@ -241,21 +300,104 @@ class IntegrationsService:
     async def execute_firecrawl_tool_operation(self, url: str, extract_type: str = "text", include_images: bool = False, max_pages: int = 5) -> Dict[str, Any]:
         """Execute Firecrawl web scraping"""
         try:
-            logger.info(f"🕷️ Firecrawl scraping: {url}")
+            from ..core.config import settings
             
-            # This would need the Firecrawl API implementation
-            # For now, return a mock response
-            return {
-                "success": True,
-                "url": url,
-                "pages": [{
-                    "url": url,
-                    "title": "Sample Page",
-                    "content": "Sample scraped content. Firecrawl service needs to be configured with API key.",
-                    "extract_type": extract_type
-                }],
-                "message": "Firecrawl service needs to be configured with API key"
+            if not settings.FIRECRAWL_API_KEY:
+                logger.error("❌ Firecrawl API key not configured")
+                return {
+                    "success": False,
+                    "error": "Firecrawl API key not configured in backend environment"
+                }
+            
+            logger.info(f"🕷️ Firecrawl scraping: {url} (type: {extract_type}, max_pages: {max_pages})")
+            
+            # Firecrawl API endpoint for scraping
+            firecrawl_url = "https://api.firecrawl.dev/v0/scrape"
+            
+            # Basic Firecrawl API payload
+            payload = {
+                "url": url
             }
+            
+            # Add page options if needed
+            if extract_type in ["markdown", "text"]:
+                payload["formats"] = ["markdown"]
+            elif extract_type == "html":
+                payload["formats"] = ["html"]
+            else:
+                payload["formats"] = ["markdown"]  # default
+            
+            # Note: include_images is handled via pageOptions.includeMarkdown/includeHtml
+            
+            headers = {
+                "Authorization": f"Bearer {settings.FIRECRAWL_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            # Create SSL context to handle certificate issues  
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
+                    firecrawl_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                    headers=headers
+                ) as response:
+                    
+                    if not response.ok:
+                        error_text = await response.text()
+                        logger.error(f"❌ Firecrawl API error: {response.status} - {error_text}")
+                        return {
+                            "success": False,
+                            "error": f"Firecrawl API error: {response.status}"
+                        }
+                    
+                    result = await response.json()
+                    
+                    # Extract the content based on the response structure
+                    content = ""
+                    title = ""
+                    
+                    if result.get("success") and "data" in result:
+                        data = result["data"]
+                        
+                        # Get content based on extract_type
+                        if extract_type == "markdown" and "markdown" in data:
+                            content = data["markdown"]
+                        elif extract_type == "html" and "html" in data:
+                            content = data["html"]
+                        elif "markdown" in data:
+                            content = data["markdown"]  # Default to markdown
+                        else:
+                            content = data.get("content", "")
+                        
+                        # Extract title
+                        metadata = data.get("metadata", {})
+                        title = metadata.get("title", "") or metadata.get("ogTitle", "")
+                    
+                    # Format response to match expected structure
+                    formatted_pages = [{
+                        "url": url,
+                        "title": title,
+                        "content": content,
+                        "extract_type": extract_type,
+                        "success": result.get("success", False)
+                    }]
+                    
+                    return {
+                        "success": True,
+                        "url": url,
+                        "pages": formatted_pages,
+                        "total_pages": len(formatted_pages),
+                        "extract_type": extract_type,
+                        "include_images": include_images
+                    }
             
         except Exception as e:
             logger.error(f"❌ Firecrawl scraping failed: {e}")

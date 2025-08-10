@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 import logging
 from ....services.voice_service import voice_service
-from ....core.auth import get_current_user
+from ....core.auth import get_current_user, get_current_user_with_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @router.post("/session/create")
 async def create_voice_session(
     contact_data: Dict[str, Any],
-    current_user = Depends(get_current_user)
+    auth_data = Depends(get_current_user_with_token)
 ):
     """
     Create a new voice session with ephemeral authentication
@@ -28,11 +28,14 @@ async def create_voice_session(
     as recommended by the Live API docs
     """
     try:
+        current_user = auth_data["user"]
+        token = auth_data["token"]
         logger.info(f"🎤 Creating voice session for user {current_user.id}")
         
         session_info = await voice_service.create_session(
             user_id=current_user.id,
-            contact=contact_data
+            contact=contact_data,
+            user_token=token
         )
         
         return {
@@ -133,7 +136,8 @@ if settings.DEBUG:
             
             session_info = await voice_service.create_session(
                 user_id="dev_user",
-                contact=contact_data
+                contact=contact_data,
+                user_token=None  # No token in dev mode
             )
             
             return {

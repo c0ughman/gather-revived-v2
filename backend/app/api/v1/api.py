@@ -1,10 +1,13 @@
 from fastapi import APIRouter
-from .endpoints import health, documents, ai, voice, test_endpoints
+from .endpoints import health, documents, ai, voice, test_endpoints, database
 
 api_router = APIRouter()
 
 # Health endpoints
 api_router.include_router(health.router, prefix="/health", tags=["health"])
+
+# Database operations (moved from frontend)
+api_router.include_router(database.router, prefix="/database", tags=["database"])
 
 # Stage 2: Performance-heavy operations
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
