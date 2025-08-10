@@ -189,8 +189,6 @@ class DatabaseService:
                 "name": integration_data.name,
                 "description": integration_data.description,
                 "config": integration_data.config,
-                "trigger_type": integration_data.config.get("trigger"),
-                "interval_minutes": integration_data.config.get("intervalMinutes"),
                 "status": "active"
             }
             
