@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, X, Download, Check } from 'lucide-react';
+import { Copy, X, Download, Check, BookOpen, Trash2 } from 'lucide-react';
 
 interface DocumentDisplayProps {
   content: string;
@@ -12,6 +12,10 @@ interface DocumentDisplayProps {
   onNextDocument?: () => void;
   onPreviousDocument?: () => void;
   canNavigate?: boolean;
+  agentId?: string;
+  onSaveToNotes?: (title: string, content: string) => void;
+  onDelete?: () => void;
+  title?: string;
 }
 
 export default function DocumentDisplay({ 
@@ -22,12 +26,18 @@ export default function DocumentDisplay({
   totalDocuments = 1,
   onNextDocument,
   onPreviousDocument,
-  canNavigate = false
+  canNavigate = false,
+  agentId,
+  onSaveToNotes,
+  onDelete,
+  title
 }: DocumentDisplayProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isVisible) {
@@ -105,6 +115,27 @@ export default function DocumentDisplay({
     }, 300);
   };
 
+  const handleSaveToNotes = async () => {
+    if (!onSaveToNotes || !content || isSaving || saved) return;
+
+    try {
+      setIsSaving(true);
+      // Generate a title from the first line or first few words of content
+      const lines = content.split('\n').filter(line => line.trim());
+      const title = lines[0]?.trim().substring(0, 100) || `Document ${new Date().toLocaleDateString()}`;
+      
+      await onSaveToNotes(title, content);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error('Failed to save to notes:', err);
+      setError('Failed to save to notes. Check console for details.');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (!shouldRender) return null;
 
   return (
@@ -142,7 +173,21 @@ export default function DocumentDisplay({
         style={{ transitionDelay: isAnimating ? '50ms' : '0ms' }}>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Generated Document</h1>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-xl font-bold text-gray-900">{title || "Generated Document"}</h1>
+                {onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors duration-200"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-gray-500 mt-1">
                 {new Date().toLocaleDateString()} • {content ? content.split(' ').length : 0} words
                 {totalDocuments > 1 && (
@@ -183,6 +228,28 @@ export default function DocumentDisplay({
                     </svg>
                   </button>
                 </>
+              )}
+              {onSaveToNotes && (
+                <button
+                  onClick={handleSaveToNotes}
+                  disabled={isSaving || saved}
+                  className={`p-2 rounded-full transition-colors duration-200 ${
+                    saved 
+                      ? 'bg-green-50 hover:bg-green-100' 
+                      : isSaving
+                      ? 'bg-gray-100 cursor-not-allowed'
+                      : 'bg-orange-50 hover:bg-orange-100'
+                  }`}
+                  title={saved ? "Saved to Notes" : isSaving ? "Saving..." : "Save to Notes"}
+                >
+                  {saved ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : isSaving ? (
+                    <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <BookOpen className="w-4 h-4 text-orange-600" />
+                  )}
+                </button>
               )}
               <button
                 onClick={handleDownload}

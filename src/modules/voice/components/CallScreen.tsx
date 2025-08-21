@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical, FileText } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical, FileText, MessageSquare } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
+import { memoryService } from '../../../core/services/memoryService';
 import DocumentDisplay from './DocumentDisplay';
 
 interface CallScreenProps {
@@ -13,6 +14,7 @@ interface CallScreenProps {
   onToggleMute: () => void;
   showSidebar?: boolean;
   onToggleSidebar?: () => void;
+  onNoteAdded?: () => void;
 }
 
 export default function CallScreen({ 
@@ -22,7 +24,8 @@ export default function CallScreen({
   onEndCall, 
   onToggleMute,
   showSidebar = true,
-  onToggleSidebar
+  onToggleSidebar,
+  onNoteAdded
 }: CallScreenProps) {
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
@@ -246,8 +249,8 @@ export default function CallScreen({
     }
   };
 
-  const handleEndCall = () => {
-    geminiLiveService.endSession();
+  const handleEndCall = async () => {
+    await geminiLiveService.endSession();
     onEndCall();
   };
 
@@ -277,6 +280,34 @@ export default function CallScreen({
     setDocumentWordCount(undefined);
     setIsGeneratingDocument(false);
     setCurrentDocumentIndex(-1);
+  };
+
+  const handleSaveToNotes = async (title: string, content: string) => {
+    try {
+      console.log('🔧 Attempting to save to notes:', { 
+        agentId: contact.id, 
+        title: title.substring(0, 50) + '...', 
+        contentLength: content.length 
+      });
+      
+      const savedNote = await memoryService.createPaperNote({
+        agent_id: contact.id,
+        title: title,
+        content: content,
+        note_type: 'voice_call'
+      });
+      
+      console.log('✅ Document saved to notes successfully:', savedNote.id);
+      
+      // Notify parent that a note was added so it can refresh the notes list
+      if (onNoteAdded) {
+        onNoteAdded();
+      }
+    } catch (error) {
+      console.error('❌ Error saving document to notes:', error);
+      // Re-throw to let DocumentDisplay show the error
+      throw error;
+    }
   };
 
   const showDocumentAtIndex = (index: number) => {
@@ -318,6 +349,8 @@ export default function CallScreen({
             onNextDocument={showNextDocument}
             onPreviousDocument={showPreviousDocument}
             canNavigate={documentHistory.length > 1}
+            agentId={contact.id}
+            onSaveToNotes={handleSaveToNotes}
           />
         </div>
       )}
@@ -432,6 +465,16 @@ export default function CallScreen({
         {responseText && callState.status === 'connected' && (
           <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
             <p className="text-slate-300 text-sm italic">"{responseText}"</p>
+          </div>
+        )}
+
+        {/* Conversation Recording Hint */}
+        {callState.status === 'connected' && !showDocument && !isGeneratingDocument && (
+          <div className="mb-4 max-w-md bg-green-900 bg-opacity-30 p-3 rounded-lg border border-green-700">
+            <div className="flex items-center space-x-2 text-green-300 text-sm">
+              <MessageSquare className="w-4 h-4" />
+              <span>This conversation will be saved to past chats</span>
+            </div>
           </div>
         )}
 

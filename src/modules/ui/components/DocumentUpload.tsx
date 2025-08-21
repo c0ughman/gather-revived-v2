@@ -3,16 +3,27 @@ import { Upload, File, X, AlertCircle, CheckCircle, FileText, Code, Database, Fi
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import { enhancedAiService } from '../../fileManagement/services/enhancedAiService';
 import { pythonApiService } from '../../../core/services/pythonApiService';
+import { tokenValidationService } from '../../../core/services/tokenValidationService';
+import TokenLimitError from '../../../core/components/TokenLimitError';
 
 interface DocumentUploadProps {
   onDocumentUploaded: (document: DocumentInfo) => void;
   onError: (error: string) => void;
+  existingDocuments?: DocumentInfo[];
+  isConversationDocument?: boolean;
   className?: string;
 }
 
-export default function DocumentUpload({ onDocumentUploaded, onError, className = '' }: DocumentUploadProps) {
+export default function DocumentUpload({ 
+  onDocumentUploaded, 
+  onError, 
+  existingDocuments = [],
+  isConversationDocument = false,
+  className = '' 
+}: DocumentUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [validationError, setValidationError] = useState<any>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -42,21 +53,56 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
+    // Clear any previous validation errors
+    setValidationError(null);
     setIsProcessing(true);
     
-    for (const file of files) {
-      try {
-        console.log(`📁 Processing file: ${file.name} (${Math.round(file.size / 1024)}KB)`);
-        const document = await pythonApiService.processDocument(file);
-        console.log(`✅ Successfully processed: ${file.name}`);
-        onDocumentUploaded(document);
-      } catch (error) {
-        console.error(`❌ Failed to process ${file.name}:`, error);
-        onError(`${file.name}: ${error.message || error}`);
+    try {
+      // First, process all files to get their content
+      const processedDocs: DocumentInfo[] = [];
+      
+      for (const file of files) {
+        try {
+          console.log(`📁 Processing file: ${file.name} (${Math.round(file.size / 1024)}KB)`);
+          const document = await pythonApiService.processDocument(file);
+          processedDocs.push(document);
+          console.log(`✅ Successfully processed: ${file.name}`);
+        } catch (error) {
+          console.error(`❌ Failed to process ${file.name}:`, error);
+          onError(`${file.name}: ${error.message || error}`);
+          setIsProcessing(false);
+          return;
+        }
       }
+      
+      // Validate token limits before uploading
+      let validation;
+      if (isConversationDocument) {
+        validation = tokenValidationService.validateConversationDocumentLimits(
+          existingDocuments,
+          processedDocs
+        );
+      } else {
+        validation = tokenValidationService.validateAgentDocumentLimits(
+          existingDocuments,
+          processedDocs
+        );
+      }
+      
+      if (!validation.valid) {
+        setValidationError(validation);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // If validation passes, upload all documents
+      for (const document of processedDocs) {
+        onDocumentUploaded(document);
+      }
+      
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setIsProcessing(false);
   };
 
   // Use a default set of extensions for now - this will be enhanced in the component lifecycle
@@ -102,6 +148,15 @@ export default function DocumentUpload({ onDocumentUploaded, onError, className 
           </p>
         </div>
       </div>
+      
+      {/* Display validation errors */}
+      {validationError && (
+        <TokenLimitError
+          error={validationError}
+          onDismiss={() => setValidationError(null)}
+          className="mt-4"
+        />
+      )}
     </div>
   );
 }

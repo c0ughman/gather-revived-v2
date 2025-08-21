@@ -180,7 +180,7 @@ async def dev_generate_ai_response(request: ChatRequest):
                 "response_length": len(response),
                 "processed_documents": len(request.conversation_documents or []),
                 "history_length": len(request.chat_history),
-                "functions_available": ["search_web", "scrape_website"]
+                "functions_available": ["search_web", "scrape_website", "search_past_conversations"]
             }
         }
         

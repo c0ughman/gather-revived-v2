@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../../modules/auth/hooks/useAuth';
 import AuthScreen from '../../modules/auth/components/AuthScreen';
 import CallScreen from '../../modules/voice/components/CallScreen';
+import DocumentDisplay from '../../modules/voice/components/DocumentDisplay';
 import { geminiLiveService } from '../../modules/voice';
 import LandingPage from '../../components/LandingPage';
 import SignupPage from '../../components/SignupPage';
@@ -10,18 +11,25 @@ import PricingPage from '../../components/PricingPage';
 import SuccessPage from '../../components/SuccessPage';
 import { Dashboard, ContactSidebar, SettingsSidebar, SettingsScreen } from '../../modules/ui';
 import { ChatScreen } from '../../modules/chat';
+import MemoryScreen from '../../modules/ui/components/MemoryScreen';
+import PastChatsScreen from '../../modules/ui/components/PastChatsScreen';
+import { NotesTabRef } from '../../modules/ui/components/NotesTab';
 import { AIContact, Message, CallState } from '../types/types';
 import { DocumentInfo } from '../../modules/fileManagement/types/documents';
 import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
 import { enhancedAiService } from '../../modules/fileManagement/services/enhancedAiService';
+import { memoryService } from '../services/memoryService';
+import { conversationSessionManager } from '../services/conversationSessionManager';
+import { voiceApiService } from '../services/voiceApiService';
 import { supabaseService } from '../../modules/database';
+import { supabase } from '../../modules/database/lib/supabase';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
 import { documentApiService } from '../services/documentApiService';
 import { IntegrationInstance } from '../../modules/integrations/types/integrations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { SubscriptionBadge, ManageSubscriptionButton } from '../../modules/payments';
 
-type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login';
+type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call' | 'settings' | 'create-agent' | 'success' | 'login' | 'memory' | 'past-chats';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -39,6 +47,13 @@ export default function App() {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   
+  // Ref for notes tab to refresh notes when needed
+  const notesTabRef = useRef<NotesTabRef>(null);
+  
+  // Note viewing state
+  const [viewingNote, setViewingNote] = useState<any>(null);
+  const [showNoteDocument, setShowNoteDocument] = useState(false);
+  
   // Shared state for settings synchronization
   const [settingsFormData, setSettingsFormData] = useState({
     name: '',
@@ -51,6 +66,7 @@ export default function App() {
   const [settingsDocuments, setSettingsDocuments] = useState<DocumentInfo[]>([]);
   const [settingsHasChanges, setSettingsHasChanges] = useState(false);
   const [isCleaningDocuments, setIsCleaningDocuments] = useState(false);
+  
 
   // Update call duration
   useEffect(() => {
@@ -62,6 +78,183 @@ export default function App() {
     }
     return () => clearInterval(interval);
   }, [callState.isActive, callState.status]);
+
+  // Setup conversation session management
+  useEffect(() => {
+    // Handle app/tab close
+    const handleBeforeUnload = () => {
+      conversationSessionManager.handleAppClose();
+    };
+
+    // Handle page visibility change (tab switch, window minimize)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        conversationSessionManager.handleScreenLeave();
+      }
+    };
+
+    // Debug functions for testing (remove in production)
+    (window as any).debugSession = conversationSessionManager.getCurrentSessionInfo.bind(conversationSessionManager);
+    (window as any).debugTriggerMemoryExtraction = conversationSessionManager.debugTriggerMemoryExtraction.bind(conversationSessionManager);
+    
+    (window as any).debugCreateTestConversation = async () => {
+      if (!user || !selectedContact) {
+        console.log('❌ Need authenticated user and selected contact');
+        return;
+      }
+
+      try {
+        console.log('🧪 Creating test conversation...');
+        
+        // Create test session
+        const { data: session, error: sessionError } = await supabase
+          .from('conversation_sessions')
+          .insert({
+            agent_id: selectedContact.id,
+            user_id: user.id,
+            title: 'Test Conversation',
+            conversation_type: 'chat',
+            message_count: 2,
+            started_at: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+            last_message_at: new Date(Date.now() - 60000).toISOString(), // 1 minute ago
+            ended_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (sessionError) {
+          console.error('❌ Error creating test session:', sessionError);
+          return;
+        }
+
+        console.log('✅ Created test session:', session.id);
+
+        // Create test messages
+        const testMessages = [
+          {
+            session_id: session.id,
+            content: 'Hello, this is a test message from the user.',
+            role: 'user',
+            message_type: 'text',
+            created_at: new Date(Date.now() - 300000).toISOString()
+          },
+          {
+            session_id: session.id,
+            content: 'Hello! This is a test response from the AI assistant.',
+            role: 'assistant',
+            message_type: 'text',
+            created_at: new Date(Date.now() - 60000).toISOString()
+          }
+        ];
+
+        const { error: messagesError } = await supabase
+          .from('conversation_messages')
+          .insert(testMessages);
+
+        if (messagesError) {
+          console.error('❌ Error creating test messages:', messagesError);
+          return;
+        }
+
+        console.log('✅ Created test conversation with 2 messages');
+        console.log('🔄 You can now check the past chats to see if it appears');
+
+      } catch (error) {
+        console.error('❌ Error creating test conversation:', error);
+      }
+    };
+
+    (window as any).debugCheckDatabase = async () => {
+      if (!user) {
+        console.log('❌ Need authenticated user');
+        return;
+      }
+
+      try {
+        console.log('🔍 Checking database status...');
+        console.log('👤 Current user:', user.id);
+        
+        // Check if conversation_sessions table exists and has data
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('conversation_sessions')
+          .select('*')
+          .limit(5);
+
+        if (sessionsError) {
+          console.error('❌ Error querying conversation_sessions:', sessionsError);
+          return;
+        }
+
+        console.log(`📊 Total conversations in database: ${sessions.length}`);
+        console.log('📋 Sample conversations:', sessions);
+
+        // Check if there are any conversations for current user
+        const { data: userSessions, error: userSessionsError } = await supabase
+          .from('conversation_sessions')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (userSessionsError) {
+          console.error('❌ Error querying user conversations:', userSessionsError);
+          return;
+        }
+
+        console.log(`👤 Your conversations: ${userSessions.length}`);
+        console.log('📋 Your conversations:', userSessions);
+
+        // Check if there are any agents
+        const { data: agents, error: agentsError } = await supabase
+          .from('user_agents')
+          .select('id, name')
+          .eq('user_id', user.id);
+
+        if (agentsError) {
+          console.error('❌ Error querying agents:', agentsError);
+          return;
+        }
+
+        console.log(`🤖 Your agents: ${agents.length}`);
+        console.log('🤖 Agent list:', agents);
+
+        if (selectedContact) {
+          console.log(`🎯 Currently selected agent: ${selectedContact.id} (${selectedContact.name})`);
+          
+          // Check conversations for selected agent
+          const { data: agentConversations, error: agentError } = await supabase
+            .from('conversation_sessions')
+            .select('*')
+            .eq('agent_id', selectedContact.id)
+            .eq('user_id', user.id);
+
+          if (agentError) {
+            console.error('❌ Error querying agent conversations:', agentError);
+            return;
+          }
+
+          console.log(`💬 Conversations with ${selectedContact.name}: ${agentConversations.length}`);
+          console.log('💬 Agent conversations:', agentConversations);
+        }
+
+      } catch (error) {
+        console.error('❌ Error checking database:', error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Load messages for selected contact from database
+  useEffect(() => {
+    if (selectedContact && user) {
+      loadMessagesFromDatabase(selectedContact.id);
+    }
+  }, [selectedContact, user]);
 
   // Load user data when authenticated
   useEffect(() => {
@@ -113,16 +306,117 @@ export default function App() {
       setMessages([]);
       setConversationDocuments({});
       
+      // Save any active session before logout
+      conversationSessionManager.handleAppClose();
+      
       // Clear callbacks when user logs out
       geminiLiveService.onDocumentGeneration(() => {});
     }
   }, [user]);
+
+  // Load messages for selected contact from database
+  const loadMessagesFromDatabase = async (agentId: string) => {
+    try {
+      // For now, keep using localStorage until we fully migrate
+      // In future versions, this will load from database
+      const existingMessages = messages.filter(m => m.contactId === agentId);
+      console.log(`📩 Loaded ${existingMessages.length} messages for agent ${agentId}`);
+    } catch (error) {
+      console.error('Error loading messages from database:', error);
+    }
+  };
+
+  // Load messages from a specific conversation session
+  const loadMessagesFromSession = async (sessionId: string) => {
+    try {
+      console.log(`📖 Loading messages from session: ${sessionId}`);
+      
+      // Get session details
+      const { data: session, error: sessionError } = await supabase
+        .from('conversation_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError) {
+        console.error('Error loading session:', sessionError);
+        alert(`Failed to load conversation: ${sessionError.message}`);
+        return;
+      }
+
+      if (!session) {
+        console.error('Session not found:', sessionId);
+        alert('Conversation not found');
+        return;
+      }
+
+      // Get messages for this session
+      const { data: sessionMessages, error: messagesError } = await supabase
+        .from('conversation_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (messagesError) {
+        console.error('Error loading session messages:', messagesError);
+        alert(`Failed to load messages: ${messagesError.message}`);
+        return;
+      }
+
+      // Convert database messages to app format
+      const convertedMessages: Message[] = (sessionMessages || []).map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        sender: msg.role === 'user' ? 'user' : 'ai',
+        timestamp: new Date(msg.created_at),
+        contactId: session.agent_id,
+        attachments: msg.attachments || []
+      }));
+
+      console.log(`📨 Converting ${sessionMessages?.length || 0} database messages to app format`);
+      console.log('Session details:', session);
+      console.log('Database messages:', sessionMessages);
+      console.log('Converted messages:', convertedMessages);
+
+      // Find and select the agent for this session
+      const agent = contacts.find(c => c.id === session.agent_id);
+      if (!agent) {
+        console.error('Agent not found for session:', session.agent_id);
+        alert('Agent not found for this conversation');
+        return;
+      }
+
+      console.log(`🎯 About to set ${convertedMessages.length} messages in React state`);
+      console.log('🎯 Sample message:', convertedMessages[0]);
+      
+      // Set the agent first
+      setSelectedContact(agent);
+      
+      // Clear current messages and load session messages
+      setMessages(convertedMessages);
+      
+      // Change to chat view AFTER setting messages
+      setCurrentView('chat');
+      
+      console.log(`✅ Loaded ${convertedMessages.length} messages from session and set in React state`);
+      
+      // Force a re-render by logging the current state
+      setTimeout(() => {
+        console.log('🔍 Messages in state after timeout:', messages.length);
+      }, 100);
+
+    } catch (error) {
+      console.error('Error loading messages from session:', error);
+      alert(`Failed to load conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   useEffect(() => {
     if (user && (currentView === 'landing' || currentView === 'signup' || currentView === 'login')) {
       setCurrentView('dashboard');
     }
   }, [user, currentView]);
+
 
 
   const loadUserData = async () => {
@@ -250,6 +544,11 @@ export default function App() {
   };
 
   const handleChatClick = async (contact: AIContact) => {
+    // Start new conversation session
+    if (user) {
+      conversationSessionManager.startSession(contact, user.id);
+    }
+    
     setSelectedContact(contact);
     setCurrentView('chat');
     
@@ -325,21 +624,101 @@ export default function App() {
     });
   };
 
-  const handleEndCall = () => {
-    geminiLiveService.endSession();
-    setCallState({
-      isActive: false,
-      duration: 0,
-      isMuted: false,
-      status: 'ended'
-    });
-    setCurrentView('dashboard');
-    setSelectedContact(null);
+  const handleEndCall = async () => {
+    try {
+      // Get conversation transcript from voice session before ending
+      if (selectedContact && user) {
+        console.log(`🎙️ Voice call ending, getting transcript for memory extraction...`);
+        try {
+          const transcript = await voiceApiService.getConversationTranscript();
+          if (transcript.messages.length > 0) {
+            // Save voice conversation and extract memories
+            await conversationSessionManager.saveVoiceConversation(
+              selectedContact,
+              user.id,
+              transcript
+            );
+            console.log(`✅ Voice conversation saved with ${transcript.messages.length} messages`);
+          } else {
+            console.log(`📝 Voice call had no messages to save`);
+          }
+        } catch (transcriptError) {
+          console.error('❌ Error getting voice transcript for memory extraction:', transcriptError);
+          // Continue ending call even if transcript fails
+        }
+      }
+
+      await geminiLiveService.endSession();
+      setCallState({
+        isActive: false,
+        duration: 0,
+        isMuted: false,
+        status: 'ended'
+      });
+      setCurrentView('dashboard');
+      setSelectedContact(null);
+    } catch (error) {
+      console.error('❌ Error ending call:', error);
+      // Even if there are errors, still end the call
+      setCallState({
+        isActive: false,
+        duration: 0,
+        isMuted: false,
+        status: 'ended'
+      });
+      setCurrentView('dashboard');
+      setSelectedContact(null);
+    }
   };
 
   const handleToggleMute = () => {
     setCallState(prev => ({ ...prev, isMuted: !prev.isMuted }));
   };
+
+  const handleNoteAdded = () => {
+    // Refresh notes when a new note is added
+    if (notesTabRef.current) {
+      notesTabRef.current.refreshNotes();
+    }
+  };
+
+  const handleViewNote = (note: any) => {
+    setViewingNote(note);
+    setShowNoteDocument(true);
+  };
+
+  const handleCloseNoteDocument = () => {
+    setShowNoteDocument(false);
+    setViewingNote(null);
+  };
+
+  const handleMemoryClick = (contact: AIContact) => {
+    setSelectedContact(contact);
+    setCurrentView('memory');
+  };
+
+  const handlePastChatsClick = (contact: AIContact) => {
+    setSelectedContact(contact);
+    setCurrentView('past-chats');
+  };
+
+  const handleBackToChat = () => {
+    setCurrentView('chat');
+  };
+
+  const handleChatSelect = async (sessionId: string) => {
+    console.log('🔍 handleChatSelect called with sessionId:', sessionId);
+    console.log('🔍 Current messages before loading:', messages.length);
+    try {
+      // Load the specific conversation session and continue where it left off
+      await loadMessagesFromSession(sessionId);
+      console.log('🔍 Messages after loadMessagesFromSession:', messages.length);
+    } catch (error) {
+      console.error('❌ Error in handleChatSelect:', error);
+      alert(`Failed to load conversation: ${error}`);
+    }
+  };
+
 
   const handleSettingsClick = (contact?: AIContact) => {
     if (contact) {
@@ -362,6 +741,9 @@ export default function App() {
   };
 
   const handleNewChatClick = async (contact: AIContact) => {
+    // Save current session before starting new chat
+    conversationSessionManager.saveCurrentSession();
+    
     // Clear messages for this contact to start fresh
     const otherMessages = messages.filter(m => m.contactId !== contact.id);
     setMessages(otherMessages);
@@ -499,8 +881,161 @@ export default function App() {
     setSettingsHasChanges(false);
   };
 
+  // Old memory generation system removed - now using conversationSessionManager for intelligent extraction
+
+  // Function to add mock memory data for testing - REMOVE IN PRODUCTION
+  const addMockMemoryData = async (agentId: string) => {
+    try {
+      console.log('🧠 Adding mock memory data for agent:', agentId);
+
+      // Add mock medium-term memories
+      const mockMemories = [
+        {
+          agent_id: agentId,
+          content: 'User: Hi Donald, I\'m working on a React project and need help with state management.\nAI: I\'d be happy to help you with React state management! What specific challenges are you facing?',
+          summary: 'User needs help with React state management in their project',
+          topic: 'React Development',
+          keywords: ['react', 'state', 'management', 'project', 'development'],
+          importance_score: 0.8
+        },
+        {
+          agent_id: agentId,
+          content: 'User: Can you explain how useEffect works in React?\nAI: useEffect is a React Hook that lets you perform side effects in function components. It runs after every render by default.',
+          summary: 'Explained useEffect Hook functionality and usage patterns',
+          topic: 'React Hooks',
+          keywords: ['useEffect', 'hooks', 'react', 'components', 'render'],
+          importance_score: 0.7
+        },
+        {
+          agent_id: agentId,
+          content: 'User: I love working with TypeScript! It makes my code so much safer.\nAI: TypeScript is fantastic! The type safety really helps catch errors early and makes refactoring much more confident.',
+          summary: 'User expressed enthusiasm for TypeScript development',
+          topic: 'TypeScript',
+          keywords: ['typescript', 'safety', 'development', 'refactoring'],
+          importance_score: 1.0 // Pinned memory
+        },
+        {
+          agent_id: agentId,
+          content: 'User: What\'s the best way to handle API calls in React?\nAI: There are several approaches: you can use fetch with useEffect, libraries like axios, or data fetching libraries like React Query or SWR.',
+          summary: 'Discussed API call patterns and data fetching strategies',
+          topic: 'API Integration',
+          keywords: ['fetch', 'axios', 'react-query', 'hooks'],
+          importance_score: 0.6
+        },
+        {
+          agent_id: agentId,
+          content: 'User: I\'m building a memory system for AI agents.\nAI: That sounds like a fascinating project! Memory systems can really enhance the conversational experience by providing context and continuity.',
+          summary: 'User is working on AI agent memory system development',
+          topic: 'AI Development',
+          keywords: ['memory', 'system', 'agents', 'context', 'continuity'],
+          importance_score: 0.9
+        }
+      ];
+
+      const { data: memories, error: memoryError } = await supabase
+        .from('agent_medium_memories')
+        .insert(mockMemories)
+        .select();
+
+      if (memoryError) {
+        console.error('Error adding memories:', memoryError);
+        return;
+      }
+
+      console.log(`✅ Added ${memories.length} medium-term memories`);
+
+      // Add mock topic frequency data
+      const mockTopics = [
+        {
+          agent_id: agentId,
+          topic: 'React Development',
+          frequency_count: 5,
+          last_mentioned_at: new Date().toISOString()
+        },
+        {
+          agent_id: agentId,
+          topic: 'React Hooks',
+          frequency_count: 3,
+          last_mentioned_at: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+        },
+        {
+          agent_id: agentId,
+          topic: 'TypeScript',
+          frequency_count: 4,
+          last_mentioned_at: new Date(Date.now() - 3600000).toISOString() // 1 hour ago
+        },
+        {
+          agent_id: agentId,
+          topic: 'API Integration',
+          frequency_count: 2,
+          last_mentioned_at: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+        },
+        {
+          agent_id: agentId,
+          topic: 'AI Development',
+          frequency_count: 1,
+          last_mentioned_at: new Date().toISOString()
+        }
+      ];
+
+      const { data: topics, error: topicError } = await supabase
+        .from('agent_memory_topics')
+        .insert(mockTopics)
+        .select();
+
+      if (topicError) {
+        console.error('Error adding topics:', topicError);
+        return;
+      }
+
+      console.log(`✅ Added ${topics.length} topic frequency entries`);
+
+      // Add a mock paper note
+      const mockPaperNote = {
+        agent_id: agentId,
+        title: 'React Best Practices',
+        content: 'Key points discussed:\n- Always use keys in lists\n- Keep components small and focused\n- Use TypeScript for better development experience\n- Consider using React Query for data fetching\n- Implement proper error boundaries',
+        note_type: 'summary',
+        tags: ['react', 'best-practices', 'development'],
+        is_pinned: true
+      };
+
+      const { data: note, error: noteError } = await supabase
+        .from('agent_paper_notes')
+        .insert(mockPaperNote)
+        .select();
+
+      if (noteError) {
+        console.error('Error adding paper note:', noteError);
+        return;
+      }
+
+      console.log('✅ Added paper note');
+
+      // Initialize memory usage tracking
+      const { error: usageError } = await supabase
+        .from('agent_memory_usage')
+        .insert({
+          agent_id: agentId
+        });
+
+      if (usageError && !usageError.message.includes('duplicate')) {
+        console.error('Error initializing memory usage:', usageError);
+      } else {
+        console.log('✅ Memory usage tracking initialized');
+      }
+
+      console.log('🎉 Mock memory data added successfully!');
+      alert('Mock memory data added! You can now test the memory system by clicking the Brain icon next to Donald Agent.');
+
+    } catch (error) {
+      console.error('❌ Error adding mock data:', error);
+      alert('Error adding mock data. Check the console for details.');
+    }
+  };
+
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
-    if (!selectedContact) return;
+    if (!selectedContact || !user) return;
 
     const existingConversationDocs = conversationDocuments[selectedContact.id] || [];
 
@@ -514,6 +1049,10 @@ export default function App() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    
+    // Add user message to conversation session
+    conversationSessionManager.addMessage(userMessage);
+
 
     // Add new documents to conversation documents
     if (documents && documents.length > 0) {
@@ -550,12 +1089,26 @@ export default function App() {
       const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
       const chatHistory = [...contactMessages, userMessage];
 
-      // Get fresh document context from Supabase for AI
+      // Get fresh document context from Supabase for AI (includes memory)
       const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
 
-      // Generate AI response using the enhanced service
+      // Debug: Log memory context inclusion
+      console.log('🧠 Memory context included:', !!documentContext.memoryContext);
+      if (documentContext.memoryContext) {
+        console.log('🧠 Memory context preview:', documentContext.memoryContext.substring(0, 200) + '...');
+      }
+
+      // Create an enhanced contact object with full context including memory
+      const enhancedContact = {
+        ...selectedContact,
+        description: documentContext.formattedContext // This includes memory + documents
+      };
+
+      console.log('📝 Enhanced context preview:', enhancedContact.description.substring(0, 300) + '...');
+
+      // Generate AI response using the enhanced service with memory-enriched context
       const response = await enhancedAiService.generateResponse(
-        selectedContact,
+        enhancedContact,
         content,
         chatHistory,
         documentContext.allDocuments
@@ -570,6 +1123,12 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Add AI message to conversation session
+      conversationSessionManager.addMessage(aiMessage);
+
+
+      // Memory extraction now happens automatically when session ends via conversationSessionManager
 
       // Update contact's last used timestamp in Supabase
       if (user) {
@@ -602,6 +1161,9 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, errorMessage]);
+      
+      // Add error message to conversation session
+      conversationSessionManager.addMessage(errorMessage);
     }
   };
 
@@ -854,6 +1416,7 @@ export default function App() {
                     contacts={contacts}
                     onChatClick={handleChatClick}
                     onCallClick={handleCallClick}
+                    onMemoryClick={handleMemoryClick}
                     onSettingsClick={handleSettingsClick}
                 onHomeClick={handleHomeClick}
                     onCreateAgent={handleCreateAgent}
@@ -862,15 +1425,17 @@ export default function App() {
 
             {/* Main Content Area */}
             <div className="flex-1 flex h-full">
-                <div className={`h-full ${((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') ? 'flex-1' : 'w-full'}`}>
+                <div className={`h-full ${((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || (currentView === 'past-chats' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') ? 'flex-1' : 'w-full'}`}>
                 {currentView === 'dashboard' && (
                   <Dashboard
                     contacts={contacts}
                     onChatClick={handleChatClick}
                     onCallClick={handleCallClick}
+                    onMemoryClick={handleMemoryClick}
                     onSettingsClick={handleSettingsClick}
                     onNewChatClick={handleNewChatClick}
                     onCreateAgent={handleCreateAgent}
+                    onAddMockMemory={addMockMemoryData}
                   />
             )}
 
@@ -884,6 +1449,9 @@ export default function App() {
                     onSettingsClick={handleSettingsClick}
                     onNewChatClick={handleNewChatClick}
                     onCallClick={handleCallClick}
+                    onMemoryClick={handleMemoryClick}
+                    onPastChatsClick={handlePastChatsClick}
+                    onChatSelect={handleChatSelect}
                     showSidebar={showSidebar}
                     onToggleSidebar={handleToggleSidebar}
                   />
@@ -898,6 +1466,7 @@ export default function App() {
                     onToggleMute={handleToggleMute}
                     showSidebar={showSidebar}
                     onToggleSidebar={handleToggleSidebar}
+                    onNoteAdded={handleNoteAdded}
                 />
             )}
 
@@ -933,10 +1502,29 @@ export default function App() {
                     onDocumentsChange={handleSettingsDocumentsChange}
                   />
                 )}
+
+            {currentView === 'memory' && selectedContact && (
+              <MemoryScreen
+                contact={selectedContact}
+                onBack={handleBack}
+              />
+            )}
+
+            {currentView === 'past-chats' && selectedContact && (
+              <PastChatsScreen
+                agent={selectedContact}
+                onBack={handleBack}
+                onBackToChat={handleBackToChat}
+                onChatSelect={handleChatSelect}
+                showSidebar={showSidebar}
+                onToggleSidebar={handleToggleSidebar}
+              />
+            )}
+
                 </div>
 
-              {/* Right Sidebar - Settings (when in chat view, call view, settings view, or create-agent view) */}
-              {((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') && (
+              {/* Right Sidebar - Settings (when in chat view, call view, past-chats view, settings view, or create-agent view) */}
+              {((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || (currentView === 'past-chats' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') && (
                 <div className="w-80 border-l border-slate-700 z-20 relative">
                     <SettingsSidebar
                     contact={selectedContact}
@@ -948,10 +1536,88 @@ export default function App() {
                     onFormChange={handleSettingsFormChange}
                     onIntegrationsChange={handleSettingsIntegrationsChange}
                     onDocumentsChange={handleSettingsDocumentsChange}
+                    onViewNote={handleViewNote}
+                    notesTabRef={notesTabRef}
                     />
                   </div>
                 )}
               </div>
+              
+              {/* Note Document Display Overlay - Only covers main content area */}
+              {showNoteDocument && viewingNote && (
+                <div 
+                  className="absolute inset-0 z-50 bg-black bg-opacity-50 backdrop-blur-sm"
+                  style={{
+                    left: showSidebar ? '20rem' : '20rem', // 80px for left sidebar
+                    right: showSidebar ? '20rem' : '0', // 80px for right sidebar if shown
+                  }}
+                >
+                  <div className="w-full h-full p-[7px]">
+                    <div className="w-full h-full shadow-2xl border border-gray-200 overflow-hidden rounded-[20px] flex flex-col relative" 
+                         style={{ background: 'linear-gradient(135deg, #ffffff 0%, #fefcfc 50%, #fdf9f9 100%)' }}>
+                      
+                      {/* Close Button */}
+                      <button
+                        onClick={handleCloseNoteDocument}
+                        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 shadow-sm"
+                      >
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+
+                      {/* Header */}
+                      <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center space-x-3">
+                          <h1 className="text-xl font-bold text-gray-900">{viewingNote.title || 'Note'}</h1>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await memoryService.deletePaperNote(viewingNote.id);
+                                setShowNoteDocument(false);
+                                setViewingNote(null);
+                                if (notesTabRef.current) {
+                                  notesTabRef.current.refreshNotes();
+                                }
+                              } catch (error) {
+                                console.error('Error deleting note:', error);
+                              }
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded transition-colors duration-200"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {new Date(viewingNote.created_at).toLocaleDateString()} • {viewingNote.content ? viewingNote.content.split(' ').length : 0} words
+                          {viewingNote.note_type && ` • ${viewingNote.note_type}`}
+                          {viewingNote.is_pinned && ' • Pinned'}
+                        </p>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 p-6 overflow-y-auto">
+                        <div className="prose prose-gray max-w-none">
+                          <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {viewingNote.content}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="p-4 border-t border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Note from {selectedContact?.name}</span>
+                          <span>{viewingNote.content?.length || 0} characters</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
           </div>
         } />
       </Routes>

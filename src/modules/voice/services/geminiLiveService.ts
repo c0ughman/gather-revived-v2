@@ -1,8 +1,7 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 import { AIContact } from '../../../core/types/types';
-import { integrationsService, firecrawlService } from '../../integrations';
-import { documentService, documentContextService } from '../../fileManagement';
-import { DomainChecker } from '../../../core/utils/domainChecker';
+import { integrationsService } from '../../integrations';
+import { documentContextService } from '../../fileManagement';
 import { voiceApiService } from '../../../core/services/voiceApiService';
 
 // Configuration for Gemini Live API
@@ -43,6 +42,10 @@ class GeminiLiveService {
   // Audio interruption tracking
   private lastInterruptionTime: number = 0;
   private speechStartTime: number = 0;
+
+  // Voice conversation tracking removed for simple voice calls
+  private currentUserInput: string = '';
+  private currentAssistantResponse: string = '';
 
   // Audio processing - ULTRA LOW LATENCY OPTIMIZED
   private audioChunks: Float32Array[] = [];
@@ -255,7 +258,7 @@ class GeminiLiveService {
       // Prevent multiple concurrent sessions with stronger guard
       if (this.isSessionActive || this.activeSession) {
         console.log("Session already active, ending current session first");
-        this.endSession();
+        await this.endSession();
         // No delay - instant session restart for maximum responsiveness
       }
 
@@ -267,6 +270,8 @@ class GeminiLiveService {
       
       // Clear any existing audio queue
       this.audioQueue = [];
+
+      // Removed conversation session creation for simple voice calls
 
       // 🎤 CREATE BACKEND VOICE SESSION
       // This handles authentication, function declarations, and session management
@@ -285,10 +290,18 @@ class GeminiLiveService {
         console.warn("⚠️ Backend session creation failed, using fallback mode:", error);
       }
 
+      // ALWAYS ensure memory is included - build our own system prompt with memory
+      console.log('🧠 Voice: Force using local system prompt to ensure memory inclusion');
+      const localSystemPrompt = await this.createSystemPrompt(contact);
+      
+      // Debug voice selection
+      const selectedVoice = this.getVoiceForContact(contact);
+      console.log(`🎤 Selected voice for ${contact.name}: ${selectedVoice}`);
+      
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
-        responseModalities: [Modality.AUDIO],
-        systemInstruction: backendSession ? backendSession.system_prompt : await this.createSystemPrompt(contact),
+        responseModalities: [Modality.AUDIO], // Audio only for simple voice calls
+        systemInstruction: localSystemPrompt, // ALWAYS use local prompt that includes memory
         // Optimized VAD for better speech detection
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -301,7 +314,7 @@ class GeminiLiveService {
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
-              voiceName: this.getVoiceForContact(contact)
+              voiceName: selectedVoice
             }
           }
         }
@@ -309,15 +322,74 @@ class GeminiLiveService {
 
       // 🔧 USE BACKEND-PROVIDED FUNCTION DECLARATIONS
       // The backend handles all function declarations and authentication
+      const functionDeclarations = [];
+      
+      // Add memory saving function (always available)
+      functionDeclarations.push({
+        name: 'save_to_memory',
+        description: 'Save important information, concepts, facts, insights, or summaries to memory for future reference',
+        parameters: {
+          type: 'object',
+          properties: {
+            information: {
+              type: 'string',
+              description: 'The important information, concept, fact, insight, or summary to save. Should be distilled and concise, not verbatim conversation.'
+            },
+            topic: {
+              type: 'string',
+              description: 'The main topic or category this information relates to (e.g., "User Preferences", "Technical Knowledge", "Personal Facts")'
+            },
+            importance: {
+              type: 'string',
+              enum: ['low', 'medium', 'high'],
+              description: 'The importance level of this information for future conversations'
+            },
+            type: {
+              type: 'string',
+              enum: ['fact', 'concept', 'preference', 'insight', 'summary'],
+              description: 'The type of information being saved'
+            }
+          },
+          required: ['information']
+        }
+      });
+
+      
+      // Add backend function declarations if available
       if (backendSession && backendSession.function_declarations && backendSession.function_declarations.length > 0) {
-        config.tools = [{ functionDeclarations: backendSession.function_declarations }];
+        functionDeclarations.push(...backendSession.function_declarations);
         console.log(`🔧 Backend tools configured: ${backendSession.function_declarations.map((f: any) => f.name).join(', ')}`);
-        console.log('🔧 Using backend-managed function declarations');
+      }
+      
+      // Configure all tools
+      if (functionDeclarations.length > 0) {
+        config.tools = [{ functionDeclarations }];
+        console.log(`🔧 All tools configured: ${functionDeclarations.map((f: any) => f.name).join(', ')}`);
       } else {
         console.log('🔧 No backend session or no tools configured - continuing without function calling');
       }
 
-      console.log('🔧 Final session config:', JSON.stringify(config, null, 2));
+      console.log('🔧 Final session config (excluding long systemInstruction):', {
+        ...config,
+        systemInstruction: `[${config.systemInstruction?.length || 0} chars]`
+      });
+      
+      // Check for potential issues and limit system instruction for voice calls
+      const VOICE_SYSTEM_INSTRUCTION_MAX_CHARS = 8000; // From backend context_limits.py
+      if (config.systemInstruction && config.systemInstruction.length > VOICE_SYSTEM_INSTRUCTION_MAX_CHARS) {
+        console.warn('⚠️ System instruction too long for voice:', config.systemInstruction.length, 'characters, max:', VOICE_SYSTEM_INSTRUCTION_MAX_CHARS);
+        // Truncate to fit limit while preserving essential parts
+        const essentialPrompt = `You are ${contact.name}. ${contact.description}`;
+        const remainingSpace = VOICE_SYSTEM_INSTRUCTION_MAX_CHARS - essentialPrompt.length;
+        if (remainingSpace > 100) {
+          // Keep some integration instructions if there's space
+          const truncatedInstructions = config.systemInstruction.substring(essentialPrompt.length, essentialPrompt.length + remainingSpace - 100) + '...';
+          config.systemInstruction = essentialPrompt + truncatedInstructions;
+        } else {
+          config.systemInstruction = essentialPrompt;
+        }
+        console.log('🔧 Truncated system instruction to', config.systemInstruction.length, 'characters for voice calls');
+      }
 
       // Create Live API session following docs pattern
       // Use ephemeral token if provided by backend, otherwise use regular API key
@@ -374,9 +446,31 @@ class GeminiLiveService {
    */
   private async handleMessage(message: any): Promise<void> {
     try {
+      // Handle user content (user speech transcription)
+      if (message.userContent && message.userContent.userTurn) {
+        const userTurn = message.userContent.userTurn;
+        if (userTurn.parts) {
+          for (const part of userTurn.parts) {
+            if (part.text) {
+              console.log("🎤 User said:", part.text);
+              // User speech received
+              this.currentUserInput += part.text;
+            }
+          }
+        }
+        return;
+      }
+      
+      // Handle turn complete for user (when user finishes speaking)
+      if (message.userContent && message.userContent.turnComplete) {
+        console.log('🎤 User turn complete');
+        // User finished speaking, reset current input
+        this.currentUserInput = '';
+        this.updateState('processing');
+        return;
+      }
       // Handle tool calls
       if (message.toolCall && this.activeSession) {
-        const functionNames = message.toolCall.functionCalls?.map((fc: any) => fc.name).join(', ') || 'unknown';
         // Voice tool call executed
         this.updateState('processing');
         
@@ -406,7 +500,10 @@ class GeminiLiveService {
                       content: documentContent.replace(/\\n/g, '\n'), // Fix escaped newlines
                       wordCount: wordCount
                     });
-                    console.log(`✅ Document generation callback triggered for backend-generated document`);
+                    
+                    // Document generated via callback
+                    
+                    console.log(`✅ Document generation callback triggered and saved to conversation history`);
                   } else {
                     console.error('❌ No document content found in backend result:', backendResult.result);
                   }
@@ -475,9 +572,31 @@ class GeminiLiveService {
         return;
       }
 
+      // Handle input transcription (user speech transcribed)
+      if (message.serverContent && message.serverContent.inputTranscription) {
+        const transcription = message.serverContent.inputTranscription;
+        console.log("🎤 Input transcription:", transcription.text);
+        
+        // User transcription received
+        return;
+      }
+
+      // Handle output transcription (AI speech transcribed)
+      if (message.serverContent && message.serverContent.outputTranscription) {
+        const transcription = message.serverContent.outputTranscription;
+        console.log("🤖 Output transcription:", transcription.text);
+        
+        // AI transcription received
+        return;
+      }
+
       // Handle generation complete
       if (message.serverContent && message.serverContent.generationComplete) {
-        // Generation complete
+        // Save assistant response when generation is complete
+        if (this.currentAssistantResponse.trim()) {
+          console.log('🤖 Generation complete');
+          this.currentAssistantResponse = '';
+        }
         // Don't change state here, let audio finish playing
         return;
       }
@@ -503,6 +622,11 @@ class GeminiLiveService {
             // Handle text response
             if (part.text) {
               console.log("📝 Received text:", part.text);
+              
+              // Store assistant response for conversation history
+              this.currentAssistantResponse += part.text;
+              console.log("📝 Current assistant response length:", this.currentAssistantResponse.length);
+              
               if (this.onResponseCallback) {
                 this.onResponseCallback({
                   text: part.text,
@@ -1104,6 +1228,14 @@ class GeminiLiveService {
         systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
       }
       
+      // Add memory saving tool for all agents
+      systemPrompt += '\n- Memory Saver: Use save_to_memory to save important information, concepts, facts, insights, or summaries that you learn during conversations.';
+      systemPrompt += '\n  • Use this when you encounter new information about the user, important facts, preferences, insights, or concepts worth remembering';
+      systemPrompt += '\n  • Save distilled information, not verbatim conversations - extract the key essence';
+      systemPrompt += '\n  • Examples: User preferences, important facts, new concepts learned, insights gained, useful summaries';
+      systemPrompt += '\n  • Always save information proactively to build your memory and improve future conversations';
+      
+      
       // Always add Firecrawl instructions since it's configured via environment variable
       console.log('🕷️ Voice: Firecrawl web scraping available');
       systemPrompt += '\n- Web Scraping: Use scrape_website to extract content from websites when users ask to scrape, crawl, or get content from specific URLs.';
@@ -1166,6 +1298,14 @@ class GeminiLiveService {
     systemPrompt += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
     
     console.log(`📏 Voice: System prompt ready (${systemPrompt.length.toLocaleString()} chars)`);
+    console.log('📝 Voice: System prompt preview (first 300 chars):', systemPrompt.substring(0, 300) + '...');
+    
+    // Check if memory is actually included in the final prompt
+    if (systemPrompt.includes('=== YOUR MEMORY ===')) {
+      console.log('✅ Voice: Memory successfully included in system prompt');
+    } else {
+      console.log('❌ Voice: WARNING - Memory not found in system prompt!');
+    }
     
     return systemPrompt;
   }
@@ -1174,7 +1314,18 @@ class GeminiLiveService {
    * Build optimized context for voice mode to reduce latency
    */
   private buildOptimizedVoiceContext(contact: AIContact, documentContext: any): string {
+    // Use the formatted context which already includes memory + documents
+    // But optimize it for voice by using summaries where possible
     let context = `You are ${contact.name}. ${contact.description}`;
+    
+    // Add memory context if available (this is crucial for continuity)
+    if (documentContext.memoryContext) {
+      console.log('🧠 Voice: Adding memory context to voice prompt, length:', documentContext.memoryContext.length);
+      console.log('🧠 Voice: Memory preview:', documentContext.memoryContext.substring(0, 100) + '...');
+      context += '\n\n' + documentContext.memoryContext;
+    } else {
+      console.log('⚠️ Voice: No memory context available for agent');
+    }
     
     const allDocuments = [...documentContext.permanentDocuments, ...documentContext.conversationDocuments];
     
@@ -1205,7 +1356,7 @@ class GeminiLiveService {
       context += 'Note: Full document content is available if needed, but use these summaries for quick reference in voice conversations.';
     }
     
-    console.log(`✅ Voice: Optimized context: ${context.length.toLocaleString()} chars`);
+    console.log(`✅ Voice: Optimized context with memory: ${context.length.toLocaleString()} chars`);
     
     return context;
   }
@@ -1232,6 +1383,26 @@ class GeminiLiveService {
     // Don't update if state hasn't changed
     if (this.currentState === state) {
       return;
+    }
+    
+    // Detect user input transitions
+    if (this.currentState === 'listening' && (state === 'processing' || state === 'responding')) {
+      if (!this.currentUserInput.trim()) {
+        console.log('🎤 Detected user speech transition');
+      } else {
+        console.log('🎤 User speech transition captured');
+      }
+    }
+    
+    // Detect when AI finishes responding to capture responses without text
+    if (this.currentState === 'responding' && state === 'listening') {
+      // AI finished responding
+      if (this.currentAssistantResponse.trim()) {
+        console.log('🤖 Response complete');
+        this.currentAssistantResponse = '';
+      } else {
+        console.log('🤖 Audio response complete');
+      }
     }
     
     // Clear any pending state change
@@ -1373,8 +1544,20 @@ class GeminiLiveService {
   /**
    * End the current session
    */
-  public endSession(): void {
+  public async endSession(): Promise<void> {
     console.log("🛑 Ending Gemini Live session");
+    
+    // Prevent multiple endSession calls
+    if (!this.isSessionActive) {
+      console.log("⚠️ Session already ended, skipping duplicate endSession call");
+      return;
+    }
+    
+    // Save conversation messages before cleanup
+    // Clear conversation data
+    console.log(`🧹 Clearing conversation data`);
+    this.currentUserInput = '';
+    this.currentAssistantResponse = '';
     
     this.cleanup();
     
@@ -1393,6 +1576,8 @@ class GeminiLiveService {
     }
     
     this.currentContact = null;
+    this.isSessionActive = false;
+    
     console.log("✅ Session ended");
   }
 
@@ -1453,6 +1638,8 @@ class GeminiLiveService {
     
     console.log("✅ Gemini Live service completely shut down - All memory freed");
   }
+
+  // Conversation session methods removed for simple voice calls
 
   // Callback setters
   public onResponse(callback: (response: GeminiLiveResponse) => void): void {

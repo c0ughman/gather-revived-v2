@@ -8,6 +8,9 @@ import IntegrationsLibrary from './IntegrationsLibrary';
 import IntegrationSetup from './IntegrationSetup';
 import { getIntegrationById } from '../../integrations/data/integrations';
 import { documentApiService } from '../../../core/services/documentApiService';
+import TokenCounter from '../../../core/components/TokenCounter';
+import { validateTokenLimit, MEMORY_LIMITS } from '../../../core/utils/tokenUtils';
+import { InlineTokenError } from '../../../core/components/TokenLimitError';
 
 interface SettingsScreenProps {
   contact: AIContact;
@@ -224,6 +227,15 @@ export default function SettingsScreen({
   };
 
   const handleSave = () => {
+    // Validate description token limit before saving
+    const descriptionValidation = validateTokenLimit(formData.description, MEMORY_LIMITS.AGENT_DESCRIPTION);
+    
+    if (!descriptionValidation.isValid) {
+      // Show error - user should fix the description before saving
+      setUploadError(`Description exceeds token limit. Please shorten it by ${descriptionValidation.currentTokens - descriptionValidation.maxTokens} tokens.`);
+      return;
+    }
+    
     const updatedContact: AIContact = {
       ...contact,
       name: formData.name.trim(),
@@ -528,13 +540,32 @@ export default function SettingsScreen({
                   <FileText className="w-4 h-4" />
                   <span>Description</span>
                 </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  placeholder="Describe this AI's personality and capabilities..."
-                  rows={4}
-                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 resize-none"
-                />
+                {(() => {
+                  const descriptionValidation = validateTokenLimit(formData.description, MEMORY_LIMITS.AGENT_DESCRIPTION);
+                  return (
+                    <>
+                      <textarea
+                        value={formData.description}
+                        onChange={(e) => handleInputChange('description', e.target.value)}
+                        placeholder="Describe this AI's personality and capabilities..."
+                        rows={4}
+                        className={`w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border transition-colors duration-200 resize-none focus:outline-none ${
+                          !descriptionValidation.isValid 
+                            ? 'border-red-500 focus:border-red-400' 
+                            : 'border-slate-600 focus:border-[#186799]'
+                        }`}
+                      />
+                      <InlineTokenError validation={descriptionValidation} />
+                      <div className="mt-3">
+                        <TokenCounter 
+                          text={formData.description}
+                          maxTokens={MEMORY_LIMITS.AGENT_DESCRIPTION}
+                          label="tokens"
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Color Selection */}
@@ -704,7 +735,7 @@ export default function SettingsScreen({
                 </div>
               )}
             </>
-          ) : (
+          ) : activeTab === 'documents' ? (
             <>
               {/* Documents Tab */}
               <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -736,6 +767,8 @@ export default function SettingsScreen({
                 <DocumentUpload
                   onDocumentUploaded={handleDocumentUploaded}
                   onError={handleDocumentError}
+                  existingDocuments={documents}
+                  isConversationDocument={false}
                   className="mb-6"
                 />
                 
@@ -753,7 +786,7 @@ export default function SettingsScreen({
                 )}
               </div>
             </>
-          )}
+          ) : null}
 
           {/* Save Button (Mobile) */}
           {hasChanges && (

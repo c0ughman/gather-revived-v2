@@ -1,12 +1,14 @@
 import { AIContact } from '../../../core/types/types';
 import { DocumentInfo } from '../types/documents';
 import { supabaseService } from '../../database';
+import { memoryService } from '../../../core/services/memoryService';
 
 export interface AgentDocumentContext {
   permanentDocuments: DocumentInfo[];
   conversationDocuments: DocumentInfo[];
   allDocuments: DocumentInfo[];
   formattedContext: string;
+  memoryContext?: string;
 }
 
 class DocumentContextService {
@@ -23,16 +25,20 @@ class DocumentContextService {
       // Combine all documents
       const allDocuments = [...permanentDocuments, ...conversationDocuments];
       
-      // Build formatted context for AI
-      const formattedContext = this.buildDocumentContext(contact, allDocuments);
+      // Get memory context
+      const memoryContext = await this.buildMemoryContext(contact.id);
       
-      console.log(`✅ Loaded ${permanentDocuments.length} permanent + ${conversationDocuments.length} conversation documents`);
+      // Build formatted context for AI including memory
+      const formattedContext = this.buildDocumentContext(contact, allDocuments, memoryContext);
+      
+      console.log(`✅ Loaded ${permanentDocuments.length} permanent + ${conversationDocuments.length} conversation documents + memory context`);
       
       return {
         permanentDocuments,
         conversationDocuments,
         allDocuments,
-        formattedContext
+        formattedContext,
+        memoryContext
       };
     } catch (error) {
       console.error(`❌ Failed to load document context for ${contact.name}:`, error);
@@ -68,8 +74,13 @@ class DocumentContextService {
   /**
    * Build formatted document context for AI
    */
-  private buildDocumentContext(contact: AIContact, documents: DocumentInfo[]): string {
+  private buildDocumentContext(contact: AIContact, documents: DocumentInfo[], memoryContext?: string): string {
     let context = `You are ${contact.name}. ${contact.description}`;
+    
+    // Add memory context first (most relevant)
+    if (memoryContext) {
+      context += '\n\n' + memoryContext;
+    }
     
     if (documents.length > 0) {
       context += '\n\n=== YOUR KNOWLEDGE BASE ===\n';
@@ -97,6 +108,58 @@ class DocumentContextService {
     }
 
     return context;
+  }
+
+  /**
+   * Build memory context for AI
+   */
+  private async buildMemoryContext(agentId: string): Promise<string> {
+    try {
+      const memoryContext = await memoryService.buildMemoryContext(agentId);
+      
+      if (!memoryContext.medium_term_memories.length) {
+        return '';
+      }
+      
+      let context = '=== YOUR MEMORY ===\n';
+      context += 'You have access to your memory from previous conversations. Use this to provide continuity and personalization:\n\n';
+      
+      // Add medium-term memories
+      if (memoryContext.medium_term_memories.length > 0) {
+        context += '🧠 RECENT MEMORIES:\n';
+        memoryContext.medium_term_memories.forEach((memory) => {
+          const isPinned = memory.importance_score >= 1.0;
+          const prefix = isPinned ? '📌 ' : '• ';
+          context += `${prefix}${memory.summary || memory.content.substring(0, 200)}`;
+          if (memory.topic) {
+            context += ` [Topic: ${memory.topic}]`;
+          }
+          context += '\n';
+        });
+        context += '\n';
+      }
+      
+      // Add paper notes if any
+      if (memoryContext.paper_notes.length > 0) {
+        context += '📝 YOUR NOTES:\n';
+        memoryContext.paper_notes.forEach(note => {
+          const prefix = note.is_pinned ? '📌 ' : '• ';
+          context += `${prefix}${note.title}: ${note.content.substring(0, 150)}...\n`;
+        });
+        context += '\n';
+      }
+      
+      context += 'Use your memory to:\n';
+      context += '- Reference previous conversations and topics\n';
+      context += '- Maintain consistency in your responses\n';
+      context += '- Provide personalized interactions based on past context\n';
+      context += '- Build upon previous discussions and insights\n\n';
+      
+      return context;
+    } catch (error) {
+      console.error('Failed to build memory context:', error);
+      return '';
+    }
   }
 
   /**

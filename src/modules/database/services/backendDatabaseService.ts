@@ -364,32 +364,80 @@ export class BackendDatabaseService {
     }
   }
 
-  // Enhanced method to get all relevant documents for context building
-  async getAllAgentContext(agentId: string): Promise<{
-    permanentDocuments: DocumentInfo[]
-    conversationDocuments: DocumentInfo[]
+  // Paper Notes Management
+  async getPaperNotesWithTokenInfo(agentId: string): Promise<{
+    allNotes: any[]
+    includedNotes: any[]
+    excludedNotes: any[]
+    totalTokens: number
+    maxTokens: number
   }> {
     try {
-      console.log('📚 Getting all agent context for:', agentId);
+      console.log('📝 Getting paper notes with token info for:', agentId);
       
-      const result = await this.makeRequest(`/agents/${agentId}/context`)
+      const result = await this.makeRequest(`/agents/${agentId}/paper-notes`)
       
       if (result.success) {
         const data = result.data;
-        console.log(`✅ Retrieved ${data.permanentDocuments?.length || 0} permanent + ${data.conversationDocuments?.length || 0} conversation documents`);
+        console.log(`✅ Retrieved ${data.allNotes?.length || 0} notes (${data.includedNotes?.length || 0} included, ${data.excludedNotes?.length || 0} excluded)`);
         
         return {
-          permanentDocuments: data.permanentDocuments || [],
-          conversationDocuments: data.conversationDocuments || []
+          allNotes: data.all_notes || [],
+          includedNotes: data.included_notes || [],
+          excludedNotes: data.excluded_notes || [],
+          totalTokens: data.total_tokens || 0,
+          maxTokens: data.max_tokens || 4000
         };
       } else {
-        throw new Error(result.error || 'Failed to get agent context');
+        throw new Error(result.error || 'Failed to get paper notes with token info');
       }
     } catch (error) {
-      console.error('❌ getAllAgentContext error:', error);
+      console.error('❌ getPaperNotesWithTokenInfo error:', error);
       return {
-        permanentDocuments: [],
-        conversationDocuments: []
+        allNotes: [],
+        includedNotes: [],
+        excludedNotes: [],
+        totalTokens: 0,
+        maxTokens: 4000
+      };
+    }
+  }
+
+  // Medium-term Memory Management
+  async getMediumTermMemoryWithTokenInfo(agentId: string): Promise<{
+    allMemory: any[]
+    includedMemory: any[]
+    excludedMemory: any[]
+    totalTokens: number
+    maxTokens: number
+  }> {
+    try {
+      console.log('🧠 Getting medium-term memory with token info for:', agentId);
+      
+      const result = await this.makeRequest(`/agents/${agentId}/medium-term-memory`)
+      
+      if (result.success) {
+        const data = result.data;
+        console.log(`✅ Retrieved ${data.allMemory?.length || 0} memory items (${data.includedMemory?.length || 0} included, ${data.excludedMemory?.length || 0} excluded)`);
+        
+        return {
+          allMemory: data.all_memory || [],
+          includedMemory: data.included_memory || [],
+          excludedMemory: data.excluded_memory || [],
+          totalTokens: data.total_tokens || 0,
+          maxTokens: data.max_tokens || 4000
+        };
+      } else {
+        throw new Error(result.error || 'Failed to get medium-term memory with token info');
+      }
+    } catch (error) {
+      console.error('❌ getMediumTermMemoryWithTokenInfo error:', error);
+      return {
+        allMemory: [],
+        includedMemory: [],
+        excludedMemory: [],
+        totalTokens: 0,
+        maxTokens: 4000
       };
     }
   }
@@ -398,6 +446,7 @@ export class BackendDatabaseService {
   async getAllAgentContext(agentId: string): Promise<{
     permanentDocuments: DocumentInfo[]
     conversationDocuments: DocumentInfo[]
+    paperNotes?: any[]
   }> {
     try {
       console.log('📚 Getting all agent context for:', agentId);
@@ -406,11 +455,12 @@ export class BackendDatabaseService {
       
       if (result.success) {
         const data = result.data;
-        console.log(`✅ Retrieved ${data.permanentDocuments?.length || 0} permanent + ${data.conversationDocuments?.length || 0} conversation documents`);
+        console.log(`✅ Retrieved ${data.permanentDocuments?.length || 0} permanent + ${data.conversationDocuments?.length || 0} conversation documents + ${data.paperNotes?.length || 0} paper notes`);
         
         return {
           permanentDocuments: data.permanentDocuments || [],
-          conversationDocuments: data.conversationDocuments || []
+          conversationDocuments: data.conversationDocuments || [],
+          paperNotes: data.paperNotes || []
         };
       } else {
         throw new Error(result.error || 'Failed to get agent context');
@@ -419,7 +469,8 @@ export class BackendDatabaseService {
       console.error('❌ getAllAgentContext error:', error);
       return {
         permanentDocuments: [],
-        conversationDocuments: []
+        conversationDocuments: [],
+        paperNotes: []
       };
     }
   }

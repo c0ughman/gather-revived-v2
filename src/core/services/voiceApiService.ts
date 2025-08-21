@@ -18,6 +18,8 @@
  */
 
 import { AIContact } from '../types/types';
+import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
+import { memoryService } from './memoryService';
 
 interface VoiceSession {
   session_id: string;
@@ -25,6 +27,7 @@ interface VoiceSession {
   function_declarations: any[];
   system_prompt: string;
   expires_in: number;
+  agent_id?: string; // Store agent ID for memory saving
 }
 
 interface FunctionCallResult {
@@ -65,12 +68,19 @@ class VoiceApiService {
     try {
       console.log(`🎤 Creating voice session for ${contact.name} via Python backend`);
 
+      // Get full document context including memory
+      const documentContext = await documentContextService.getAgentDocumentContext(contact);
+      
+      console.log('🧠 Voice: Including memory context in backend session:', !!documentContext.memoryContext);
+      
       const requestBody = {
         id: contact.id,
         name: contact.name,
         description: contact.description,
+        full_context: documentContext.formattedContext, // Include complete context with memory
         integrations: contact.integrations,
-        documents: contact.documents
+        documents: contact.documents,
+        memory_context: documentContext.memoryContext // Explicit memory context for backend
       };
 
       const authToken = this.getAuthToken();
@@ -111,6 +121,7 @@ class VoiceApiService {
 
       // Store session for future function calls
       this.currentSession = result.session;
+      this.currentSession.agent_id = contact.id; // Store agent ID for memory saving
       
       console.log(`✅ Voice session created: ${this.currentSession.session_id}`);
       return this.currentSession;
@@ -130,6 +141,22 @@ class VoiceApiService {
       if (!this.currentSession) {
         throw new Error('No active voice session - create session first');
       }
+
+      // Handle memory functions locally (don't require backend)
+      if (functionName === 'save_to_memory') {
+        return await this.handleMemorySaving(functionArgs);
+      }
+      
+      // Handle paper to notes saving locally
+      if (functionName === 'save_paper_to_notes') {
+        return await this.handlePaperToNotesSaving(functionArgs);
+      }
+
+      // Handle past conversations search locally  
+      if (functionName === 'search_past_conversations') {
+        return await this.handlePastConversationsSearch(functionArgs);
+      }
+      
 
       console.log(`🔧 Processing function call ${functionName} via Python backend`);
 
@@ -285,6 +312,163 @@ class VoiceApiService {
   /**
    * Get authentication token from Supabase
    */
+  /**
+   * Handle memory saving function call locally
+   */
+  private async handleMemorySaving(args: any): Promise<FunctionCallResult> {
+    try {
+      console.log('🧠 Voice: AI is saving memory:', args);
+
+      if (!this.currentSession?.agent_id) {
+        throw new Error('No agent ID available for memory saving');
+      }
+
+      // Validate required arguments
+      if (!args.information || typeof args.information !== 'string') {
+        throw new Error('Information parameter is required and must be a string');
+      }
+
+      // Save the memory using the memory service
+      const memoryData = {
+        information: args.information,
+        topic: args.topic || undefined,
+        importance: args.importance || 'medium',
+        type: args.type || 'insight'
+      };
+
+      await memoryService.saveMemoryFromAI(this.currentSession.agent_id, memoryData);
+
+      return {
+        success: true,
+        function: 'save_to_memory',
+        result: `Successfully saved to memory: "${args.information.substring(0, 50)}${args.information.length > 50 ? '...' : ''}"`
+      };
+    } catch (error) {
+      console.error('❌ Error saving memory:', error);
+      return {
+        success: false,
+        function: 'save_to_memory',
+        error: `Failed to save memory: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Handle paper to notes saving function call locally
+   */
+  private async handlePaperToNotesSaving(args: any): Promise<FunctionCallResult> {
+    try {
+      console.log('📝 Voice: AI is saving paper to notes:', args);
+
+      if (!this.currentSession?.agent_id) {
+        throw new Error('No agent ID available for saving paper to notes');
+      }
+
+      // Validate required arguments
+      if (!args.title || typeof args.title !== 'string') {
+        throw new Error('Title parameter is required and must be a string');
+      }
+
+      if (!args.content || typeof args.content !== 'string') {
+        throw new Error('Content parameter is required and must be a string');
+      }
+
+      // Save the paper as a note using the memory service
+      const noteData = {
+        agent_id: this.currentSession.agent_id,
+        title: args.title,
+        content: args.content,
+        note_type: 'voice_call' as const
+      };
+
+      const savedNote = await memoryService.createPaperNote(noteData);
+
+      // Trigger UI refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('paperSavedToNotes', { 
+        detail: { note: savedNote } 
+      }));
+
+      return {
+        success: true,
+        function: 'save_paper_to_notes',
+        result: `Successfully saved paper "${args.title}" to notes`
+      };
+    } catch (error) {
+      console.error('❌ Error saving paper to notes:', error);
+      return {
+        success: false,
+        function: 'save_paper_to_notes',
+        error: `Failed to save paper to notes: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Handle past conversations search function call locally
+   */
+  private async handlePastConversationsSearch(args: any): Promise<FunctionCallResult> {
+    try {
+      console.log('🔍 Voice: AI is searching past conversations:', args);
+
+      if (!this.currentSession?.agent_id) {
+        throw new Error('No agent ID available for searching past conversations');
+      }
+
+      // Validate required arguments
+      if (!args.query || typeof args.query !== 'string') {
+        throw new Error('Query parameter is required and must be a string');
+      }
+
+      const limit = Math.max(1, Math.min(10, args.limit || 5));
+
+      // Import conversation history service dynamically to avoid circular dependencies
+      const { conversationHistoryService } = await import('../services/conversationHistoryService');
+
+      // Search for past conversations
+      const sessions = await conversationHistoryService.searchAgentMessages(this.currentSession.agent_id, args.query);
+
+      // Limit results
+      const limitedSessions = sessions.slice(0, limit);
+
+      // Create conversation previews
+      const previews = await conversationHistoryService.createConversationPreviews(limitedSessions, args.query);
+
+      // Format results for AI consumption
+      const formattedResults = previews.map(preview => ({
+        conversation_id: preview.id,
+        title: preview.title,
+        date: preview.lastMessageAt.toISOString(),
+        summary: preview.preview,
+        relevant_excerpt: preview.searchMatch?.text || preview.preview,
+        message_count: preview.messageCount,
+        conversation_type: preview.conversationType
+      }));
+
+      const result = {
+        query: args.query,
+        results_count: formattedResults.length,
+        conversations: formattedResults,
+        message: formattedResults.length > 0 
+          ? `Found ${formattedResults.length} relevant past conversation${formattedResults.length !== 1 ? 's' : ''}.`
+          : 'No relevant past conversations found for this query.'
+      };
+
+      return {
+        success: true,
+        function: 'search_past_conversations',
+        result
+      };
+    } catch (error) {
+      console.error('❌ Error searching past conversations:', error);
+      return {
+        success: false,
+        function: 'search_past_conversations',
+        error: `Failed to search past conversations: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+
   private getAuthToken(): string {
     try {
       // Get the Supabase session from localStorage
@@ -309,6 +493,55 @@ class VoiceApiService {
     } catch (error) {
       console.warn('Error getting auth token:', error);
       return '';
+    }
+  }
+
+  /**
+   * Get conversation transcript from backend session for memory extraction
+   */
+  async getConversationTranscript(): Promise<{ messages: any[], metadata: any }> {
+    try {
+      if (!this.currentSession) {
+        throw new Error('No active voice session');
+      }
+
+      console.log(`📝 Getting conversation transcript for session: ${this.currentSession.session_id}`);
+
+      const authToken = this.getAuthToken();
+      let response: Response;
+
+      if (authToken) {
+        response = await fetch(`${this.baseUrl}/api/v1/voice/session/${this.currentSession.session_id}/transcript`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+      } else {
+        // Fallback to development endpoint
+        response = await fetch(`${this.baseUrl}/api/v1/voice/dev/session/${this.currentSession.session_id}/transcript`);
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Failed to get conversation transcript: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to get conversation transcript');
+      }
+
+      console.log(`📋 Retrieved ${result.messages?.length || 0} messages from voice session`);
+      return {
+        messages: result.messages || [],
+        metadata: result.metadata || {}
+      };
+
+    } catch (error) {
+      console.error('❌ Error getting conversation transcript:', error);
+      // Return empty transcript rather than failing completely
+      return { messages: [], metadata: {} };
     }
   }
 }

@@ -164,6 +164,7 @@ class PythonApiService {
 
       const requestBody = {
         contact: {
+          id: contact.id,
           name: contact.name,
           description: contact.description,
           integrations: contact.integrations
@@ -293,6 +294,43 @@ class PythonApiService {
     } catch (error) {
       console.error('❌ Python backend health check failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get memory context for an agent from backend database service
+   */
+  async getAgentMemoryContext(agentId: string): Promise<string | null> {
+    try {
+      console.log(`🧠 Getting memory context from backend for agent: ${agentId}`);
+
+      const response = await fetch(`${this.baseUrl}/api/v1/database/agents/${agentId}/memory-context`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Memory context fetch failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Memory context fetch failed');
+      }
+
+      const memoryContext = result.data?.memory_context || null;
+      console.log(`✅ Memory context retrieved: ${memoryContext ? 'has content' : 'empty'}`);
+      
+      return memoryContext;
+
+    } catch (error) {
+      console.error(`❌ Error getting memory context for ${agentId}:`, error);
+      // Return null instead of throwing to gracefully handle memory fetch failures
+      return null;
     }
   }
 

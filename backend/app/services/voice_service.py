@@ -25,6 +25,7 @@ import uuid
 
 from .integrations_service import integrations_service
 from .database_service import database_service
+from ..core.context_limits import context_limits
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class VoiceService:
             "manage_notion": self._handle_notion,
             "search_web": self._handle_web_search,
             "scrape_website": self._handle_website_scraping,
+            "search_past_conversations": self._handle_past_conversations_search,
         }
         logger.info(f"📋 Registered {len(self.function_handlers)} function handlers")
 
@@ -138,6 +140,26 @@ class VoiceService:
                     }
                 },
                 "required": ["content"]
+            }
+        })
+
+        # Always include save paper to notes function  
+        function_declarations.append({
+            "name": "save_paper_to_notes",
+            "description": "Save the current paper/document to the notes collection when user asks to save it to notes. Use when user says things like: 'save this to notes', 'save the paper to notes', 'add this to my notes', 'put this in notes', or any variation of saving the current document content to notes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "A descriptive title for the note based on the content"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The complete content to save to notes, should be the current paper/document content"
+                    }
+                },
+                "required": ["title", "content"]
             }
         })
 
@@ -303,6 +325,29 @@ class VoiceService:
                 "required": ["url"]
             }
         })
+
+        # Always add past chat search function for enhanced memory and context
+        function_declarations.append({
+            "name": "search_past_conversations",
+            "description": "Search through past conversations with this user to find relevant information, context, or details. Use this tool when the user asks about previous discussions, mentions something from earlier conversations, asks follow-up questions about past topics, or when you think past context would help provide a better answer. This is especially useful for questions like 'What did we discuss about X?', 'Remember when...', or when the user references previous conversations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search terms to find in past conversations. Use keywords related to the topic the user is asking about."
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Maximum number of conversations to return (1-10)",
+                        "default": 3,
+                        "minimum": 1,
+                        "maximum": 10
+                    }
+                },
+                "required": ["query"]
+            }
+        })
         
         logger.info(f"📋 Generated {len(function_declarations)} function declarations")
         return function_declarations
@@ -351,6 +396,21 @@ class VoiceService:
         # Build base prompt with name and description
         system_prompt = f"You are {contact.get('name', 'Assistant')}, {contact.get('description', 'a helpful AI assistant')}."
         
+        # Add notes context if available
+        paper_notes = document_context.get("paperNotes", [])
+        if paper_notes:
+            system_prompt += '\n\n=== YOUR NOTES ===\n'
+            system_prompt += 'You have access to your notes from previous conversations and sessions. Use this information to provide continuity and reference past work:\n\n'
+            
+            for note in paper_notes:
+                prefix = '📌 ' if note.get('is_pinned') else '• '
+                system_prompt += f"{prefix}{note.get('title', 'Untitled')}: {note.get('content', '')[:200]}"
+                if len(note.get('content', '')) > 200:
+                    system_prompt += '...'
+                system_prompt += '\n'
+            
+            system_prompt += '\nReference these notes when relevant to provide personalized and informed responses.\n'
+        
         # Add document context if available
         all_documents = document_context["permanentDocuments"] + document_context["conversationDocuments"]
         if all_documents:
@@ -391,6 +451,23 @@ DOCUMENT GENERATION INSTRUCTIONS:
 - IMPORTANT: Do not mention that you are using a tool or function to generate the document. Simply respond naturally and let the document appear automatically
 - If document generation fails, explain the issue to the user and suggest they try again
 
+SAVE TO NOTES INSTRUCTIONS:
+- Use the save_paper_to_notes function when users ask you to save the current paper/document to their notes
+- Trigger phrases include: "save this to notes", "save the paper to notes", "add this to my notes", "put this in notes", "save this document", "add to notes", etc.
+- Always use the current paper content that's visible on screen - extract the title and full content
+- Create a descriptive title based on the paper's content if one isn't obvious
+- IMPORTANT: Do not mention that you are using a tool or function to save to notes. Simply respond naturally like "I've saved that to your notes" and let the action happen automatically
+- The note will appear immediately in the notes section without requiring a page refresh
+
+PAST CONVERSATIONS SEARCH INSTRUCTIONS:
+- Use the search_past_conversations function when the user asks about previous discussions or when past context would help answer their question
+- ALWAYS search when the user says things like: "What did we discuss about...", "Remember when...", "You mentioned before...", "Did we talk about...", "What was that thing you told me about..."
+- Also search when you think past conversations might contain relevant information for the current topic
+- Search for relevant keywords related to what the user is asking about
+- Do not mention that you are searching - simply use the information naturally in your response
+- If no relevant past conversations are found, just answer normally without mentioning the search
+- Examples: User asks "What was that book you recommended?" → search for "book recommendation"
+
 CRITICAL VOICE MODE INSTRUCTIONS:
 - NEVER read out technical details, data structures, or code-like content
 - NEVER say words like "tool", "function", "response", "data", "content", "underscore", "curly bracket", etc.
@@ -417,7 +494,7 @@ CRITICAL VOICE MODE INSTRUCTIONS:
         if document.get("summary"):
             formatted += f'📝 Summary: {document.get("summary")}\n'
         
-        # Include full document content (up to 2000 characters like frontend)
+        # Include full document content (up to configured limit for voice)
         content = None
         if document.get("extracted_text"):
             content = document.get("extracted_text")
@@ -425,12 +502,9 @@ CRITICAL VOICE MODE INSTRUCTIONS:
             content = document.get("content")
             
         if content:
-            # Limit content to 2000 characters for voice mode (to reduce latency)
-            content_excerpt = content[:2000] if len(content) > 2000 else content
+            # Limit content for voice mode (to reduce latency)
+            content_excerpt = context_limits.truncate_document_content(content, "voice")
             formatted += f'📖 Content:\n{content_excerpt}'
-            
-            if len(content) > 2000:
-                formatted += '\n[Content truncated...]'
         
         return formatted
 
@@ -677,6 +751,69 @@ CRITICAL VOICE MODE INSTRUCTIONS:
         except Exception as e:
             logger.error(f"❌ Website scraping failed: {e}")
             raise
+
+    async def _handle_past_conversations_search(self, session: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle past conversations search function calls"""
+        try:
+            query = args.get("query")
+            limit = args.get("limit", context_limits.VOICE_SEARCH_DEFAULT_LIMIT)
+            
+            if not query:
+                raise ValueError("Query is required for past conversations search")
+            
+            # Ensure limit is within bounds using centralized configuration
+            limit = context_limits.clamp_search_limit(limit, 'past_conversations')
+            
+            logger.info(f"🔍 Searching past conversations: '{query}' (limit: {limit})")
+            
+            # Get agent_id from session
+            agent_id = session.get("contact", {}).get("id")
+            if not agent_id:
+                raise ValueError("Agent ID not found in session")
+            
+            # Search for conversations using database service
+            conversations = await database_service.search_past_conversations(agent_id, query, limit)
+            
+            # Format results for AI consumption
+            if not conversations:
+                return {
+                    "success": True,
+                    "query": query,
+                    "results_count": 0,
+                    "message": "No relevant past conversations found for this query."
+                }
+            
+            # Format conversation results
+            formatted_results = []
+            for conv in conversations:
+                formatted_results.append({
+                    "conversation_id": conv.get("session_id"),
+                    "date": conv.get("date"),
+                    "summary": conv.get("summary", ""),
+                    "relevant_excerpt": conv.get("excerpt", ""),
+                    "message_count": conv.get("message_count", 0),
+                    "conversation_type": conv.get("conversation_type", "chat")
+                })
+            
+            result = {
+                "success": True,
+                "query": query,
+                "results_count": len(formatted_results),
+                "conversations": formatted_results,
+                "message": f"Found {len(formatted_results)} relevant past conversation{'s' if len(formatted_results) != 1 else ''}."
+            }
+            
+            logger.info(f"✅ Past conversations search completed: {len(formatted_results)} results")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Past conversations search failed: {e}")
+            return {
+                "success": False,
+                "query": query,
+                "error": f"Search failed: {str(e)}",
+                "message": "Unable to search past conversations at this time."
+            }
 
     async def get_session_context(self, session_id: str) -> Dict[str, Any]:
         """

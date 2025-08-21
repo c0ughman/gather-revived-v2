@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Save, User, Database, FileText, Plus, Trash2, Settings, X, Upload, Volume2, Palette } from 'lucide-react';
+import { ChevronDown, ChevronRight, Save, User, Database, FileText, Plus, Trash2, Settings, X, Upload, Volume2, Palette, BookOpen } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import { IntegrationInstance } from '../../integrations/types/integrations';
@@ -7,6 +7,7 @@ import { getIntegrationById } from '../../integrations/data/integrations';
 import DocumentUpload, { DocumentList } from './DocumentUpload';
 import IntegrationsLibrary from './IntegrationsLibrary';
 import IntegrationSetup from './IntegrationSetup';
+import NotesTab from './NotesTab';
 import { Integration, IntegrationConfig } from '../../integrations/types/integrations';
 import { documentApiService } from '../../../core/services/documentApiService';
 
@@ -27,6 +28,8 @@ interface SettingsSidebarProps {
   onFormChange?: (field: string, value: string) => void;
   onIntegrationsChange?: (integrations: IntegrationInstance[]) => void;
   onDocumentsChange?: (documents: DocumentInfo[]) => void;
+  onViewNote?: (note: any) => void;
+  notesTabRef?: React.RefObject<any>;
 }
 
 export default function SettingsSidebar({ 
@@ -39,12 +42,15 @@ export default function SettingsSidebar({
   hasChanges: externalHasChanges,
   onFormChange,
   onIntegrationsChange,
-  onDocumentsChange
+  onDocumentsChange,
+  onViewNote,
+  notesTabRef
 }: SettingsSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
     integrations: true,
-    documents: true
+    documents: true,
+    notes: true
   });
 
   // Use external state if provided, otherwise use local state
@@ -594,6 +600,30 @@ export default function SettingsSidebar({
           )}
         </div>
 
+        {/* Notes Section */}
+        <div className="border-b border-slate-700">
+          <button
+            onClick={() => toggleSection('notes')}
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
+          >
+            <div className="flex items-center space-x-3">
+              <BookOpen className="w-4 h-4 text-slate-400" />
+              <span className="text-white font-medium">Notes</span>
+            </div>
+            {expandedSections.notes ? (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+          
+          {expandedSections.notes && (
+            <div className="px-4 pb-4">
+              <NotesTab ref={notesTabRef} agentId={contact.id} agentName={contact.name} onViewNote={onViewNote} />
+            </div>
+          )}
+        </div>
+
         {/* Integrations Section */}
         <div className="border-b border-slate-700">
           <button
@@ -666,7 +696,7 @@ export default function SettingsSidebar({
         </div>
 
         {/* Documents Section */}
-        <div>
+        <div className="border-b border-slate-700">
           <button
             onClick={() => toggleSection('documents')}
             className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
@@ -714,6 +744,7 @@ export default function SettingsSidebar({
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

@@ -31,20 +31,24 @@ interface DashboardProps {
   contacts: AIContact[];
   onChatClick: (contact: AIContact) => void;
   onCallClick: (contact: AIContact) => void;
+  onMemoryClick?: (contact: AIContact) => void;
   onSettingsClick: (contact?: AIContact) => void;
   onNewChatClick: (contact: AIContact) => void;
   onCreateAgent: () => void;
   onCreateFromTemplate?: (template: AgentTemplate) => void;
+  onAddMockMemory?: (agentId: string) => Promise<void>;
 }
 
 export default function Dashboard({ 
   contacts, 
   onChatClick, 
   onCallClick, 
+  onMemoryClick,
   onSettingsClick,
   onNewChatClick,
   onCreateAgent,
-  onCreateFromTemplate
+  onCreateFromTemplate,
+  onAddMockMemory
 }: DashboardProps) {
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [integrationSearchQuery, setIntegrationSearchQuery] = useState('');
@@ -366,6 +370,15 @@ export default function Dashboard({
                           >
                             <Mic className="w-4 h-4 mx-auto" />
                           </button>
+                          {onMemoryClick && (
+                            <button 
+                              onClick={() => onMemoryClick(agent)}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
+                              title="View Memory"
+                            >
+                              <Brain className="w-4 h-4 mx-auto" />
+                            </button>
+                          )}
                           <button 
                             onClick={() => onSettingsClick(agent)}
                             className="flex-1 bg-slate-700 hover:bg-slate-600 rounded-full p-2 text-slate-300 hover:text-white transition-colors"
@@ -373,6 +386,15 @@ export default function Dashboard({
                             <Sliders className="w-4 h-4 mx-auto" />
                           </button>
                         </div>
+                        {onAddMockMemory && (
+                          <button 
+                            onClick={() => onAddMockMemory(agent.id)}
+                            className="w-full mt-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-1 px-2 transition-colors"
+                            title="Add mock memory data for testing"
+                          >
+                            🧠 Add Test Memory
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

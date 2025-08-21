@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft, MoreVertical, Brain, Clock } from 'lucide-react';
+import MemoryScreen from '../../ui/components/MemoryScreen';
+import PastChatsScreen from '../../ui/components/PastChatsScreen';
 import { AIContact, Message } from '../../../core/types/types';
 import { DocumentInfo } from '../../fileManagement/types/documents';
 import DocumentUpload, { DocumentList } from '../../ui/components/DocumentUpload';
@@ -15,6 +17,9 @@ interface ChatScreenProps {
   onSettingsClick: (contact: AIContact) => void;
   onNewChatClick: (contact: AIContact) => void;
   onCallClick: (contact: AIContact) => void;
+  onMemoryClick: (contact: AIContact) => void;
+  onPastChatsClick?: (contact: AIContact) => void;
+  onChatSelect?: (sessionId: string) => void;
   showSidebar?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -28,6 +33,9 @@ export default function ChatScreen({
   onSettingsClick, 
   onNewChatClick,
   onCallClick,
+  onMemoryClick,
+  onPastChatsClick,
+  onChatSelect,
   showSidebar = true,
   onToggleSidebar
 }: ChatScreenProps) {
@@ -36,6 +44,7 @@ export default function ChatScreen({
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [pendingDocuments, setPendingDocuments] = useState<DocumentInfo[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showMemory, setShowMemory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -196,7 +205,7 @@ export default function ChatScreen({
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3 flex items-center space-x-3`}
+        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3`}
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -204,70 +213,98 @@ export default function ChatScreen({
           backgroundColor: 'rgba(2, 10, 22, 0.08)'
         }}
       >
-        <button
-          onClick={onBack}
-          className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-        >
-          <ArrowLeft className="w-4 h-4 text-white" />
-        </button>
-        
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
-          {contact.avatar ? (
-            <img
-              src={contact.avatar}
-              alt={contact.name}
-              className="w-full h-full object-cover rounded-lg"
-            />
-          ) : (
-            <div 
-              className="w-full h-full rounded-lg"
-              style={{ background: createAgentGradient(contact.color) }}
-            />
-          )}
-        </div>
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-white font-semibold truncate">{contact.name}</h2>
+        {/* Three-column layout for true center alignment */}
+        <div className="grid grid-cols-3 w-full items-center">
+          {/* Left section */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onBack}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+            >
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </button>
+            
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+              {contact.avatar ? (
+                <img
+                  src={contact.avatar}
+                  alt={contact.name}
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full rounded-lg"
+                  style={{ background: createAgentGradient(contact.color) }}
+                />
+              )}
+            </div>
+            
+            <div className="min-w-0">
+              <div className="flex items-center justify-between">
+                <h2 className="text-white font-semibold truncate">{contact.name}</h2>
+              </div>
+              <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
+                {isTyping ? (
+                  <span className="flex items-center space-x-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Analyzing and typing...</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center space-x-2">
+                    <span>{contact.lastSeen}</span>
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
-          <p className="text-slate-400 text-sm truncate mt-0.5 font-inter">
-            {isTyping ? (
-              <span className="flex items-center space-x-1">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>Analyzing and typing...</span>
-              </span>
-            ) : (
-              <span className="flex items-center space-x-2">
-                <span>{contact.lastSeen}</span>
-              </span>
-            )}
-          </p>
-        </div>
-        
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => onNewChatClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-            title="Start new conversation"
-          >
-            <MessageSquarePlus className="w-4 h-4 text-slate-400" />
-          </button>
-          
-          <button
-            onClick={() => onCallClick(contact)}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-            title="Start call"
-          >
-            <Phone className="w-4 h-4 text-slate-400" />
-          </button>
 
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
-            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
-          >
-            <MoreVertical className="w-4 h-4 text-slate-400" />
-          </button>
+          {/* Center section - Memory & Past Chats Buttons */}
+          <div className="flex items-center justify-center space-x-2">
+            <button
+              onClick={() => setShowMemory(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
+              title="View Memory"
+            >
+              <Brain className="w-4 h-4 text-slate-300" />
+              <span className="text-slate-300 text-sm font-medium">Memory</span>
+            </button>
+            
+            <button
+              onClick={() => onPastChatsClick?.(contact)}
+              className="flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
+              title="View Past Chats"
+            >
+              <Clock className="w-4 h-4 text-slate-300" />
+              <span className="text-slate-300 text-sm font-medium">History</span>
+            </button>
+          </div>
+
+          {/* Right section */}
+          <div className="flex items-center justify-end space-x-1">
+            <button
+              onClick={() => onNewChatClick(contact)}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              title="Start new conversation"
+            >
+              <MessageSquarePlus className="w-4 h-4 text-slate-400" />
+            </button>
+            
+            <button
+              onClick={() => onCallClick(contact)}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              title="Start call"
+            >
+              <Phone className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            >
+              <MoreVertical className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -531,6 +568,37 @@ export default function ChatScreen({
           </div>
         </div>
       )}
+
+      {/* Memory Screen Overlay */}
+      <div 
+        className={`fixed inset-0 z-50 transition-opacity duration-300 ${
+          showMemory ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{
+          backgroundColor: 'transparent',
+          left: showSidebar ? '20rem' : '20rem', // 80px for left sidebar
+          right: showSidebar ? '20rem' : '0', // 80px for right sidebar if shown
+        }}
+        onClick={() => setShowMemory(false)}
+      >
+        <div 
+          className={`absolute inset-x-0 bottom-0 transition-transform duration-300 ease-out transform ${
+            showMemory ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{
+            height: 'calc(100% - 4rem)', // Leave space for the header
+            marginTop: '4rem', // Start below the header
+            background: 'transparent'
+          }}
+          onClick={(e) => e.stopPropagation()} // Prevent clicks from reaching the overlay
+        >
+          <MemoryScreen 
+            contact={contact} 
+            onBack={() => setShowMemory(false)}
+          />
+        </div>
+      </div>
+
     </div>
   );
 }

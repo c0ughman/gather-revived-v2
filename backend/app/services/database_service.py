@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from supabase import create_client
 from ..core.config import settings
+from ..core.context_limits import context_limits
 from ..models.database import (
     AgentCreate, AgentUpdate, AgentResponse,
     IntegrationCreate, IntegrationResponse,
@@ -405,30 +406,322 @@ class DatabaseService:
             logger.error(f'❌ Error fetching conversation documents: {error}')
             return []
 
-    async def get_all_agent_context(self, agent_id: str, user_token: str = None) -> Dict[str, List[Dict[str, Any]]]:
-        """Get all relevant documents for context building"""
+    async def get_paper_notes(self, agent_id: str, user_token: str = None, for_context: bool = False) -> List[Dict[str, Any]]:
+        """Get paper notes for an agent"""
+        try:
+            # Use user client if token provided, otherwise use admin client
+            supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            
+            # Order by created_at desc (newest first) for context, but keep old behavior for UI
+            order_desc = True if for_context else False
+            result = supabase_client.from_('agent_paper_notes').select('*').eq('agent_id', agent_id).order('created_at', desc=order_desc).execute()
+            
+            if result.data is None:
+                return []
+            
+            # If this is for context, filter by token limits
+            if for_context:
+                filtered_result = context_limits.filter_notes_by_token_limit(result.data, keep_pinned=True)
+                return filtered_result['included_notes']
+                
+            return result.data
+            
+        except Exception as error:
+            logger.error(f'❌ Error fetching paper notes: {error}')
+            return []
+    
+    async def get_paper_notes_with_token_info(self, agent_id: str, user_token: str = None) -> Dict[str, Any]:
+        """Get paper notes with token filtering information for UI display"""
+        try:
+            # Use user client if token provided, otherwise use admin client
+            supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            
+            # Order by newest first (for zigzag layout), but pinned status first
+            result = supabase_client.from_('agent_paper_notes').select('*').eq('agent_id', agent_id).order('is_pinned', desc=True).order('created_at', desc=True).execute()
+            
+            if result.data is None:
+                return {
+                    'all_notes': [],
+                    'included_notes': [],
+                    'excluded_notes': [],
+                    'total_tokens': 0,
+                    'max_tokens': context_limits.PAPER_NOTES_CONTEXT_MAX_TOKENS
+                }
+            
+            # Apply token filtering
+            filtered_result = context_limits.filter_notes_by_token_limit(result.data, keep_pinned=True)
+            
+            return {
+                'all_notes': result.data,
+                'included_notes': filtered_result['included_notes'],
+                'excluded_notes': filtered_result['excluded_notes'],
+                'total_tokens': filtered_result['total_tokens'],
+                'max_tokens': filtered_result['max_tokens']
+            }
+            
+        except Exception as error:
+            logger.error(f'❌ Error fetching paper notes with token info: {error}')
+            return {
+                'all_notes': [],
+                'included_notes': [],
+                'excluded_notes': [],
+                'total_tokens': 0,
+                'max_tokens': context_limits.PAPER_NOTES_CONTEXT_MAX_TOKENS
+            }
+    
+    async def get_medium_term_memory(self, agent_id: str, user_token: str = None, for_context: bool = False) -> List[Dict[str, Any]]:
+        """Get medium-term memory for an agent"""
+        try:
+            logger.info(f'🧠 Fetching medium-term memory for agent: {agent_id}')
+            
+            # Use user client if token provided, otherwise use admin client
+            supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            
+            # Order by importance and recency for context
+            result = supabase_client.from_('agent_medium_memories').select('*').eq('agent_id', agent_id).order('importance_score', desc=True).order('last_accessed_at', desc=True).execute()
+            
+            logger.info(f'🧠 Database query result: {result.data is not None}, count: {len(result.data) if result.data else 0}')
+            
+            if result.data is None:
+                logger.info(f'🧠 No medium-term memories found for agent {agent_id}')
+                return []
+            
+            if result.data:
+                logger.info(f'🧠 Found {len(result.data)} medium-term memories for agent {agent_id}')
+                for i, memory in enumerate(result.data[:3]):  # Log first 3 memories
+                    logger.info(f'🧠 Memory {i+1}: {memory.get("content", "")[:100]}...')
+            
+            # If this is for context, filter by token limits
+            if for_context:
+                logger.info(f'🧠 Applying token limits for context')
+                filtered_result = context_limits.filter_memory_by_token_limit(result.data)
+                logger.info(f'🧠 Filtered result: {len(filtered_result["included_memory"])} included, {len(filtered_result["excluded_memory"])} excluded')
+                return filtered_result['included_memory']
+                
+            return result.data
+            
+        except Exception as error:
+            logger.error(f'❌ Error fetching medium-term memory: {error}')
+            import traceback
+            logger.error(f'❌ Traceback: {traceback.format_exc()}')
+            return []
+    
+    async def get_medium_term_memory_with_token_info(self, agent_id: str, user_token: str = None) -> Dict[str, Any]:
+        """Get medium-term memory with token filtering information for UI display"""
+        try:
+            # TODO: Implement when medium-term memory table is created
+            memory_items = await self.get_medium_term_memory(agent_id, user_token)
+            
+            if not memory_items:
+                return {
+                    'all_memory': [],
+                    'included_memory': [],
+                    'excluded_memory': [],
+                    'total_tokens': 0,
+                    'max_tokens': context_limits.MEDIUM_TERM_MEMORY_MAX_TOKENS
+                }
+            
+            # Apply token filtering (by timestamp - newest first)
+            filtered_result = context_limits.filter_memory_by_token_limit(memory_items)
+            
+            return {
+                'all_memory': memory_items,
+                'included_memory': filtered_result['included_memory'],
+                'excluded_memory': filtered_result['excluded_memory'],
+                'total_tokens': filtered_result['total_tokens'],
+                'max_tokens': filtered_result['max_tokens']
+            }
+            
+        except Exception as error:
+            logger.error(f'❌ Error fetching medium-term memory with token info: {error}')
+            return {
+                'all_memory': [],
+                'included_memory': [],
+                'excluded_memory': [],
+                'total_tokens': 0,
+                'max_tokens': context_limits.MEDIUM_TERM_MEMORY_MAX_TOKENS
+            }
+
+    async def search_past_conversations(self, agent_id: str, query: str, limit: int = None, user_token: str = None) -> List[Dict[str, Any]]:
+        """Search past conversations for an agent"""
+        try:
+            # Use centralized limit configuration
+            if limit is None:
+                limit = context_limits.SEARCH_PAST_CONVERSATIONS_DEFAULT_LIMIT
+            limit = context_limits.clamp_search_limit(limit, 'past_conversations')
+            
+            logger.info(f'🔍 Searching past conversations for agent {agent_id} with query: "{query}", limit: {limit}')
+            
+            # Use user client if token provided, otherwise use admin client
+            supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            
+            # Search for sessions that have matching messages using ilike for case-insensitive pattern matching
+            result = supabase_client.from_('conversation_messages').select(f"""
+                session_id,
+                content,
+                role,
+                created_at,
+                conversation_sessions!inner(
+                    id,
+                    title,
+                    conversation_type,
+                    message_count,
+                    started_at,
+                    last_message_at
+                )
+            """).ilike('content', f'%{query}%').eq('conversation_sessions.agent_id', agent_id).eq('conversation_sessions.is_archived', False).limit(limit * context_limits.SEARCH_PAST_CONVERSATIONS_DB_MULTIPLIER).execute()  # Get more to find best matches
+            
+            logger.info(f'🔍 Database search query executed, found {len(result.data) if result.data else 0} messages')
+            
+            if not result.data:
+                logger.info(f'🔍 No conversation messages found matching query: "{query}"')
+                return []
+            
+            # Group messages by session and find best excerpts
+            sessions_data = {}
+            for item in result.data:
+                session_id = item['session_id']
+                session_info = item['conversation_sessions']
+                message = item
+                
+                if session_id not in sessions_data:
+                    sessions_data[session_id] = {
+                        'session_info': session_info,
+                        'messages': [],
+                        'best_excerpt': ''
+                    }
+                
+                sessions_data[session_id]['messages'].append(message)
+                
+                # Find best excerpt containing the search query
+                content = message['content'].lower()
+                query_lower = query.lower()
+                
+                if query_lower in content:
+                    # Extract context around the match
+                    index = content.find(query_lower)
+                    start = max(0, index - context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                    end = min(len(message['content']), index + len(query) + context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                    
+                    excerpt = message['content'][start:end]
+                    if start > 0:
+                        excerpt = '...' + excerpt
+                    if end < len(message['content']):
+                        excerpt = excerpt + '...'
+                    
+                    # Keep the best (longest) excerpt
+                    if len(excerpt) > len(sessions_data[session_id]['best_excerpt']):
+                        sessions_data[session_id]['best_excerpt'] = excerpt
+            
+            # Format results
+            formatted_results = []
+            for session_id, data in list(sessions_data.items())[:limit]:
+                session = data['session_info']
+                
+                # Create a summary from the first few messages
+                summary_parts = []
+                for msg in sorted(data['messages'], key=lambda x: x['created_at'])[:3]:
+                    role = "User" if msg['role'] == 'user' else "AI"
+                    content = msg['content'][:100]
+                    summary_parts.append(f"{role}: {content}{'...' if len(msg['content']) > 100 else ''}")
+                
+                formatted_results.append({
+                    'session_id': session_id,
+                    'date': session['started_at'],
+                    'summary': ' | '.join(summary_parts),
+                    'excerpt': data['best_excerpt'],
+                    'message_count': session['message_count'],
+                    'conversation_type': session['conversation_type'],
+                    'title': session.get('title', 'Untitled Conversation')
+                })
+            
+            logger.info(f'✅ Found {len(formatted_results)} relevant conversations')
+            return formatted_results
+            
+        except Exception as error:
+            logger.error(f'❌ Error searching past conversations: {error}')
+            return []
+
+    async def get_all_agent_context(self, agent_id: str, user_token: str = None) -> Dict[str, Any]:
+        """Get all relevant documents and notes for context building"""
         try:
             logger.info(f'📚 Getting all agent context for: {agent_id}')
             
             permanent_docs = await self.get_agent_documents(agent_id, user_token)
             conversation_docs = await self.get_conversation_documents(agent_id, user_token)
+            paper_notes = await self.get_paper_notes(agent_id, user_token, for_context=True)  # Use token-filtered notes for context
             
             # Filter out conversation documents from permanent documents
             permanent_docs = [doc for doc in permanent_docs if not doc.get("metadata", {}).get("conversation_document")]
             
-            logger.info(f'✅ Retrieved {len(permanent_docs)} permanent + {len(conversation_docs)} conversation documents')
+            logger.info(f'✅ Retrieved {len(permanent_docs)} permanent + {len(conversation_docs)} conversation documents + {len(paper_notes)} notes')
             
             return {
                 "permanentDocuments": permanent_docs,
-                "conversationDocuments": conversation_docs
+                "conversationDocuments": conversation_docs,
+                "paperNotes": paper_notes
             }
             
         except Exception as error:
             logger.error(f'❌ Error getting agent context: {error}')
             return {
                 "permanentDocuments": [],
-                "conversationDocuments": []
+                "conversationDocuments": [],
+                "paperNotes": []
             }
+
+    async def get_agent_memory_context(self, agent_id: str, user_token: str = None) -> Optional[str]:
+        """Get formatted memory context string for AI conversations"""
+        try:
+            logger.info(f'🧠 Building memory context for agent: {agent_id}')
+            
+            # Get memory components
+            medium_memories = await self.get_medium_term_memory(agent_id, user_token, for_context=True)
+            paper_notes = await self.get_paper_notes(agent_id, user_token, for_context=True)
+            
+            logger.info(f'🧠 Memory components: {len(medium_memories)} medium-term memories, {len(paper_notes)} paper notes')
+            
+            if not medium_memories and not paper_notes:
+                logger.info(f'🧠 No memory or notes found for agent {agent_id}')
+                return None
+            
+            # Build formatted memory context
+            context_parts = []
+            
+            if medium_memories:
+                logger.info(f'🧠 Adding {len(medium_memories)} medium-term memories to context')
+                context_parts.append("🧠 RECENT MEMORIES:")
+                for memory in medium_memories:
+                    topic = memory.get('topic', 'General')
+                    content = memory.get('content', '')
+                    logger.info(f'🧠 Memory: {content[:100]}... [Topic: {topic}]')
+                    context_parts.append(f"📌 {content} [Topic: {topic}]")
+            
+            if paper_notes:
+                logger.info(f'🧠 Adding {len(paper_notes)} paper notes to context')
+                context_parts.append("\n📝 YOUR NOTES:")
+                for note in paper_notes:
+                    title = note.get('title', 'Untitled')
+                    content = note.get('content', '')
+                    if len(content) > 100:
+                        content = content[:97] + '...'
+                    logger.info(f'🧠 Note: {title}: {content}')
+                    context_parts.append(f"📌 {title}: {content}")
+            
+            if context_parts:
+                memory_context = '\n'.join(context_parts)
+                logger.info(f'✅ Built memory context ({len(memory_context)} characters)')
+                logger.info(f'🧠 Context preview: {memory_context[:200]}...')
+                return memory_context
+            
+            logger.warning(f'🧠 No context parts generated for agent {agent_id}')
+            return None
+            
+        except Exception as error:
+            logger.error(f'❌ Error building memory context: {error}')
+            import traceback
+            logger.error(f'❌ Traceback: {traceback.format_exc()}')
+            return None
 
     # User Profile Management
     async def get_user_profile(self, user_id: str, user_token: str = None) -> Optional[Dict[str, Any]]:

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Users, Search, Home, Plus } from 'lucide-react';
+import { MessageCircle, Phone, Users, Search, Home, Plus, Brain } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { SubscriptionBadge } from '../../payments';
@@ -8,6 +8,7 @@ interface ContactSidebarProps {
   contacts: AIContact[];
   onChatClick: (contact: AIContact) => void;
   onCallClick: (contact: AIContact) => void;
+  onMemoryClick: (contact: AIContact) => void;
   onSettingsClick: (contact?: AIContact) => void;
   onHomeClick: () => void;
   onCreateAgent: () => void;
@@ -17,6 +18,7 @@ export default function ContactSidebar({
   contacts, 
   onChatClick, 
   onCallClick, 
+  onMemoryClick,
   onSettingsClick, 
   onHomeClick,
   onCreateAgent 
