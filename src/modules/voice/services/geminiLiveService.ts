@@ -36,7 +36,6 @@ class GeminiLiveService {
   private onDocumentGenerationCallback: ((document: { content: string; wordCount?: number }) => void) | null = null;
   
   // Context refresh for real-time notes updates
-  private contextRefreshInterval: NodeJS.Timeout | null = null;
   private lastNotesHash: string = '';
 
   // Document generation tracking
@@ -464,9 +463,6 @@ class GeminiLiveService {
       });
       
       console.log("✅ Gemini Live session started with ULTRA-LOW LATENCY optimizations");
-      
-      // Start periodic context refresh for notes updates
-      this.startContextRefresh();
       
     } catch (error) {
       console.error("Failed to start Gemini Live session:", error);
@@ -1711,9 +1707,6 @@ class GeminiLiveService {
     this.currentContact = null;
     this.isSessionActive = false;
     
-    // Stop context refresh
-    this.stopContextRefresh();
-    
     // Stop speech recognition
     this.stopSpeechRecognition();
     
@@ -1984,32 +1977,6 @@ class GeminiLiveService {
     }
   }
 
-  /**
-   * Start periodic context refresh during voice sessions
-   */
-  public startContextRefresh(): void {
-    if (this.contextRefreshInterval) {
-      clearInterval(this.contextRefreshInterval);
-    }
-
-    // Refresh context every 30 seconds during voice calls
-    this.contextRefreshInterval = setInterval(() => {
-      this.refreshNotesContext();
-    }, 30000);
-    
-    console.log('🔄 Started periodic context refresh (every 30s)');
-  }
-
-  /**
-   * Stop periodic context refresh
-   */
-  public stopContextRefresh(): void {
-    if (this.contextRefreshInterval) {
-      clearInterval(this.contextRefreshInterval);
-      this.contextRefreshInterval = null;
-      console.log('🛑 Stopped periodic context refresh');
-    }
-  }
 
   /**
    * Simple hash function for detecting content changes
