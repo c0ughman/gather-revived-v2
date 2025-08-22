@@ -34,6 +34,10 @@ class GeminiLiveService {
   private onErrorCallback: ((error: Error) => void) | null = null;
   private onStateChangeCallback: ((state: 'idle' | 'listening' | 'processing' | 'responding') => void) | null = null;
   private onDocumentGenerationCallback: ((document: { content: string; wordCount?: number }) => void) | null = null;
+  
+  // Context refresh for real-time notes updates
+  private contextRefreshInterval: NodeJS.Timeout | null = null;
+  private lastNotesHash: string = '';
 
   // Document generation tracking
   private documentGenerationInProgress: Set<string> = new Set();
@@ -460,6 +464,9 @@ class GeminiLiveService {
       });
       
       console.log("✅ Gemini Live session started with ULTRA-LOW LATENCY optimizations");
+      
+      // Start periodic context refresh for notes updates
+      this.startContextRefresh();
       
     } catch (error) {
       console.error("Failed to start Gemini Live session:", error);
@@ -1704,6 +1711,9 @@ class GeminiLiveService {
     this.currentContact = null;
     this.isSessionActive = false;
     
+    // Stop context refresh
+    this.stopContextRefresh();
+    
     // Stop speech recognition
     this.stopSpeechRecognition();
     
@@ -1922,6 +1932,98 @@ class GeminiLiveService {
   }
 
   // Status getters
+  /**
+   * Trigger immediate notes context refresh (called when notes are manually saved)
+   * This is the public method that external components can call
+   */
+  public async triggerNotesRefresh(): Promise<void> {
+    console.log('🔄 Manual notes refresh triggered');
+    await this.refreshNotesContext();
+  }
+
+  /**
+   * Refresh notes context during an active voice session
+   * Sends updated notes context as incremental update to the Live API
+   */
+  private async refreshNotesContext(): Promise<void> {
+    if (!this.activeSession || !this.currentContact) {
+      console.log('🔄 No active session or contact, skipping notes refresh');
+      return;
+    }
+
+    try {
+      console.log('🔄 Refreshing notes context during voice session...');
+      
+      // Get fresh document context including updated notes
+      const documentContext = await documentContextService.getAgentDocumentContext(this.currentContact);
+      
+      // Create a hash of the notes content to detect changes
+      const notesHash = this.hashString(documentContext.memoryContext || '');
+      
+      // Only update if notes have actually changed
+      if (notesHash === this.lastNotesHash) {
+        console.log('📝 Notes unchanged, skipping context update');
+        return;
+      }
+      
+      this.lastNotesHash = notesHash;
+      
+      // Send context update to Live API using incremental content
+      if (documentContext.memoryContext) {
+        const contextUpdate = `[SYSTEM UPDATE] Your notes and memory have been updated:\n\n${documentContext.memoryContext}`;
+        
+        this.activeSession.sendClientContent({
+          turns: contextUpdate
+        });
+        
+        console.log('✅ Notes context updated in voice session');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error refreshing notes context:', error);
+    }
+  }
+
+  /**
+   * Start periodic context refresh during voice sessions
+   */
+  public startContextRefresh(): void {
+    if (this.contextRefreshInterval) {
+      clearInterval(this.contextRefreshInterval);
+    }
+
+    // Refresh context every 30 seconds during voice calls
+    this.contextRefreshInterval = setInterval(() => {
+      this.refreshNotesContext();
+    }, 30000);
+    
+    console.log('🔄 Started periodic context refresh (every 30s)');
+  }
+
+  /**
+   * Stop periodic context refresh
+   */
+  public stopContextRefresh(): void {
+    if (this.contextRefreshInterval) {
+      clearInterval(this.contextRefreshInterval);
+      this.contextRefreshInterval = null;
+      console.log('🛑 Stopped periodic context refresh');
+    }
+  }
+
+  /**
+   * Simple hash function for detecting content changes
+   */
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash.toString();
+  }
+
   public isSpeakingNow(): boolean {
     return this.isPlaying;
   }

@@ -3,6 +3,7 @@ import { Plus, Pin, PinOff, Edit3, Trash2 } from 'lucide-react';
 import { PaperNote } from '../../../core/types/memory';
 import { memoryService } from '../../../core/services/memoryService';
 import { backendDatabaseService } from '../../database/services/backendDatabaseService';
+import { geminiLiveService } from '../../voice/services/geminiLiveService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -88,6 +89,9 @@ const NotesTab = forwardRef<NotesTabRef, NotesTabProps>(({ agentId, agentName, o
       setNewNoteTitle('');
       setNewNoteContent('');
       setShowNewNote(false);
+      
+      // Trigger voice context refresh if there's an active voice session
+      geminiLiveService.triggerNotesRefresh();
     } catch (error) {
       console.error('Error saving note:', error);
     }
@@ -139,6 +143,9 @@ const NotesTab = forwardRef<NotesTabRef, NotesTabProps>(({ agentId, agentName, o
       
       // Refresh notes to get updated token info
       await loadNotes();
+      
+      // Trigger voice context refresh if there's an active voice session
+      geminiLiveService.triggerNotesRefresh();
     } catch (error) {
       console.error('Error toggling pin:', error);
     }
