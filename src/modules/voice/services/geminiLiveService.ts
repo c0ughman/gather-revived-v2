@@ -43,9 +43,25 @@ class GeminiLiveService {
   private lastInterruptionTime: number = 0;
   private speechStartTime: number = 0;
 
-  // Voice conversation tracking removed for simple voice calls
+  // Voice conversation tracking - RESTORED for memory system
+  private conversationTranscript: Array<{
+    speaker: 'user' | 'ai';
+    text: string;
+    timestamp: Date;
+    messageId: string;
+  }> = [];
   private currentUserInput: string = '';
   private currentAssistantResponse: string = '';
+  private lastUserMessageId: string = '';
+  private lastAiMessageId: string = '';
+  
+  // Transcription buffers for complete turn capture
+  private currentUserTranscription: string = '';
+  private currentAiTranscription: string = '';
+  
+  // Browser speech recognition for user speech capture
+  private speechRecognition: any = null;
+  private isSpeechRecognitionActive: boolean = false;
 
   // Audio processing - ULTRA LOW LATENCY OPTIMIZED
   private audioChunks: Float32Array[] = [];
@@ -270,6 +286,16 @@ class GeminiLiveService {
       
       // Clear any existing audio queue
       this.audioQueue = [];
+      
+      // Clear previous conversation transcript for new session
+      this.conversationTranscript = [];
+      this.currentUserInput = '';
+      this.currentAssistantResponse = '';
+      this.currentUserTranscription = '';
+      this.currentAiTranscription = '';
+      console.log('🗣️ Started new conversation transcript for voice call');
+      
+      // Transcription is now handled by Gemini Live API directly
 
       // Removed conversation session creation for simple voice calls
 
@@ -300,8 +326,11 @@ class GeminiLiveService {
       
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
-        responseModalities: [Modality.AUDIO], // Audio only for simple voice calls
+        responseModalities: [Modality.AUDIO], // Audio only for compatibility
         systemInstruction: localSystemPrompt, // ALWAYS use local prompt that includes memory
+        // Enable transcription for conversation capture
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
         // Optimized VAD for better speech detection
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -446,6 +475,7 @@ class GeminiLiveService {
    */
   private async handleMessage(message: any): Promise<void> {
     try {
+      // Handle server content messages
       // Handle user content (user speech transcription)
       if (message.userContent && message.userContent.userTurn) {
         const userTurn = message.userContent.userTurn;
@@ -463,7 +493,24 @@ class GeminiLiveService {
       
       // Handle turn complete for user (when user finishes speaking)
       if (message.userContent && message.userContent.turnComplete) {
-        console.log('🎤 User turn complete');
+        console.log('🎤 User turn complete - buffer length:', this.currentUserTranscription.length);
+        
+        // Save buffered user transcription as complete message
+        if (this.currentUserTranscription.trim()) {
+          const messageId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          this.conversationTranscript.push({
+            speaker: 'user',
+            text: `"${this.currentUserTranscription.trim()}"`,
+            timestamp: new Date(),
+            messageId: messageId
+          });
+          this.lastUserMessageId = messageId;
+          console.log(`📝 Saved complete user message via turnComplete (${this.conversationTranscript.length} total): "${this.currentUserTranscription.trim()}"`);
+          this.currentUserTranscription = ''; // Clear buffer
+        } else {
+          console.log('⚠️ User turn complete but no transcription buffered');
+        }
+        
         // User finished speaking, reset current input
         this.currentUserInput = '';
         this.updateState('processing');
@@ -501,7 +548,16 @@ class GeminiLiveService {
                       wordCount: wordCount
                     });
                     
-                    // Document generated via callback
+                    // Save document to conversation transcript as AI message
+                    const messageId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const cleanContent = documentContent.replace(/\\n/g, '\n');
+                    this.conversationTranscript.push({
+                      speaker: 'ai',
+                      text: cleanContent, // Plain text, no quotes for documents
+                      timestamp: new Date(),
+                      messageId: messageId
+                    });
+                    console.log(`📄 Saved document to conversation transcript (${this.conversationTranscript.length} total): ${cleanContent.length} chars`);
                     
                     console.log(`✅ Document generation callback triggered and saved to conversation history`);
                   } else {
@@ -565,6 +621,21 @@ class GeminiLiveService {
       if (message.serverContent && message.serverContent.interrupted) {
         this.lastInterruptionTime = Date.now();
         console.log("🛑 User interruption detected - stopping current speech");
+        
+        // Save interrupted AI transcription with "--" marker
+        if (this.currentAiTranscription.trim()) {
+          const messageId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          this.conversationTranscript.push({
+            speaker: 'ai',
+            text: `"${this.currentAiTranscription.trim()}--"`,
+            timestamp: new Date(),
+            messageId: messageId
+          });
+          this.lastAiMessageId = messageId;
+          console.log(`📝 Saved interrupted AI message (${this.conversationTranscript.length} total): "${this.currentAiTranscription.trim()}--"`);
+          this.currentAiTranscription = ''; // Clear buffer
+        }
+        
         // Always honor interruption signals - user wants to speak
         this.stopAudioPlayback();
         this.audioQueue = []; // Clear remaining speech queue on user interruption
@@ -575,18 +646,28 @@ class GeminiLiveService {
       // Handle input transcription (user speech transcribed)
       if (message.serverContent && message.serverContent.inputTranscription) {
         const transcription = message.serverContent.inputTranscription;
-        console.log("🎤 Input transcription:", transcription.text);
+        console.log("🎤 Input transcription chunk received:", JSON.stringify(transcription.text));
         
-        // User transcription received
+        // Buffer the transcription - don't save immediately
+        if (transcription.text) {
+          this.currentUserTranscription += transcription.text;
+          console.log(`📝 User transcription buffer now (${this.currentUserTranscription.length} chars): "${this.currentUserTranscription}"`);
+        } else {
+          console.log("⚠️ Input transcription chunk was empty");
+        }
         return;
       }
 
       // Handle output transcription (AI speech transcribed)
       if (message.serverContent && message.serverContent.outputTranscription) {
         const transcription = message.serverContent.outputTranscription;
-        console.log("🤖 Output transcription:", transcription.text);
+        console.log("🤖 Output transcription chunk:", transcription.text);
         
-        // AI transcription received
+        // Buffer the transcription - don't save immediately
+        if (transcription.text) {
+          this.currentAiTranscription += transcription.text;
+          console.log(`📝 Buffering AI transcription (${this.currentAiTranscription.length} chars): "${this.currentAiTranscription}"`);
+        }
         return;
       }
 
@@ -603,6 +684,22 @@ class GeminiLiveService {
 
       // Handle turn complete
       if (message.serverContent && message.serverContent.turnComplete) {
+        console.log('🤖 AI turn complete');
+        
+        // Save buffered AI transcription as complete message
+        if (this.currentAiTranscription.trim()) {
+          const messageId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          this.conversationTranscript.push({
+            speaker: 'ai',
+            text: `"${this.currentAiTranscription.trim()}"`,
+            timestamp: new Date(),
+            messageId: messageId
+          });
+          this.lastAiMessageId = messageId;
+          console.log(`📝 Saved complete AI message (${this.conversationTranscript.length} total): "${this.currentAiTranscription.trim()}"`);
+          this.currentAiTranscription = ''; // Clear buffer
+        }
+        
         // Turn complete
         // Start playing queued audio if not already playing
         if (!this.isPlaying && this.audioQueue.length > 0) {
@@ -626,6 +723,19 @@ class GeminiLiveService {
               // Store assistant response for conversation history
               this.currentAssistantResponse += part.text;
               console.log("📝 Current assistant response length:", this.currentAssistantResponse.length);
+              
+              // Add AI text to conversation transcript (this is the AI's response)
+              if (part.text.trim()) {
+                const messageId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                this.conversationTranscript.push({
+                  speaker: 'ai',
+                  text: part.text.trim(),
+                  timestamp: new Date(),
+                  messageId: messageId
+                });
+                this.lastAiMessageId = messageId;
+                console.log(`📝 Added AI text response to transcript (${this.conversationTranscript.length} total): "${part.text.trim().substring(0, 100)}..."`);
+              }
               
               if (this.onResponseCallback) {
                 this.onResponseCallback({
@@ -1387,6 +1497,20 @@ class GeminiLiveService {
     
     // Detect user input transitions
     if (this.currentState === 'listening' && (state === 'processing' || state === 'responding')) {
+      // Save buffered user transcription when user stops speaking (fallback if turnComplete not triggered)
+      if (this.currentUserTranscription.trim()) {
+        const messageId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.conversationTranscript.push({
+          speaker: 'user',
+          text: `"${this.currentUserTranscription.trim()}"`,
+          timestamp: new Date(),
+          messageId: messageId
+        });
+        this.lastUserMessageId = messageId;
+        console.log(`📝 Saved user message via state transition (${this.conversationTranscript.length} total): "${this.currentUserTranscription.trim()}"`);
+        this.currentUserTranscription = ''; // Clear buffer
+      }
+      
       if (!this.currentUserInput.trim()) {
         console.log('🎤 Detected user speech transition');
       } else {
@@ -1558,6 +1682,8 @@ class GeminiLiveService {
     console.log(`🧹 Clearing conversation data`);
     this.currentUserInput = '';
     this.currentAssistantResponse = '';
+    this.currentUserTranscription = '';
+    this.currentAiTranscription = '';
     
     this.cleanup();
     
@@ -1577,6 +1703,12 @@ class GeminiLiveService {
     
     this.currentContact = null;
     this.isSessionActive = false;
+    
+    // Stop speech recognition
+    this.stopSpeechRecognition();
+    
+    // NOTE: Don't clear conversationTranscript here as it may be needed for memory extraction
+    // It will be cleared when a new session starts
     
     console.log("✅ Session ended");
   }
@@ -1657,6 +1789,110 @@ class GeminiLiveService {
   public onDocumentGeneration(callback: (document: { content: string; wordCount?: number }) => void): void {
     this.onDocumentGenerationCallback = callback;
     console.log('📄 Document generation callback registered - paper tool now available');
+  }
+
+  /**
+   * Get the current conversation transcript
+   * This provides the actual spoken words from both user and AI
+   */
+  public getConversationTranscript(): Array<{
+    speaker: 'user' | 'ai';
+    text: string;
+    timestamp: Date;
+    messageId: string;
+  }> {
+    console.log(`📋 Retrieved voice conversation transcript with ${this.conversationTranscript.length} messages`);
+    return [...this.conversationTranscript]; // Return copy to prevent external modification
+  }
+
+  /**
+   * Check if there's an active conversation with content
+   */
+  public hasConversationContent(): boolean {
+    return this.conversationTranscript.length > 0;
+  }
+
+  /**
+   * Initialize browser speech recognition for capturing user speech
+   */
+  private initializeSpeechRecognition(): void {
+    try {
+      // Check if speech recognition is available
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        console.warn('🎤 Speech recognition not available in this browser');
+        return;
+      }
+
+      this.speechRecognition = new SpeechRecognition();
+      this.speechRecognition.continuous = true;
+      this.speechRecognition.interimResults = true;
+      this.speechRecognition.lang = 'en-US';
+
+      this.speechRecognition.onstart = () => {
+        this.isSpeechRecognitionActive = true;
+        console.log('🎤 User speech recognition started');
+      };
+
+      this.speechRecognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+
+        if (transcript.trim()) {
+          const messageId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          this.conversationTranscript.push({
+            speaker: 'user',
+            text: transcript.trim(),
+            timestamp: new Date(),
+            messageId: messageId
+          });
+          this.lastUserMessageId = messageId;
+          console.log(`🎤 Added user speech to transcript (${this.conversationTranscript.length} total): "${transcript.trim()}"`);
+        }
+      };
+
+      this.speechRecognition.onerror = (event: any) => {
+        console.warn('🎤 Speech recognition error:', event.error);
+      };
+
+      this.speechRecognition.onend = () => {
+        this.isSpeechRecognitionActive = false;
+        console.log('🎤 User speech recognition ended');
+        
+        // Restart if session is still active (for continuous capture)
+        if (this.isSessionActive && !this.isPlaying) {
+          setTimeout(() => {
+            if (this.speechRecognition && this.isSessionActive) {
+              this.speechRecognition.start();
+            }
+          }, 100);
+        }
+      };
+
+      // Start speech recognition
+      this.speechRecognition.start();
+      console.log('🎤 Browser speech recognition initialized for user speech capture');
+
+    } catch (error) {
+      console.warn('🎤 Failed to initialize speech recognition:', error);
+    }
+  }
+
+  /**
+   * Stop speech recognition
+   */
+  private stopSpeechRecognition(): void {
+    if (this.speechRecognition && this.isSpeechRecognitionActive) {
+      this.speechRecognition.stop();
+      this.speechRecognition = null;
+      this.isSpeechRecognitionActive = false;
+      console.log('🎤 Speech recognition stopped');
+    }
   }
 
   /**

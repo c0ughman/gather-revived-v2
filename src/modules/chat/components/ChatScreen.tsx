@@ -22,6 +22,7 @@ interface ChatScreenProps {
   onChatSelect?: (sessionId: string) => void;
   showSidebar?: boolean;
   onToggleSidebar?: () => void;
+  isLoadingConversation?: boolean; // Flag to prevent AI response on conversation load
 }
 
 export default function ChatScreen({ 
@@ -37,7 +38,8 @@ export default function ChatScreen({
   onPastChatsClick,
   onChatSelect,
   showSidebar = true,
-  onToggleSidebar
+  onToggleSidebar,
+  isLoadingConversation = false
 }: ChatScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -60,6 +62,12 @@ export default function ChatScreen({
 
   // Check if AI is currently generating a response
   useEffect(() => {
+    // Don't trigger AI response when loading a conversation
+    if (isLoadingConversation) {
+      setIsTyping(false);
+      return;
+    }
+
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.sender === 'user') {
       setIsTyping(true);
@@ -72,7 +80,7 @@ export default function ChatScreen({
     } else {
       setIsTyping(false);
     }
-  }, [messages]);
+  }, [messages, isLoadingConversation]);
 
   const handleSend = () => {
     if (inputValue.trim() || pendingDocuments.length > 0) {

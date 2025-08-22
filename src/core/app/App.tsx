@@ -20,7 +20,6 @@ import { documentContextService } from '../../modules/fileManagement/services/do
 import { enhancedAiService } from '../../modules/fileManagement/services/enhancedAiService';
 import { memoryService } from '../services/memoryService';
 import { conversationSessionManager } from '../services/conversationSessionManager';
-import { voiceApiService } from '../services/voiceApiService';
 import { supabaseService } from '../../modules/database';
 import { supabase } from '../../modules/database/lib/supabase';
 import { integrationsService, getIntegrationById } from '../../modules/integrations';
@@ -46,6 +45,7 @@ export default function App() {
     status: 'ended'
   });
   const [showSidebar, setShowSidebar] = useState(true);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   
   // Ref for notes tab to refresh notes when needed
   const notesTabRef = useRef<NotesTabRef>(null);
@@ -331,6 +331,9 @@ export default function App() {
     try {
       console.log(`📖 Loading messages from session: ${sessionId}`);
       
+      // Set loading flag to prevent AI response
+      setIsLoadingConversation(true);
+      
       // Get session details
       const { data: session, error: sessionError } = await supabase
         .from('conversation_sessions')
@@ -400,14 +403,16 @@ export default function App() {
       
       console.log(`✅ Loaded ${convertedMessages.length} messages from session and set in React state`);
       
-      // Force a re-render by logging the current state
+      // Clear loading flag after a brief delay to allow React to process
       setTimeout(() => {
+        setIsLoadingConversation(false);
         console.log('🔍 Messages in state after timeout:', messages.length);
       }, 100);
 
     } catch (error) {
       console.error('Error loading messages from session:', error);
       alert(`Failed to load conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsLoadingConversation(false); // Clear flag on error
     }
   };
 
@@ -626,12 +631,33 @@ export default function App() {
 
   const handleEndCall = async () => {
     try {
-      // Get conversation transcript from voice session before ending
-      if (selectedContact && user) {
+      // Get conversation transcript from Gemini Live service before ending
+      if (selectedContact && user && geminiLiveService.hasConversationContent()) {
         console.log(`🎙️ Voice call ending, getting transcript for memory extraction...`);
         try {
-          const transcript = await voiceApiService.getConversationTranscript();
-          if (transcript.messages.length > 0) {
+          const transcriptData = geminiLiveService.getConversationTranscript();
+          
+          if (transcriptData.length > 0) {
+            // Convert Gemini Live transcript to the format expected by conversationSessionManager
+            const transcript = {
+              messages: transcriptData.map(item => ({
+                id: item.messageId,
+                content: item.text,
+                role: item.speaker === 'user' ? 'user' : 'assistant',
+                text: item.text,
+                timestamp: item.timestamp.toISOString(),
+                metadata: {
+                  source: 'voice',
+                  conversationType: 'voice'
+                }
+              })),
+              metadata: {
+                started_at: transcriptData[0]?.timestamp?.toISOString(),
+                ended_at: transcriptData[transcriptData.length - 1]?.timestamp?.toISOString(),
+                total_messages: transcriptData.length
+              }
+            };
+
             // Save voice conversation and extract memories
             await conversationSessionManager.saveVoiceConversation(
               selectedContact,
@@ -640,12 +666,14 @@ export default function App() {
             );
             console.log(`✅ Voice conversation saved with ${transcript.messages.length} messages`);
           } else {
-            console.log(`📝 Voice call had no messages to save`);
+            console.log(`📝 Voice call had no transcript content to save`);
           }
         } catch (transcriptError) {
-          console.error('❌ Error getting voice transcript for memory extraction:', transcriptError);
+          console.error('❌ Error processing voice transcript for memory extraction:', transcriptError);
           // Continue ending call even if transcript fails
         }
+      } else {
+        console.log(`📝 Voice call ending without transcript content`);
       }
 
       await geminiLiveService.endSession();
@@ -1454,6 +1482,7 @@ export default function App() {
                     onChatSelect={handleChatSelect}
                     showSidebar={showSidebar}
                     onToggleSidebar={handleToggleSidebar}
+                    isLoadingConversation={isLoadingConversation}
                   />
                 )}
                 
