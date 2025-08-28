@@ -30,7 +30,7 @@ const countTokensInMessages = (messages: Message[]): number => {
   return messages.reduce((total, msg) => total + countTokens(msg.content), 0);
 };
 
-const truncateMessagesToTokenLimit = (messages: Message[], maxTokens: number = 4000): Message[] => {
+const truncateMessagesToTokenLimit = (messages: Message[], maxTokens: number = 4000, contactId?: string): Message[] => {
   if (messages.length === 0) return messages;
   
   let totalTokens = 0;
@@ -46,6 +46,18 @@ const truncateMessagesToTokenLimit = (messages: Message[], maxTokens: number = 4
       // Stop adding messages if we exceed the limit
       break;
     }
+  }
+  
+  // If truncation occurred, save the full conversation to past chats
+  if (result.length < messages.length && contactId) {
+    // Save conversation silently in background
+    setTimeout(() => {
+      try {
+        conversationSessionManager.saveCurrentSession();
+      } catch (error) {
+        console.error('Failed to auto-save conversation:', error);
+      }
+    }, 0);
   }
   
   return result;
@@ -1169,7 +1181,7 @@ export default function App() {
       console.log('📝 Enhanced context preview:', enhancedContact.description.substring(0, 300) + '...');
 
       // Truncate chat history to stay within token limits for backend
-      const truncatedChatHistory = truncateMessagesToTokenLimit(chatHistory, 4000);
+      const truncatedChatHistory = truncateMessagesToTokenLimit(chatHistory, 4000, selectedContact.id);
       console.log(`📏 Truncated chat history: ${chatHistory.length} → ${truncatedChatHistory.length} messages (${countTokensInMessages(truncatedChatHistory)} tokens)`);
 
       // Generate AI response using the enhanced service with truncated history
