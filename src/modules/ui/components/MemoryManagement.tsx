@@ -159,7 +159,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
                   value={memory.content}
                   onChange={(e) => handleMemoryChange(memory.id, e.target.value)}
                   className={`w-full bg-transparent resize-none border-none outline-none text-base leading-relaxed min-h-[100px] p-0 transition-colors duration-200 ${
-                    isExcluded ? 'text-slate-400' : 'text-white'
+                    isExcluded ? 'text-slate-400 italic' : 'text-white'
                   }`}
                   placeholder="Memory content..."
                   style={{ 

@@ -639,7 +639,47 @@ class DatabaseService:
                     'title': session.get('title', 'Untitled Conversation')
                 })
             
-            logger.info(f'✅ Found {len(formatted_results)} relevant conversations')
+            # Also search memories for the same query
+            logger.info(f'🧠 Searching memories for query: "{query}"')
+            # Search memories using standard PostgreSQL ILIKE syntax
+            memory_result = supabase_client.from_('agent_medium_memories').select('*').eq('agent_id', agent_id).ilike('content', f'%{query}%').order('importance_score', desc=True).order('last_accessed_at', desc=True).limit(limit).execute()
+            
+            if memory_result.data:
+                logger.info(f'🧠 Found {len(memory_result.data)} matching memories')
+                
+                # Add memory results to the search results
+                for memory in memory_result.data:
+                    # Create excerpt from memory content
+                    content_lower = memory['content'].lower()
+                    query_lower = query.lower()
+                    
+                    excerpt = memory['content']
+                    if query_lower in content_lower:
+                        # Extract context around the match for memories too
+                        index = content_lower.find(query_lower)
+                        start = max(0, index - context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        end = min(len(memory['content']), index + len(query) + context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        
+                        excerpt = memory['content'][start:end]
+                        if start > 0:
+                            excerpt = '...' + excerpt
+                        if end < len(memory['content']):
+                            excerpt = excerpt + '...'
+                        
+                        # Enforce maximum excerpt length
+                        if len(excerpt) > context_limits.SEARCH_EXCERPT_MAX_LENGTH:
+                            excerpt = excerpt[:context_limits.SEARCH_EXCERPT_MAX_LENGTH - 3] + '...'
+                    
+                    formatted_results.append({
+                        'date': memory['created_at'],
+                        'summary': f"Memory: {memory.get('summary', memory['content'][:100])}",
+                        'relevant_excerpt': excerpt,
+                        'message_count': 1,  # Memories count as 1 "message"
+                        'conversation_type': 'memory',
+                        'title': f"Memory - {memory.get('topic', 'General')}"
+                    })
+            
+            logger.info(f'✅ Found {len(formatted_results)} relevant conversations and memories')
             return formatted_results
             
         except Exception as error:
