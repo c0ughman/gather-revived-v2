@@ -155,7 +155,7 @@ class EnhancedAiService {
         this.sendToContextTestingWebhook(testData);
       }
 
-      // Get the AI response and any compacted chat history
+      // Get the AI response (no compacting)
       const result = await pythonApiService.generateAIResponse(
         contact,
         userMessage,
@@ -163,18 +163,10 @@ class EnhancedAiService {
         conversationDocuments
       );
 
-      // Use compacted chat history if provided, otherwise use original
-      const updatedChatHistory = result.compactedChatHistory || chatHistory;
-      
-      if (result.wasCompacted) {
-        console.log(`🗜️ Chat history was compacted: ${chatHistory.length} → ${updatedChatHistory.length} messages`);
-      }
-
-      // Backend now handles all context detection and memory integration
-      // Frontend uses the compacted history for subsequent requests
+      // Return original chat history unchanged (no compacting)
       return {
         response: result.response,
-        updatedChatHistory
+        updatedChatHistory: chatHistory
       };
     } catch (error) {
       console.error(`❌ Backend failed for AI generation:`, error);
