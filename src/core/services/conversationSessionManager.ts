@@ -120,6 +120,86 @@ class ConversationSessionManager {
   }
 
   /**
+   * Save messages to database but continue the session (for truncation auto-save)
+   */
+  saveMessagesAndContinueSession(messagesToKeep: any[]): void {
+    if (!this.activeSession?.isActive || this.activeSession.messages.length === 0) {
+      console.log('No active session with messages to save for continuation');
+      return;
+    }
+
+    console.log(`💾 Auto-saving ${this.activeSession.messages.length} messages due to truncation, keeping session active with ${messagesToKeep.length} recent messages`);
+    
+    // Save to database asynchronously but don't end the session
+    this.saveMessagesToDatabaseOnly(this.activeSession, messagesToKeep);
+  }
+
+  /**
+   * Save messages to existing or new database session without ending the active session
+   */
+  private async saveMessagesToDatabaseOnly(session: ActiveSession, messagesToKeep: any[]): Promise<void> {
+    try {
+      let sessionId: string;
+      let messagesToSave = session.messages;
+      
+      // If session already has a database ID, append only new messages
+      if (session.id) {
+        sessionId = session.id;
+        console.log(`📝 Appending new messages to existing database session: ${sessionId}`);
+        
+        // Get already saved message count from database
+        const { data: existingSession } = await supabase
+          .from('conversation_sessions')
+          .select('message_count')
+          .eq('id', sessionId)
+          .single();
+        
+        const alreadySavedCount = existingSession?.message_count || 0;
+        
+        // Only save messages that haven't been saved yet
+        messagesToSave = session.messages.slice(alreadySavedCount);
+        console.log(`📝 Saving ${messagesToSave.length} new messages (${alreadySavedCount} already saved)`);
+        
+        // Update the existing session's metadata
+        await supabase
+          .from('conversation_sessions')
+          .update({
+            message_count: session.messages.length,
+            last_message_at: session.lastActivity.toISOString(),
+            ended_at: null // Keep session open
+          })
+          .eq('id', sessionId);
+        
+      } else {
+        // Create new database session
+        console.log(`🆕 Creating new database session for truncation save`);
+        const dbSession = await this.createDatabaseSession(session);
+        sessionId = dbSession.id;
+        
+        // Store the database ID in the active session for future appends
+        session.id = sessionId;
+        
+        // Save all messages for new session
+        messagesToSave = session.messages;
+      }
+      
+      // Save messages to database (only new ones if appending)
+      if (messagesToSave.length > 0) {
+        await this.saveMessagesToDatabase(sessionId, messagesToSave);
+      }
+      
+      // Update the active session to only keep recent messages
+      session.messages = messagesToKeep;
+      session.lastActivity = new Date();
+      
+      console.log(`✅ Messages saved to database, session continues with ${messagesToKeep.length} recent messages`);
+      
+    } catch (error) {
+      console.error('❌ Error saving messages for continuation:', error);
+    }
+  }
+
+  /**
    * Save conversation to database and extract memories
    */
   private async saveToDatabaseAndExtractMemories(session: ActiveSession): Promise<void> {

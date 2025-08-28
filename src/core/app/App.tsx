@@ -48,12 +48,12 @@ const truncateMessagesToTokenLimit = (messages: Message[], maxTokens: number = 4
     }
   }
   
-  // If truncation occurred, save the full conversation to past chats
+  // If truncation occurred, save the full conversation but continue session
   if (result.length < messages.length && contactId) {
-    // Save conversation silently in background
+    // Save conversation silently in background but keep session active
     setTimeout(() => {
       try {
-        conversationSessionManager.saveCurrentSession();
+        conversationSessionManager.saveMessagesAndContinueSession(result);
       } catch (error) {
         console.error('Failed to auto-save conversation:', error);
       }
