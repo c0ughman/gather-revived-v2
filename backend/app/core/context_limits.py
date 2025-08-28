@@ -69,17 +69,15 @@ class ContextLimits:
     
     # Message history for context (now token-based)
     CHAT_HISTORY_MAX_MESSAGES = None           # No message count limit, use token limit instead
-    CHAT_HISTORY_MAX_TOKENS = 1000             # Restored to reasonable limit (was 1000 for testing)
+    CHAT_HISTORY_MAX_TOKENS = 4000             # Token limit for conversation history
     CHAT_HISTORY_MAX_CHARS_PER_MESSAGE = None  # No limit on individual messages
     
     # ===========================================
-    # CONVERSATION COMPACTING CONFIGURATION
+    # CONVERSATION TRUNCATION CONFIGURATION  
     # ===========================================
     
-    # Conversation compacting thresholds and limits
-    CHAT_COMPACTING_THRESHOLD = 0.8            # 80% - When to trigger compacting
-    CHAT_MESSAGES_TO_KEEP_RECENT = 2           # Keep last 2 messages uncompacted
-    CHAT_SUMMARY_MAX_TOKENS = 250              # 25% of chat limit for summary
+    # Simple token-based truncation (removed compacting functionality)
+    # Messages exceeding CHAT_HISTORY_MAX_TOKENS will be truncated from oldest first
     
     # ===========================================
     # SEARCH AND MEMORY LIMITS
@@ -93,7 +91,7 @@ class ContextLimits:
     
     # Search result excerpts
     SEARCH_EXCERPT_CONTEXT_CHARS = 100         # Characters before/after match
-    SEARCH_EXCERPT_MAX_LENGTH = 300            # Maximum excerpt length
+    SEARCH_EXCERPT_MAX_LENGTH = 1000           # Maximum excerpt length
     
     # Memory context (now token-based)
     MEMORY_CONTEXT_MAX_ITEMS = None            # No limit on memory items count

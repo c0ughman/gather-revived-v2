@@ -609,6 +609,10 @@ class DatabaseService:
                     if end < len(message['content']):
                         excerpt = excerpt + '...'
                     
+                    # Enforce maximum excerpt length
+                    if len(excerpt) > context_limits.SEARCH_EXCERPT_MAX_LENGTH:
+                        excerpt = excerpt[:context_limits.SEARCH_EXCERPT_MAX_LENGTH - 3] + '...'
+                    
                     # Keep the best (longest) excerpt
                     if len(excerpt) > len(sessions_data[session_id]['best_excerpt']):
                         sessions_data[session_id]['best_excerpt'] = excerpt
