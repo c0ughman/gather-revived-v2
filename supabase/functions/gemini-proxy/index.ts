@@ -53,7 +53,7 @@ serve(async (req) => {
       'models/gemini-pro:generateContent',
       'models/gemini-pro-vision:generateContent',
       'models/gemini-1.5-pro:generateContent',
-      'models/gemini-1.5-flash:generateContent'
+      'models/gemini-2.5-flash:generateContent'
     ]
 
     if (!allowedEndpoints.includes(endpoint)) {

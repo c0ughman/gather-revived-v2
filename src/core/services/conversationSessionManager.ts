@@ -294,14 +294,14 @@ RESPONSE (JSON only, no other text):`;
             integrations: []
           };
           
-          const response = await pythonApiService.generateAIResponse(
+          const result = await pythonApiService.generateAIResponse(
             memoryExtractionContact,
             prompt,
             [], // Empty chat history
             [] // No documents
           );
           
-          return this.parseMemoryResponse(response);
+          return this.parseMemoryResponse(result.response);
         }
       } catch (backendError) {
         console.warn('🚫 Python backend not available for memory extraction:', backendError);
@@ -327,7 +327,7 @@ RESPONSE (JSON only, no other text):`;
       throw new Error('Gemini API key not configured');
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

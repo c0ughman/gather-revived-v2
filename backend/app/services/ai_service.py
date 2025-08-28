@@ -3,6 +3,7 @@ import logging
 import httpx
 import json
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 from ..core.config import settings
 from ..core.context_limits import context_limits
 from .integrations_service import integrations_service
@@ -30,6 +31,63 @@ class AIService:
         
         # Function declarations for integrations
         self.function_declarations = self._get_function_declarations()
+        
+        # Context testing configuration
+        self.context_testing_enabled = settings.CONTEXT_TESTING_ENABLED
+        self.context_testing_webhook_url = settings.CONTEXT_TESTING_WEBHOOK_URL
+        
+        if self.context_testing_enabled:
+            logger.info(f"🔬 Context testing mode ENABLED - webhook: {self.context_testing_webhook_url}")
+        else:
+            logger.info("🔬 Context testing mode DISABLED")
+    
+    async def _send_to_context_testing_webhook(self, test_data: Dict[str, Any]) -> None:
+        """
+        Send request data to context testing webhook for debugging.
+        This runs asynchronously and doesn't impact performance.
+        """
+        if not self.context_testing_enabled or not self.context_testing_webhook_url:
+            return
+            
+        try:
+            # Create a copy of the data with sensitive information redacted
+            safe_data = test_data.copy()
+            
+            # Redact API keys and sensitive data
+            if "payload" in safe_data and "generationConfig" in safe_data["payload"]:
+                safe_data["payload"] = safe_data["payload"].copy()
+                # Don't redact generation config as it's useful for testing
+                
+            # Add metadata
+            safe_data["_metadata"] = {
+                "timestamp": datetime.now().isoformat(),
+                "source": "gather_backend_ai_service",
+                "testing_mode": "context_testing",
+                "version": "1.0.0"
+            }
+            
+            # Send to webhook asynchronously without blocking
+            asyncio.create_task(self._send_webhook_data_async(safe_data))
+            
+        except Exception as e:
+            # Never let testing mode break the main flow
+            logger.debug(f"Context testing webhook failed (non-blocking): {e}")
+    
+    async def _send_webhook_data_async(self, data: Dict[str, Any]) -> None:
+        """Send data to webhook asynchronously"""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(
+                    self.context_testing_webhook_url,
+                    json=data,
+                    headers={"Content-Type": "application/json"}
+                )
+                if response.status_code == 200:
+                    logger.debug("🔬 Context testing data sent to webhook successfully")
+                else:
+                    logger.debug(f"🔬 Context testing webhook returned {response.status_code}")
+        except Exception as e:
+            logger.debug(f"🔬 Context testing webhook error: {e}")
     
     async def generate_response(
         self,
@@ -37,7 +95,7 @@ class AIService:
         user_message: str,
         chat_history: List[Dict[str, Any]],
         conversation_documents: List[Dict[str, Any]] = None
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Generate AI response using Google Gemini API.
         This replaces the frontend geminiService for better performance and security.
@@ -51,8 +109,12 @@ class AIService:
             # Build context from contact info, memory, and documents
             context = await self._build_contact_context(contact, conversation_documents or [])
             
+            # Apply conversation compacting if needed
+            logger.info(f"🔍 Checking if conversation needs compacting...")
+            compacted_chat_history = await self._apply_conversation_compacting(chat_history, contact.get('name', 'AI'))
+            
             # Build conversation history for function calling API
-            conversation_contents = self._build_conversation_contents(chat_history, user_message, contact.get('name', 'AI'))
+            conversation_contents = self._build_conversation_contents(compacted_chat_history, user_message, contact.get('name', 'AI'))
             
             logger.info(f"📝 Sending conversation to Gemini API with {len(self.function_declarations)} function declarations")
             logger.info(f"🔧 Available functions: {[f['name'] for f in self.function_declarations]}")
@@ -112,8 +174,40 @@ class AIService:
                 }
             }
             
+            # Send to context testing webhook if enabled (non-blocking)
+            if self.context_testing_enabled:
+                # Capture the EXACT data that gets sent to Gemini API
+                test_data = {
+                    "request_type": "gemini_api_request",
+                    "metadata": {
+                        "contact_name": contact.get('name', 'Unknown'),
+                        "contact_id": contact.get('id', 'Unknown'),
+                        "original_chat_history_length": len(chat_history),
+                        "processed_conversation_contents_length": len(conversation_contents),
+                        "compacted_chat_history_length": len(compacted_chat_history),
+                        "user_message": user_message,
+                        "documents_count": len(conversation_documents or []),
+                        "function_declarations_count": len(self.function_declarations)
+                    },
+                    "gemini_request": {
+                        "url": f"{self.base_url}/models/gemini-2.5-flash:generateContent",
+                        "method": "POST",
+                        "payload": payload,
+                        "system_instruction_full": full_system_instruction,
+                        "conversation_contents_processed": conversation_contents,
+                        "function_declarations": self.function_declarations
+                    },
+                    "processing_info": {
+                        "was_conversation_compacted": len(compacted_chat_history) != len(chat_history),
+                        "original_message_count": len(chat_history),
+                        "compacted_message_count": len(compacted_chat_history),
+                        "final_conversation_contents": len(conversation_contents)
+                    }
+                }
+                await self._send_to_context_testing_webhook(test_data)
+            
             # Make initial API request
-            response = await self._call_gemini_api('models/gemini-1.5-flash:generateContent', payload)
+            response = await self._call_gemini_api('models/gemini-2.5-flash:generateContent', payload)
             
             # Log response structure for debugging
             candidates = response.get('candidates', [])
@@ -126,7 +220,46 @@ class AIService:
                 logger.info(f"📋 Gemini response: {len(parts)} parts, function_calls={has_function_calls}, text={has_text}")
             
             # Handle function calling response
-            return await self._handle_function_calling_response(response, conversation_contents, payload, contact)
+            ai_response = await self._handle_function_calling_response(response, conversation_contents, payload, contact)
+            
+            # Calculate final token analysis after compacting AND including the current AI response
+            from ..core.token_utils import TokenCounter
+            
+            # Count tokens in the generated AI response
+            ai_response_tokens = TokenCounter.count_tokens(ai_response)
+            logger.info(f"🤖 Generated response: {ai_response_tokens} tokens")
+            
+            # Create temporary chat history that includes the upcoming AI response
+            # This gives us the TRUE final state after this message is sent
+            upcoming_chat_history = compacted_chat_history + [
+                {
+                    'sender': contact.get('name', 'AI'),
+                    'content': ai_response,
+                    'timestamp': None  # Will be set by frontend
+                }
+            ]
+            
+            # Calculate token analysis including the upcoming AI response
+            final_analysis = TokenCounter.get_conversation_token_analysis(
+                upcoming_chat_history,
+                context_limits.CHAT_HISTORY_MAX_TOKENS,
+                context_limits.CHAT_COMPACTING_THRESHOLD
+            )
+            
+            # Log final context status including the current AI response
+            logger.info(f"📊 Final context (including current AI response): {final_analysis['message_count']} messages, {final_analysis['total_tokens']} tokens ({final_analysis['usage_percentage']:.1f}% of {final_analysis['max_tokens']} max)")
+            
+            was_compacted = len(compacted_chat_history) != len(chat_history)
+            
+            # Return response with token analysis and compacted history
+            return {
+                'response': ai_response,
+                'token_analysis': final_analysis,
+                'was_compacted': was_compacted,
+                'original_message_count': len(chat_history),
+                'compacted_message_count': len(compacted_chat_history),
+                'compacted_chat_history': compacted_chat_history
+            }
             
         except Exception as error:
             logger.error(f"❌ Error generating AI response: {error}")
@@ -170,7 +303,7 @@ Keep the summary detailed but concise."""
                 "generationConfig": context_limits.get_summary_config()
             }
             
-            response = await self._call_gemini_api('models/gemini-1.5-flash:generateContent', payload)
+            response = await self._call_gemini_api('models/gemini-2.5-flash:generateContent', payload)
             
             candidates = response.get('candidates', [])
             if not candidates:
@@ -223,8 +356,31 @@ Keep the summary detailed but concise."""
         """
         Build context string from contact information, memory, and documents.
         """
-        # Truncate agent description to fit token limits (silent truncation)
-        description = contact.get('description', 'You are a helpful AI assistant.')
+        # Extract clean description - if it contains formatted context, clean it
+        raw_description = contact.get('description', 'A helpful AI assistant.')
+        
+        # Clean the description if it contains formatted context (starts with "You are...")
+        if raw_description.startswith(f"You are {contact.get('name', '')}."):
+            # Extract only the basic description after the name
+            parts = raw_description.split('\n\n', 1)
+            if len(parts) > 1:
+                # Take the first line which should be the basic description
+                first_part = parts[0]
+                if '. ' in first_part:
+                    description = first_part.split('. ', 1)[1]
+                else:
+                    description = 'A helpful AI assistant.'
+            else:
+                # Fallback - extract text after "You are NAME. "
+                name_prefix = f"You are {contact.get('name', '')}.  "
+                if raw_description.startswith(name_prefix):
+                    description = raw_description[len(name_prefix):].split('\n')[0].strip()
+                else:
+                    description = 'A helpful AI assistant.'
+        else:
+            description = raw_description
+        
+        # Truncate clean description to fit token limits
         truncated_description = context_limits.truncate_agent_description(description)
         
         context = f"You are {contact.get('name', 'AI Assistant')}. {truncated_description}"
@@ -271,27 +427,6 @@ Keep the summary detailed but concise."""
         
         return context
     
-    def _build_conversation_history(self, chat_history: List[Dict[str, Any]], contact_name: str) -> str:
-        """
-        Build conversation history string from chat messages.
-        """
-        if not chat_history:
-            return ""
-        
-        # Take recent messages to avoid token limits (using token-based filtering)
-        recent_history = context_limits.get_recent_messages(chat_history)
-        
-        formatted_history = []
-        for message in recent_history:
-            sender = message.get('sender', 'unknown')
-            content = message.get('content', '')
-            
-            if sender == 'user':
-                formatted_history.append(f"User: {content}")
-            else:
-                formatted_history.append(f"{contact_name}: {content}")
-        
-        return '\n'.join(formatted_history)
     
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -318,14 +453,14 @@ Keep the summary detailed but concise."""
                 "generationConfig": context_limits.get_health_check_config()
             }
             
-            response = await self._call_gemini_api('models/gemini-1.5-flash:generateContent', test_payload)
+            response = await self._call_gemini_api('models/gemini-2.5-flash:generateContent', test_payload)
             
             candidates = response.get('candidates', [])
             if candidates:
                 return {
                     "status": "healthy",
                     "api_connection": "successful",
-                    "model": "gemini-1.5-flash"
+                    "model": "gemini-2.5-flash"
                 }
             else:
                 return {
@@ -420,8 +555,9 @@ Keep the summary detailed but concise."""
         """Build conversation contents for Gemini API function calling format"""
         contents = []
         
-        # Add recent chat history (using token-based filtering)
-        recent_history = context_limits.get_recent_messages(chat_history or [])
+        # Use the chat history as-is (it's already been compacted if needed)
+        # No additional filtering since compacting already handled token limits
+        recent_history = chat_history or []
         
         for message in recent_history:
             sender = message.get('sender', 'unknown')
@@ -579,7 +715,7 @@ Keep the summary detailed but concise."""
                 follow_up_payload = original_payload.copy()
                 follow_up_payload["contents"] = conversation_contents
                 
-                follow_up_response = await self._call_gemini_api('models/gemini-1.5-flash:generateContent', follow_up_payload)
+                follow_up_response = await self._call_gemini_api('models/gemini-2.5-flash:generateContent', follow_up_payload)
                 
                 # Extract final response
                 follow_up_candidates = follow_up_response.get('candidates', [])
@@ -610,6 +746,256 @@ Keep the summary detailed but concise."""
         except Exception as e:
             logger.error(f"❌ Error handling function calling response: {e}")
             raise
+    
+    async def summarize_conversation(
+        self,
+        messages: List[Dict[str, Any]],
+        existing_summary: str = None,  # Kept for compatibility but unused
+        max_tokens: int = 250
+    ) -> str:
+        """
+        Summarize a conversation using fixed token budget approach.
+        
+        Args:
+            messages: List of messages to summarize (including any existing summaries)
+            existing_summary: Kept for compatibility but unused
+            max_tokens: Maximum tokens for the summary
+            
+        Returns:
+            Conversation summary within token limit
+        """
+        try:
+            if not messages:
+                return "No conversation to summarize."
+            
+            logger.info(f"🔄 Summarizing {len(messages)} messages (max {max_tokens} tokens)")
+            
+            # Build conversation text
+            conversation_text = ""
+            for msg in messages:
+                sender = msg.get('sender', 'Unknown')
+                content = msg.get('content', '')
+                conversation_text += f"{sender}: {content}\n"
+            
+            # Build simplified summarization prompt
+            prompt = f"""Please create a concise summary of this conversation content that captures:
+1. Key facts and information discussed
+2. Important decisions or conclusions reached
+3. Main topics covered
+4. User preferences or context mentioned
+
+Keep the summary to approximately {max_tokens} tokens or less.
+Focus on information that would help maintain conversation continuity.
+
+Conversation content to summarize:
+{conversation_text}
+
+Summary:"""
+            
+            # Generate summary using Gemini
+            payload = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": prompt}]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.3,  # Lower temperature for factual summaries
+                    "topK": 40,
+                    "topP": 0.95,
+                    "maxOutputTokens": max_tokens
+                },
+                "safetySettings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+                ]
+            }
+            
+            response = await self._call_gemini_api('models/gemini-2.5-flash:generateContent', payload)
+            
+            if not response or 'candidates' not in response:
+                raise ValueError("No summary generated by AI")
+            
+            candidates = response.get('candidates', [])
+            if not candidates:
+                raise ValueError("No summary candidates returned")
+            
+            candidate = candidates[0]
+            if 'content' not in candidate or 'parts' not in candidate['content']:
+                raise ValueError("Invalid summary response format")
+            
+            parts = candidate['content']['parts']
+            if not parts or 'text' not in parts[0]:
+                raise ValueError("No summary text in response")
+            
+            summary = parts[0]['text'].strip()
+            
+            # Validate summary token count
+            from ..core.token_utils import TokenCounter
+            summary_tokens = TokenCounter.count_tokens(summary)
+            
+            # Show first 100 characters of summary for context
+            summary_preview = summary[:100] + "..." if len(summary) > 100 else summary
+            logger.info(f"✅ Generated summary: {summary_tokens} tokens")
+            logger.info(f"📝 Summary preview: {summary_preview}")
+            
+            # Truncate if still too long
+            if summary_tokens > max_tokens:
+                summary = TokenCounter.truncate_to_token_limit(summary, max_tokens)
+                logger.info(f"📏 Truncated summary to fit {max_tokens} token limit")
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"❌ Error summarizing conversation: {e}")
+            logger.error(f"❌ Summary request details: {len(messages)} messages, max_tokens={max_tokens}")
+            if hasattr(e, '__traceback__'):
+                import traceback
+                logger.error(f"❌ Full error traceback: {traceback.format_exc()}")
+            # Return a basic fallback summary
+            fallback_summary = f"Conversation with {len(messages)} messages"
+            logger.warning(f"🔄 Using fallback summary: '{fallback_summary}'")
+            return fallback_summary
+    
+    async def _apply_conversation_compacting(
+        self, 
+        chat_history: List[Dict[str, Any]], 
+        contact_name: str = "AI"
+    ) -> List[Dict[str, Any]]:
+        """
+        Apply conversation compacting if token threshold is exceeded.
+        
+        Args:
+            chat_history: Original chat history
+            contact_name: Name of the contact for logging
+            
+        Returns:
+            Compacted chat history with summary if needed
+        """
+        try:
+            from ..core.token_utils import TokenCounter
+            
+            logger.info("🔍 COMPACTING ANALYSIS STARTED")
+            
+            if not chat_history:
+                logger.info("💬 No chat history to compact")
+                return chat_history
+            
+            
+            # Analyze conversation tokens
+            analysis = TokenCounter.get_conversation_token_analysis(
+                chat_history,
+                context_limits.CHAT_HISTORY_MAX_TOKENS,
+                context_limits.CHAT_COMPACTING_THRESHOLD
+            )
+            
+            # Log clear token analysis for frontend console with breakdown
+            logger.info(f"💬 Conversation: {analysis['message_count']} messages, {analysis['total_tokens']} tokens ({analysis['usage_percentage']:.1f}% of {analysis['max_tokens']} max)")
+            logger.info(f"🚨 Compacting threshold: {context_limits.CHAT_COMPACTING_THRESHOLD*100:.0f}% ({analysis['threshold_tokens']} tokens)")
+            logger.info(f"⚠️ Compacting needed: {'YES' if analysis['needs_compacting'] else 'NO'}")
+            
+            # Add token breakdown: summary vs chat messages (always show this)
+            summary_tokens = 0
+            chat_tokens = 0
+            
+            for msg in chat_history:
+                msg_tokens = TokenCounter.count_tokens(msg.get('content', ''))
+                if msg.get('sender') == 'summary' and msg.get('content', '').startswith('[SUMMARY]'):
+                    summary_tokens += msg_tokens
+                else:
+                    chat_tokens += msg_tokens
+            
+            total_breakdown_tokens = summary_tokens + chat_tokens
+            if total_breakdown_tokens > 0:
+                summary_percentage = (summary_tokens / total_breakdown_tokens) * 100
+                chat_percentage = (chat_tokens / total_breakdown_tokens) * 100
+                logger.info(f"📊 Token breakdown: {summary_tokens} summary tokens ({summary_percentage:.1f}%) + {chat_tokens} chat tokens ({chat_percentage:.1f}%)")
+            else:
+                logger.info(f"📊 Token breakdown: 0 summary tokens + {chat_tokens} chat tokens (100.0%)")
+            
+            if not analysis['needs_compacting']:
+                logger.info(f"✅ No compacting needed - under threshold ({analysis['usage_percentage']:.1f}% < {context_limits.CHAT_COMPACTING_THRESHOLD*100:.0f}%)")
+                return chat_history
+            
+            # Select messages for compacting
+            compacting_selection = TokenCounter.select_messages_for_compacting(
+                chat_history,
+                context_limits.CHAT_MESSAGES_TO_KEEP_RECENT,
+                None  # No existing summary handling
+            )
+            
+            if not compacting_selection['can_compact']:
+                logger.info(f"✅ Cannot compact - only {len(chat_history)} messages (keeping {context_limits.CHAT_MESSAGES_TO_KEEP_RECENT} recent)")
+                return chat_history
+            
+            logger.info("🔄 COMPACTING STARTED")
+            logger.info(f"📦 Compacting {compacting_selection['compacting_count']} old messages, keeping {compacting_selection['keeping_count']} recent")
+            
+            # Use all messages to compact (including any existing summaries)
+            messages_to_compact = compacting_selection['messages_to_compact']
+            
+            if not messages_to_compact:
+                logger.info("✅ No messages to compact")
+                return chat_history
+            
+            logger.info(f"📝 Compacting {len(messages_to_compact)} messages...")
+            
+            # Generate new summary with fixed token budget
+            new_summary = await self.summarize_conversation(
+                messages_to_compact,
+                None,  # No existing summary - everything gets summarized together
+                context_limits.CHAT_SUMMARY_MAX_TOKENS
+            )
+            
+            # Build compacted chat history
+            compacted_history = []
+            
+            # Add the new summary as a special message
+            summary_message = {
+                'sender': 'summary',
+                'content': f'[SUMMARY] {new_summary}',
+                'timestamp': chat_history[0].get('timestamp') if chat_history else None
+            }
+            compacted_history.append(summary_message)
+            
+            # Add recent messages to keep
+            compacted_history.extend(compacting_selection['messages_to_keep'])
+            
+            # Final token analysis
+            final_analysis = TokenCounter.get_conversation_token_analysis(
+                compacted_history,
+                context_limits.CHAT_HISTORY_MAX_TOKENS,
+                context_limits.CHAT_COMPACTING_THRESHOLD
+            )
+            
+            logger.info("✅ COMPACTING COMPLETED")
+            logger.info(f"📉 Before: {analysis['message_count']} messages, {analysis['total_tokens']} tokens ({analysis['usage_percentage']:.1f}%)")
+            logger.info(f"📈 After: {final_analysis['message_count']} messages, {final_analysis['total_tokens']} tokens ({final_analysis['usage_percentage']:.1f}%)")
+            logger.info(f"💾 New summary: {TokenCounter.count_tokens(new_summary)} tokens")
+            logger.info(f"🔒 Kept {len(compacting_selection['messages_to_keep'])} recent messages")
+            
+            # Add token breakdown for final compacted result
+            summary_tokens_final = TokenCounter.count_tokens(new_summary)
+            recent_tokens_final = 0
+            for msg in compacting_selection['messages_to_keep']:
+                recent_tokens_final += TokenCounter.count_tokens(msg.get('content', ''))
+            
+            total_final_tokens = summary_tokens_final + recent_tokens_final
+            if total_final_tokens > 0:
+                summary_percentage_final = (summary_tokens_final / total_final_tokens) * 100
+                recent_percentage_final = (recent_tokens_final / total_final_tokens) * 100
+                logger.info(f"📊 Final breakdown: {summary_tokens_final} summary tokens ({summary_percentage_final:.1f}%) + {recent_tokens_final} recent chat tokens ({recent_percentage_final:.1f}%)")
+            
+            return compacted_history
+            
+        except Exception as e:
+            logger.error(f"❌ Error in conversation compacting: {e}")
+            # Return original history if compacting fails
+            logger.info("🔄 Falling back to original chat history due to compacting error")
+            return chat_history
     
     async def close(self):
         """Close HTTP client connections."""

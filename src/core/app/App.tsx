@@ -36,6 +36,21 @@ export default function App() {
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
   const [contacts, setContacts] = useState<AIContact[]>([]);
   const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
+  const [apiHistory, setApiHistory] = useState<Message[]>([]);
+  
+  // Sync API history ONLY when selected contact changes (not when messages change)
+  useEffect(() => {
+    if (selectedContact) {
+      // Get display messages for the current contact
+      const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
+      // Initialize API history with full contact messages (will be compacted as needed)
+      setApiHistory(contactMessages);
+      console.log(`🔄 Synced API history for ${selectedContact.name}: ${contactMessages.length} messages`);
+    } else {
+      // No contact selected, clear API history
+      setApiHistory([]);
+    }
+  }, [selectedContact]); // Removed 'messages' dependency!
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
   const [dataLoading, setDataLoading] = useState(false);
   const [callState, setCallState] = useState<CallState>({
@@ -1076,7 +1091,12 @@ export default function App() {
       attachments: documents
     };
 
+    // Add user message to display history (for UI scrolling)
     setMessages(prev => [...prev, userMessage]);
+    // Add user message to API history only if it matches current API contact flow
+    if (apiHistory.length === 0 || apiHistory[apiHistory.length - 1]?.contactId === selectedContact.id) {
+      setApiHistory(prev => [...prev, userMessage]);
+    }
     
     // Add user message to conversation session
     conversationSessionManager.addMessage(userMessage);
@@ -1135,22 +1155,43 @@ export default function App() {
       console.log('📝 Enhanced context preview:', enhancedContact.description.substring(0, 300) + '...');
 
       // Generate AI response using the enhanced service with memory-enriched context
-      const response = await enhancedAiService.generateResponse(
+      // Use apiHistory for backend calls, not the full display history
+      const result = await enhancedAiService.generateResponse(
         enhancedContact,
         content,
-        chatHistory,
+        apiHistory.length > 0 ? apiHistory : chatHistory, // Use apiHistory if available, fallback to chatHistory
         documentContext.allDocuments
       );
 
+      // Update API history based on whether compacting occurred
+      if (result.wasCompacted && result.updatedChatHistory) {
+        // Compacting happened - replace API history with compacted version (includes AI response)
+        console.log(`🗜️ COMPACTING: API history ${apiHistory.length > 0 ? apiHistory.length : chatHistory.length} → ${result.updatedChatHistory.length} messages`);
+        setApiHistory(result.updatedChatHistory);
+      } else {
+        // No compacting - add AI message to existing API history (normal growth)
+        const currentApiHistoryLength = apiHistory.length > 0 ? apiHistory.length : chatHistory.length;
+        console.log(`➕ GROWING: Adding AI message to API history (${currentApiHistoryLength} → ${currentApiHistoryLength + 1} messages)`);
+        setApiHistory(prev => [...prev, { 
+          id: (Date.now() + 1).toString(), 
+          content: result.response, 
+          sender: 'ai', 
+          timestamp: new Date(), 
+          contactId: selectedContact.id 
+        }]);
+      }
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: response,
+        content: result.response,
         sender: 'ai',
         timestamp: new Date(),
         contactId: selectedContact.id
       };
 
+      // Add AI message to display history (for UI scrolling)
       setMessages(prev => [...prev, aiMessage]);
+      // API history is already updated above (either with compacted history or manually added)
       
       // Add AI message to conversation session
       conversationSessionManager.addMessage(aiMessage);
@@ -1188,7 +1229,10 @@ export default function App() {
         contactId: selectedContact.id
       };
 
+      // Add error message to display history (for UI scrolling)
       setMessages(prev => [...prev, errorMessage]);
+      // Add error message to API history (for backend calls)
+      setApiHistory(prev => [...prev, errorMessage]);
       
       // Add error message to conversation session
       conversationSessionManager.addMessage(errorMessage);

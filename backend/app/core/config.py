@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     FIRECRAWL_API_KEY: str = ""
     TAVILY_API_KEY: str = ""
     
+    # Context Testing Mode - for debugging AI requests
+    CONTEXT_TESTING_ENABLED: bool = False  # Default to False, enable via env var
+    CONTEXT_TESTING_WEBHOOK_URL: str = "https://webhook-test.com/e29a3cadb83bac54209b07b994a4f288"
+    
     # CORS - Allow common development ports
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",   # Common React port

@@ -158,7 +158,11 @@ class PythonApiService {
     userMessage: string,
     chatHistory: Message[],
     conversationDocuments: DocumentInfo[] = []
-  ): Promise<string> {
+  ): Promise<{
+    response: string;
+    compactedChatHistory?: Message[];
+    wasCompacted?: boolean;
+  }> {
     try {
       console.log(`🤖 Generating AI response via Python backend for ${contact.name}`);
 
@@ -206,8 +210,58 @@ class PythonApiService {
         throw new Error(result.message || 'AI response generation failed');
       }
 
+      // Log token analysis to frontend console for visibility
+      const tokenAnalysis = result.metadata?.token_analysis;
+      const compactingInfo = result.metadata?.conversation_compacting;
+      
+      if (tokenAnalysis) {
+        const compactingEmoji = compactingInfo?.was_compacted ? '🗜️' : '📊';
+        console.log(`${compactingEmoji} Conversation Token Analysis:`, {
+          'Total Tokens': tokenAnalysis.total_tokens || 0,
+          'Max Tokens': tokenAnalysis.max_tokens || 0,
+          'Usage': `${Math.round(tokenAnalysis.usage_percentage || 0)}%`,
+          'Messages': tokenAnalysis.message_count || 0,
+          'Compacted': compactingInfo?.was_compacted || false,
+          'Messages After Compacting': compactingInfo?.compacted_message_count || tokenAnalysis.message_count || 0
+        });
+
+        // Add token breakdown for summary vs chat messages
+        if (result.compacted_chat_history) {
+          this.logTokenBreakdown(result.compacted_chat_history);
+        } else {
+          // Use the original chat history for breakdown
+          this.logTokenBreakdown(chatHistory);
+        }
+
+        // Additional log for compacting events
+        if (compactingInfo?.was_compacted) {
+          console.log(`🗜️ Conversation was compacted: ${compactingInfo.original_message_count} → ${compactingInfo.compacted_message_count} messages`);
+        }
+      }
+
       console.log(`✅ AI response generated (${result.metadata.response_length} characters)`);
-      return result.response;
+      
+      // Return both response and compacted chat history if available
+      const wasCompacted = compactingInfo?.was_compacted || false;
+      let compactedChatHistory: Message[] | undefined;
+      
+      if (wasCompacted && result.compacted_chat_history) {
+        // Convert backend format to frontend Message format
+        compactedChatHistory = result.compacted_chat_history.map((msg: any) => ({
+          id: msg.id || Date.now() + Math.random(), // Generate ID if not present
+          sender: msg.sender,
+          content: msg.content,
+          timestamp: msg.timestamp || new Date().toISOString()
+        }));
+        
+        console.log(`🗜️ Using compacted chat history: ${compactedChatHistory?.length} messages`);
+      }
+      
+      return {
+        response: result.response,
+        compactedChatHistory,
+        wasCompacted
+      };
 
     } catch (error) {
       console.error('❌ Error generating AI response:', error);
@@ -331,6 +385,39 @@ class PythonApiService {
       console.error(`❌ Error getting memory context for ${agentId}:`, error);
       // Return null instead of throwing to gracefully handle memory fetch failures
       return null;
+    }
+  }
+
+  /**
+   * Log token breakdown between summary and chat messages
+   */
+  private logTokenBreakdown(chatHistory: any[]): void {
+    try {
+      let summaryTokens = 0;
+      let chatTokens = 0;
+      
+      chatHistory.forEach(msg => {
+        const content = msg.content || '';
+        // Rough token estimation: ~4 characters per token
+        const estimatedTokens = Math.ceil(content.length / 4);
+        
+        if (msg.sender === 'summary' && content.startsWith('[SUMMARY]')) {
+          summaryTokens += estimatedTokens;
+        } else {
+          chatTokens += estimatedTokens;
+        }
+      });
+      
+      const totalTokens = summaryTokens + chatTokens;
+      if (totalTokens > 0) {
+        const summaryPercentage = (summaryTokens / totalTokens) * 100;
+        const chatPercentage = (chatTokens / totalTokens) * 100;
+        console.log(`📊 Token breakdown: ${summaryTokens} summary tokens (${summaryPercentage.toFixed(1)}%) + ${chatTokens} chat tokens (${chatPercentage.toFixed(1)}%)`);
+      } else {
+        console.log(`📊 Token breakdown: 0 summary tokens + ${chatTokens} chat tokens (100.0%)`);
+      }
+    } catch (error) {
+      console.debug('Token breakdown calculation failed:', error);
     }
   }
 

@@ -319,9 +319,17 @@ class GeminiLiveService {
         console.warn("⚠️ Backend session creation failed, using fallback mode:", error);
       }
 
-      // ALWAYS ensure memory is included - build our own system prompt with memory
-      console.log('🧠 Voice: Force using local system prompt to ensure memory inclusion');
-      const localSystemPrompt = await this.createSystemPrompt(contact);
+      // Use backend-provided system prompt to avoid duplication
+      console.log('🧠 Voice: Using backend system prompt to ensure memory inclusion');
+      let localSystemPrompt = `You are ${contact.name}. ${contact.description}`;
+      
+      // Get system prompt from backend if available
+      if (backendSession && backendSession.system_prompt) {
+        localSystemPrompt = backendSession.system_prompt;
+        console.log('✅ Voice: Using backend-provided system prompt');
+      } else {
+        console.log('⚠️ Voice: Backend system prompt not available, using basic prompt');
+      }
       
       // Debug voice selection
       const selectedVoice = this.getVoiceForContact(contact);
@@ -1290,203 +1298,33 @@ class GeminiLiveService {
   }
 
   /**
-   * Create system prompt for the contact
+   * DEPRECATED - System prompt now handled by backend
+   * This method is kept for compatibility but no longer builds full prompts
    */
   private async createSystemPrompt(contact: AIContact): Promise<string> {
-    console.log('📝 Voice: Building system prompt...');
+    console.log('⚠️ Voice: createSystemPrompt is deprecated - using backend system prompt');
     
-    // Get fresh document context from Supabase
-    const documentContext = await documentContextService.getAgentDocumentContext(contact);
-    
-    // For voice mode, use OPTIMIZED context to reduce latency
-    let systemPrompt = this.buildOptimizedVoiceContext(contact, documentContext);
-    
-    // Add integration-specific instructions
-    if (contact.integrations && contact.integrations.length > 0) {
-      systemPrompt += '\n\nYou have access to the following integrations:';
-      
-      const hasApiTool = contact.integrations.some(i => i.integrationId === 'api-request-tool' && i.config.enabled);
-      const hasDomainTool = contact.integrations.some(i => i.integrationId === 'domain-checker-tool' && i.config.enabled);
-      const hasWebhookTool = contact.integrations.some(i => i.integrationId === 'webhook-trigger' && i.config.enabled);
-      const hasGoogleSheets = contact.integrations.some(i => i.integrationId === 'google-sheets' && i.config.enabled);
-      const hasWebSearch = contact.integrations.some(i => i.integrationId === 'web-search' && i.config.enabled);
-      const hasFirecrawl = contact.integrations.some(i => i.integrationId === 'firecrawl-tool' && i.config.enabled);
-      const hasNotion = contact.integrations.some(i => (i.integrationId === 'notion-oauth-source' || i.integrationId === 'notion-oauth-action') && i.config.enabled);
-      
-      if (hasApiTool) {
-        systemPrompt += '\n- API Request Tool: Use make_api_request to fetch real-time data from external APIs when users ask for current information.';
-      }
-      
-      if (hasDomainTool) {
-        systemPrompt += '\n- Domain Checker: Use check_domain_availability to check if domains are available when users ask about domain availability.';
-      }
-      
-      if (hasWebhookTool) {
-        systemPrompt += '\n- Webhook Trigger: Use trigger_webhook when users ask to activate, trigger, start, launch, or execute something.';
-      }
-      
-      if (hasGoogleSheets) {
-        systemPrompt += '\n- Google Sheets: Use manage_google_sheets to read, write, search, and manage spreadsheet data.';
-      }
-      
-      if (hasWebSearch) {
-        console.log('🔍 Voice: Web search integration detected and enabled');
-        systemPrompt += '\n- Web Search: Use search_web to find current information, news, or real-time data when users ask to search, look up, google, or find current information online.';
-        systemPrompt += '\n  • Trigger phrases: "search up", "look up", "google this", "find information about", "what\'s happening with", "search for"';
-        systemPrompt += '\n  • Always use this for current events, recent news, or any real-time information requests';
-        systemPrompt += '\n  • IMPORTANT: Use search_web function when users clearly ask for current or real-time information';
-        systemPrompt += '\n  • VOICE MODE: When you receive search results, speak the information naturally and conversationally';
-        systemPrompt += '\n  • NEVER read out technical details like "tool response", "data", "content", or mention using functions';
-        systemPrompt += '\n  • Simply present the information as if you naturally knew it, without mentioning the search process';
-        systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
-      }
-      
-      // Add memory saving tool for all agents
-      systemPrompt += '\n- Memory Saver: Use save_to_memory to save important information, concepts, facts, insights, or summaries that you learn during conversations.';
-      systemPrompt += '\n  • Use this when you encounter new information about the user, important facts, preferences, insights, or concepts worth remembering';
-      systemPrompt += '\n  • Save distilled information, not verbatim conversations - extract the key essence';
-      systemPrompt += '\n  • Examples: User preferences, important facts, new concepts learned, insights gained, useful summaries';
-      systemPrompt += '\n  • Always save information proactively to build your memory and improve future conversations';
-      
-      
-      // Always add Firecrawl instructions since it's configured via environment variable
-      console.log('🕷️ Voice: Firecrawl web scraping available');
-      systemPrompt += '\n- Web Scraping: Use scrape_website to extract content from websites when users ask to scrape, crawl, or get content from specific URLs.';
-      systemPrompt += '\n  • Trigger phrases: "scrape", "crawl", "extract from website", "get content from", "go to [URL] and tell me", "what\'s on [URL]"';
-      systemPrompt += '\n  • Use when users ask to visit a specific website and get its content';
-      systemPrompt += '\n  • IMPORTANT: Use scrape_website function when users ask to go to a website or get content from a URL';
-      systemPrompt += '\n  • VOICE MODE: When you receive scraping results, speak the information naturally and conversationally';
-      systemPrompt += '\n  • NEVER read out technical details like "tool response", "data", "content", or mention using functions';
-      systemPrompt += '\n  • Simply present the information as if you naturally knew it, without mentioning the scraping process';
-      systemPrompt += '\n  • Speak the actual information content directly, not the data structure or metadata';
-      
-      if (hasNotion) {
-        systemPrompt += '\n- Notion Integration: Use manage_notion to work with Notion pages and databases. You can:';
-        systemPrompt += '\n  • search_databases: Find and list all databases';
-        systemPrompt += '\n  • query_database: Get entries from a specific database (use database name or ID)';
-        systemPrompt += '\n  • search_pages: Find specific pages';
-        systemPrompt += '\n  • get_page_content: Read page content';
-        systemPrompt += '\n  • create_page: Create new pages';
-        systemPrompt += '\n  • update_page: Modify existing pages';
-        systemPrompt += '\n  • create_database_entry: Add new entries to databases';
-        systemPrompt += '\n  • append_blocks: Add content to existing pages';
-        systemPrompt += '\n\n  IMPORTANT for database queries:';
-        systemPrompt += '\n  - When users ask about database content (e.g., "what is in my brain dump", "show me habit tracker entries"), use query_database operation';
-        systemPrompt += '\n  - You can use either the database ID or name in the databaseId parameter';
-        systemPrompt += '\n  - For database names, use the exact name from previous search results or a close match';
-        systemPrompt += '\n  - Examples: "Brain Dump", "Habit Tracker", "Task Dashboard", "Goal Management"';
-        systemPrompt += '\n  - The system will automatically search for the database by name if an ID is not provided';
-      }
-    }
-    
-    // Add integration context
-    const integrationContext = this.buildIntegrationContext(contact);
-    if (integrationContext) {
-      systemPrompt += '\n\n' + integrationContext;
-    }
-    
-    // Add document generation instructions only if the tool is available
-    if (this.onDocumentGenerationCallback) {
-      systemPrompt += '\n\nDOCUMENT GENERATION INSTRUCTIONS:';
-      systemPrompt += '\n- Use the generate_document function when users ask you to write something down, put something on paper, create written content, or produce documents';
-      systemPrompt += '\n- Trigger phrases include: "write that down", "put that on paper", "write me this", "write an essay", "write X words on", "give me X words on", "create a document", "make me a report", etc.';
-      systemPrompt += '\n- Generate well-formatted markdown content with proper headings, paragraphs, lists, and structure';
-      systemPrompt += '\n- If the user specifies a word count (e.g., "write 100 words on..."), aim to meet that target';
-      systemPrompt += '\n- The document will be displayed in a clean interface for the user to read and scroll through';
-      systemPrompt += '\n- Do not mention document titles, URLs, or file locations - just generate and display the content';
-      systemPrompt += '\n- IMPORTANT: Do not mention that you are using a tool or function to generate the document. Simply respond naturally and let the document appear automatically';
-      systemPrompt += '\n- If document generation fails, explain the issue to the user and suggest they try again';
-    } else {
-      systemPrompt += '\n\nNOTE: Document generation is currently unavailable. If users ask to write something down or create documents, politely explain that the document generation feature is not available right now.';
-    }
-    
-    systemPrompt += '\n\n🎤 CRITICAL VOICE MODE INSTRUCTIONS:';
-    systemPrompt += '\n- NEVER read out technical details, data structures, or code-like content';
-    systemPrompt += '\n- NEVER say words like "tool", "function", "response", "data", "content", "underscore", "curly bracket", etc.';
-    systemPrompt += '\n- When you receive information from tools, speak it naturally as if you knew it yourself';
-    systemPrompt += '\n- Present information conversationally without mentioning how you obtained it';
-    systemPrompt += '\n- Focus on the actual information content, not the technical wrapper';
-    
-
-    systemPrompt += '\n\nAlways be helpful, engaging, and use the tools when appropriate to provide accurate, real-time information.';
-    
-    console.log(`📏 Voice: System prompt ready (${systemPrompt.length.toLocaleString()} chars)`);
-    console.log('📝 Voice: System prompt preview (first 300 chars):', systemPrompt.substring(0, 300) + '...');
-    
-    // Check if memory is actually included in the final prompt
-    if (systemPrompt.includes('=== YOUR MEMORY ===')) {
-      console.log('✅ Voice: Memory successfully included in system prompt');
-    } else {
-      console.log('❌ Voice: WARNING - Memory not found in system prompt!');
-    }
-    
-    return systemPrompt;
+    // Return basic fallback prompt
+    return `You are ${contact.name}. ${contact.description}`;
   }
 
   /**
-   * Build optimized context for voice mode to reduce latency
+   * DEPRECATED - Context building now handled by backend
+   * This method is kept for compatibility but no longer builds full context
    */
   private buildOptimizedVoiceContext(contact: AIContact, documentContext: any): string {
-    // Use the formatted context which already includes memory + documents
-    // But optimize it for voice by using summaries where possible
-    let context = `You are ${contact.name}. ${contact.description}`;
+    console.log('⚠️ Voice: buildOptimizedVoiceContext is deprecated - using backend context');
     
-    // Add memory context if available (this is crucial for continuity)
-    if (documentContext.memoryContext) {
-      console.log('🧠 Voice: Adding memory context to voice prompt, length:', documentContext.memoryContext.length);
-      console.log('🧠 Voice: Memory preview:', documentContext.memoryContext.substring(0, 100) + '...');
-      context += '\n\n' + documentContext.memoryContext;
-    } else {
-      console.log('⚠️ Voice: No memory context available for agent');
-    }
-    
-    const allDocuments = [...documentContext.permanentDocuments, ...documentContext.conversationDocuments];
-    
-    if (allDocuments.length > 0) {
-      context += '\n\n=== YOUR KNOWLEDGE BASE (SUMMARIES) ===\n';
-      context += 'You have access to the following documents. Use summaries for quick reference:\n\n';
-      
-      // Use ONLY summaries for voice mode to reduce latency
-      const permanentDocs = documentContext.permanentDocuments;
-      const conversationDocs = documentContext.conversationDocuments;
-      
-      if (permanentDocs.length > 0) {
-        context += '📚 PERMANENT KNOWLEDGE:\n';
-        permanentDocs.forEach((doc: any) => {
-          context += `📄 ${doc.name} (${doc.type}): ${doc.summary || 'No summary available'}\n`;
-        });
-        context += '\n';
-      }
-      
-      if (conversationDocs.length > 0) {
-        context += '💬 CONVERSATION DOCUMENTS:\n';
-        conversationDocs.forEach((doc: any) => {
-          context += `📄 ${doc.name} (${doc.type}): ${doc.summary || 'No summary available'}\n`;
-        });
-        context += '\n';
-      }
-      
-      context += 'Note: Full document content is available if needed, but use these summaries for quick reference in voice conversations.';
-    }
-    
-    console.log(`✅ Voice: Optimized context with memory: ${context.length.toLocaleString()} chars`);
-    
-    return context;
+    // Return basic fallback context
+    return `You are ${contact.name}. ${contact.description}`;
   }
 
+  /**
+   * DEPRECATED - Integration context now handled by backend
+   */
   private buildIntegrationContext(contact: AIContact): string {
-    if (!contact.integrations || contact.integrations.length === 0) {
-      return '';
-    }
-
-    let context = '';
-    const activeIntegrations = contact.integrations.filter(i => i.config.enabled);
-    
-    if (activeIntegrations.length > 0) {
-      context = `Active integrations: ${activeIntegrations.map(i => i.integrationId).join(', ')}`;
-    }
-
-    return context;
+    console.log('⚠️ Voice: buildIntegrationContext is deprecated - using backend integration context');
+    return '';
   }
 
   /**

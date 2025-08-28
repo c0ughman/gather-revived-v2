@@ -15,6 +15,12 @@ export const APP_CONFIG = {
     fileUpload: true,
     oauth: true,
   },
+  debugging: {
+    contextTesting: {
+      enabled: import.meta.env.VITE_CONTEXT_TESTING_ENABLED === 'true',
+      webhookUrl: import.meta.env.VITE_CONTEXT_TESTING_WEBHOOK_URL || 'https://repulsive-autumn-27.webhook.cool'
+    }
+  },
   limits: {
     maxFileSize: 50 * 1024 * 1024, // 50MB
     maxMessages: 1000,

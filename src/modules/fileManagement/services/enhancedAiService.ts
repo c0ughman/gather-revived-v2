@@ -10,6 +10,7 @@ import { DocumentInfo } from '../types/documents';
 import { pythonApiService } from '../../../core/services/pythonApiService';
 import { memoryService } from '../../../core/services/memoryService';
 import { conversationHistoryService } from '../../../core/services/conversationHistoryService';
+import { APP_CONFIG } from '../../../core/config';
 
 class EnhancedAiService {
   private backendAvailable: boolean = false;
@@ -17,7 +18,57 @@ class EnhancedAiService {
   constructor() {
     // Check Python backend availability on initialization
     this.checkBackendAvailability();
+    
+    // Log context testing mode status
+    if (APP_CONFIG.debugging.contextTesting.enabled) {
+      console.log('🔬 Frontend context testing mode ENABLED - webhook:', APP_CONFIG.debugging.contextTesting.webhookUrl);
+    } else {
+      console.log('🔬 Frontend context testing mode DISABLED');
+    }
+    
     console.log('🤖 AI Service initialized (Backend-only)');
+  }
+
+  /**
+   * Send request data to context testing webhook for debugging (non-blocking)
+   */
+  private async sendToContextTestingWebhook(testData: any): Promise<void> {
+    if (!APP_CONFIG.debugging.contextTesting.enabled) {
+      return;
+    }
+
+    try {
+      // Add metadata
+      const payload = {
+        ...testData,
+        _metadata: {
+          timestamp: new Date().toISOString(),
+          source: 'gather_frontend_ai_service',
+          testing_mode: 'context_testing',
+          version: '1.0.0'
+        }
+      };
+
+      // Send asynchronously without blocking - use no-cors mode for webhook.site
+      fetch(APP_CONFIG.debugging.contextTesting.webhookUrl, {
+        method: 'POST',
+        mode: 'no-cors', // Allow cross-origin requests to webhook.site
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }).then(() => {
+        // Note: with no-cors mode, we can't check response status
+        console.log('🔬 Frontend context testing data sent to webhook');
+      }).catch(error => {
+        // Silently ignore CORS and network errors for debugging webhook
+        console.debug('🔬 Frontend context testing webhook error (ignored):', error);
+      });
+
+    } catch (error) {
+      // Never let testing mode break the main flow
+      console.debug('Frontend context testing failed (non-blocking):', error);
+    }
   }
 
   /**
@@ -28,7 +79,10 @@ class EnhancedAiService {
     userMessage: string,
     chatHistory: Message[],
     conversationDocuments: DocumentInfo[] = []
-  ): Promise<string> {
+  ): Promise<{
+    response: string;
+    updatedChatHistory: Message[];
+  }> {
     console.log(`🤖 Generating response using Python backend for ${contact.name}`);
 
     if (!this.backendAvailable) {
@@ -39,55 +93,89 @@ class EnhancedAiService {
     }
 
     try {
-      // First, get the AI response
-      let response = await pythonApiService.generateAIResponse(
+      // Send to context testing webhook if enabled (non-blocking)
+      if (APP_CONFIG.debugging.contextTesting.enabled) {
+        // Create the complete request payload that gets sent to the backend
+        const completeRequestPayload = {
+          contact: {
+            id: contact.id,
+            name: contact.name,
+            description: contact.description,
+            integrations: contact.integrations
+          },
+          user_message: userMessage,
+          chat_history: chatHistory.map(msg => ({
+            sender: msg.sender,
+            content: msg.content,
+            timestamp: msg.timestamp
+          })),
+          conversation_documents: conversationDocuments.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type,
+            content: doc.content,
+            extracted_text: doc.extractedText,
+            summary: doc.summary,
+            metadata: doc.metadata
+          }))
+        };
+
+        const testData = {
+          request_type: 'frontend_generate_response',
+          contact_info: {
+            name: contact.name,
+            id: contact.id,
+            description_length: contact.description?.length || 0,
+            integrations_count: contact.integrations?.length || 0,
+            documents_count: contact.documents?.length || 0
+          },
+          user_message: userMessage,
+          chat_history_length: chatHistory.length,
+          conversation_documents_count: conversationDocuments.length,
+          backend_available: this.backendAvailable,
+          // Include the complete request payload that gets sent to Gemini API
+          complete_request_payload: completeRequestPayload,
+          // Include the actual chat history content
+          chat_history_content: chatHistory.map(msg => ({
+            sender: msg.sender,
+            content: msg.content,
+            timestamp: msg.timestamp
+          })),
+          // Include the actual document content
+          conversation_documents_content: conversationDocuments.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type,
+            content: doc.content,
+            extracted_text: doc.extractedText,
+            summary: doc.summary,
+            metadata: doc.metadata
+          }))
+        };
+        this.sendToContextTestingWebhook(testData);
+      }
+
+      // Get the AI response and any compacted chat history
+      const result = await pythonApiService.generateAIResponse(
         contact,
         userMessage,
         chatHistory,
         conversationDocuments
       );
 
-      // Intelligent context detection - search when user references past events or topics
-      const contextualSearchQuery = this.detectContextualSearchNeeds(userMessage, chatHistory);
-
-      if (contextualSearchQuery) {
-        console.log(`🧠 Detected contextual search need: "${contextualSearchQuery}"`);
-        
-        try {
-          // Search past conversations for context
-          const searchResults = await this.handleFunctionCall('search_past_chats', {
-            query: contextualSearchQuery,
-            limit: 3  // Keep it focused
-          }, contact.id);
-
-          // Parse search results to add relevant context to AI
-          const parsedResults = JSON.parse(searchResults);
-          
-          if (parsedResults.success && parsedResults.results && parsedResults.results.length > 0) {
-            // Add context to the conversation without being obvious about it
-            const contextualInfo = parsedResults.results
-              .map((result: any) => `[Context: ${result.relevant_excerpt}]`)
-              .join('\n');
-            
-            // Generate response with additional context
-            const contextEnrichedMessage = `${userMessage}\n\n[Additional Context from Past Conversations:\n${contextualInfo}]`;
-            
-            response = await pythonApiService.generateAIResponse(
-              contact,
-              contextEnrichedMessage,
-              chatHistory,
-              conversationDocuments
-            );
-            
-            console.log(`✅ Enhanced response with context from ${parsedResults.results.length} past conversations`);
-          }
-        } catch (searchError) {
-          console.error('❌ Background context search failed:', searchError);
-          // Continue with normal response if search fails
-        }
+      // Use compacted chat history if provided, otherwise use original
+      const updatedChatHistory = result.compactedChatHistory || chatHistory;
+      
+      if (result.wasCompacted) {
+        console.log(`🗜️ Chat history was compacted: ${chatHistory.length} → ${updatedChatHistory.length} messages`);
       }
 
-      return response;
+      // Backend now handles all context detection and memory integration
+      // Frontend uses the compacted history for subsequent requests
+      return {
+        response: result.response,
+        updatedChatHistory
+      };
     } catch (error) {
       console.error(`❌ Backend failed for AI generation:`, error);
       // Mark backend as unavailable and re-throw error
@@ -97,132 +185,11 @@ class EnhancedAiService {
   }
 
   /**
-   * Intelligent detection of when to search past conversations for context
-   * This analyzes the user's message for references to past events, specific topics, or contextual needs
+   * DEPRECATED - Backend now handles all context detection
    */
-  private detectContextualSearchNeeds(message: string, chatHistory: Message[]): string | null {
-    
-    // 1. Direct references to past events/conversations
-    const pastReferencePatterns = [
-      /(?:last time|before|earlier|previously|when we|remember when|you (?:said|mentioned|told me))/i,
-      /(?:did we|have we|have you|did you|what did|when did)/i,
-      /(?:our (?:previous|last) (?:conversation|discussion|chat|talk))/i,
-      /(?:you (?:mentioned|told me|said) (?:before|earlier|previously))/i,
-      /(?:we (?:discussed|talked about) (?:this )?before)/i
-    ];
-
-    if (pastReferencePatterns.some(pattern => pattern.test(message))) {
-      console.log(`🔍 Detected past reference pattern`);
-      return this.extractMainTopicsFromMessage(message);
-    }
-
-    // 2. Questions that might benefit from historical context
-    const contextualQuestionPatterns = [
-      /(?:why|how|what|when|where) (?:did|do|does|is|was|were)/i,
-      /(?:can you (?:explain|tell me)|what about|how about)/i,
-      /(?:what's the (?:status|update) on)/i,
-      /(?:remind me about|refresh my memory)/i
-    ];
-
-    if (contextualQuestionPatterns.some(pattern => pattern.test(message))) {
-      // Extract key entities/topics that might have been discussed before
-      const topics = this.extractMainTopicsFromMessage(message);
-      if (topics && topics.length > 3) { // Only search if we have substantial topics
-        console.log(`🔍 Detected contextual question about: ${topics}`);
-        return topics;
-      }
-    }
-
-    // 3. Specific entities or topics that might have context
-    const namedEntities = this.extractNamedEntitiesFromMessage(message);
-    if (namedEntities.length > 0) {
-      // Check if this seems like a follow-up about something specific
-      const followUpIndicators = [
-        /(?:more about|tell me about|what about|how is|what's happening with)/i,
-        /(?:update|status|progress|development)/i,
-        /(?:issue|problem|solution|plan)/i
-      ];
-
-      if (followUpIndicators.some(pattern => pattern.test(message))) {
-        console.log(`🔍 Detected follow-up about named entities: ${namedEntities.join(', ')}`);
-        return namedEntities.join(' ');
-      }
-    }
-
-    // 4. Current conversation lacks context (short history + complex question)
-    if (chatHistory.length < 5 && message.length > 50) {
-      const complexityIndicators = [
-        /(?:complex|complicated|detailed|specific|particular)/i,
-        /(?:multiple|several|various|different)/i,
-        /(?:project|system|process|method|approach)/i
-      ];
-
-      if (complexityIndicators.some(pattern => pattern.test(message))) {
-        const topics = this.extractMainTopicsFromMessage(message);
-        if (topics && topics.length > 5) {
-          console.log(`🔍 Detected complex question with limited context: ${topics}`);
-          return topics;
-        }
-      }
-    }
-
+  private detectContextualSearchNeeds(): string | null {
+    console.log('⚠️ detectContextualSearchNeeds is deprecated - backend handles context detection');
     return null;
-  }
-
-  /**
-   * Extract main topics/keywords from a message for searching
-   */
-  private extractMainTopicsFromMessage(message: string): string {
-    // Remove common words and extract meaningful terms
-    const commonWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-      'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did',
-      'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those',
-      'i', 'you', 'we', 'they', 'me', 'us', 'them', 'my', 'your', 'our', 'their',
-      'what', 'when', 'where', 'why', 'how', 'who', 'which'
-    ]);
-
-    const words = message
-      .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length > 2 && !commonWords.has(word));
-
-    // Return the most meaningful words (limited to avoid over-broad searches)
-    return words.slice(0, 5).join(' ');
-  }
-
-  /**
-   * Extract named entities (proper nouns, specific terms) from message
-   */
-  private extractNamedEntitiesFromMessage(message: string): string[] {
-    // Look for capitalized words (potential proper nouns) and quoted terms
-    const entities: string[] = [];
-    
-    // Capitalized words (potential names, places, products)
-    const capitalizedWords = message.match(/\b[A-Z][a-zA-Z]+\b/g) || [];
-    entities.push(...capitalizedWords);
-
-    // Quoted terms
-    const quotedTerms = message.match(/"([^"]+)"/g) || [];
-    entities.push(...quotedTerms.map(term => term.replace(/"/g, '')));
-
-    // Technical terms or specific formats
-    const technicalPatterns = [
-      /\b[a-zA-Z]+\.[a-zA-Z]+\b/g, // domain-like terms
-      /\b[A-Z]{2,}\b/g, // acronyms
-      /\b\w+[-_]\w+\b/g // hyphenated or underscore terms
-    ];
-
-    technicalPatterns.forEach(pattern => {
-      const matches = message.match(pattern) || [];
-      entities.push(...matches);
-    });
-
-    // Remove duplicates and return unique entities
-    return [...new Set(entities)]
-      .filter(entity => entity.length > 1)
-      .slice(0, 3); // Limit to most relevant entities
   }
 
   /**

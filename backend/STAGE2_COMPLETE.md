@@ -112,7 +112,7 @@ VITE_PYTHON_API_URL=http://localhost:8001
     "ai_generation": {
       "status": "healthy",
       "api_connection": "successful",
-      "model": "gemini-1.5-flash"
+      "model": "gemini-2.5-flash"
     }
   }
 }

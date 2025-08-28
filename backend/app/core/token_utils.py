@@ -272,6 +272,105 @@ class TokenCounter:
             'over_limit': current_tokens > max_tokens,
             'usage_percentage': min(100.0, (current_tokens / max_tokens) * 100.0) if max_tokens > 0 else 0.0
         }
+    
+    @classmethod
+    def get_conversation_token_analysis(
+        cls, 
+        messages: List[Dict[str, Any]], 
+        max_tokens: int,
+        threshold_percentage: float = 0.8
+    ) -> Dict[str, Any]:
+        """
+        Analyze conversation token usage and determine if compacting is needed.
+        
+        Args:
+            messages: List of conversation messages
+            max_tokens: Maximum tokens allowed for conversation
+            threshold_percentage: Threshold percentage (0.8 = 80%) to trigger compacting
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        if not messages:
+            return {
+                'total_tokens': 0,
+                'max_tokens': max_tokens,
+                'usage_percentage': 0.0,
+                'needs_compacting': False,
+                'threshold_tokens': int(max_tokens * threshold_percentage),
+                'over_threshold': False,
+                'message_count': 0,
+                'per_message_tokens': []
+            }
+        
+        # Calculate tokens per message
+        per_message_tokens = []
+        total_tokens = 0
+        
+        for i, message in enumerate(messages):
+            content = message.get('content', '')
+            message_tokens = cls.count_tokens(content)
+            per_message_tokens.append({
+                'index': i,
+                'sender': message.get('sender', 'unknown'),
+                'tokens': message_tokens,
+                'content_preview': content[:100] + ('...' if len(content) > 100 else '')
+            })
+            total_tokens += message_tokens
+        
+        threshold_tokens = int(max_tokens * threshold_percentage)
+        usage_percentage = (total_tokens / max_tokens) * 100.0 if max_tokens > 0 else 0.0
+        over_threshold = total_tokens > threshold_tokens
+        
+        return {
+            'total_tokens': total_tokens,
+            'max_tokens': max_tokens,
+            'usage_percentage': usage_percentage,
+            'needs_compacting': over_threshold,
+            'threshold_tokens': threshold_tokens,
+            'over_threshold': over_threshold,
+            'message_count': len(messages),
+            'per_message_tokens': per_message_tokens
+        }
+    
+    @classmethod
+    def select_messages_for_compacting(
+        cls,
+        messages: List[Dict[str, Any]],
+        messages_to_keep_recent: int = 2,
+        existing_summary: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Select which messages to compact and which to keep recent.
+        
+        Args:
+            messages: List of conversation messages
+            messages_to_keep_recent: Number of recent messages to keep uncompacted
+            existing_summary: Existing summary from previous compacting
+            
+        Returns:
+            Dictionary with messages to compact and messages to keep
+        """
+        if len(messages) <= messages_to_keep_recent:
+            return {
+                'messages_to_compact': [],
+                'messages_to_keep': messages,
+                'existing_summary': existing_summary,
+                'can_compact': False
+            }
+        
+        # Split messages: older ones for compacting, recent ones to keep
+        messages_to_compact = messages[:-messages_to_keep_recent] if messages_to_keep_recent > 0 else messages
+        messages_to_keep = messages[-messages_to_keep_recent:] if messages_to_keep_recent > 0 else []
+        
+        return {
+            'messages_to_compact': messages_to_compact,
+            'messages_to_keep': messages_to_keep,
+            'existing_summary': existing_summary,
+            'can_compact': len(messages_to_compact) > 0,
+            'compacting_count': len(messages_to_compact),
+            'keeping_count': len(messages_to_keep)
+        }
 
 
 # Create singleton instance for easy importing

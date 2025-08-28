@@ -50,19 +50,24 @@ async def generate_ai_response(
         ai_response = ai_result.get('response', '')
         token_analysis = ai_result.get('token_analysis', {})
         was_compacted = ai_result.get('was_compacted', False)
-        compacted_chat_history = ai_result.get('compacted_chat_history', request.chat_history)
         
-        # Log key information for frontend console
-        logger.info(f"✅ Response generated: {len(ai_response)} characters")
-        if was_compacted:
-            logger.info(f"🔄 Conversation was compacted this turn")
+        logger.info(f"✅ Successfully generated AI response ({len(ai_response)} characters)")
+        
+        # Log token analysis for frontend console
         if token_analysis:
-            logger.info(f"📊 Final tokens: {token_analysis.get('total_tokens', 0)}/{token_analysis.get('max_tokens', 0)} ({token_analysis.get('usage_percentage', 0):.1f}%)")
+            logger.info(f"📊 Token Analysis: {json.dumps({
+                "total_tokens": token_analysis.get("total_tokens", 0),
+                "max_tokens": token_analysis.get("max_tokens", 0),
+                "usage_percentage": round(token_analysis.get("usage_percentage", 0), 1),
+                "needs_compacting": token_analysis.get("needs_compacting", False),
+                "was_compacted": was_compacted,
+                "message_count": token_analysis.get("message_count", 0),
+                "compacted_message_count": ai_result.get("compacted_message_count", 0)
+            })}")
         
         return {
             "success": True,
             "response": ai_response,
-            "compacted_chat_history": compacted_chat_history,
             "metadata": {
                 "contact_name": request.contact.get('name', 'AI'),
                 "response_length": len(ai_response),
@@ -192,19 +197,21 @@ async def dev_generate_ai_response(request: ChatRequest):
         ai_response = ai_result.get('response', '')
         token_analysis = ai_result.get('token_analysis', {})
         was_compacted = ai_result.get('was_compacted', False)
-        compacted_chat_history = ai_result.get('compacted_chat_history', request.chat_history)
         
-        # Log key information for development mode
-        logger.info(f"✅ DEV: Response generated: {len(ai_response)} characters")
-        if was_compacted:
-            logger.info(f"🔄 DEV: Conversation was compacted this turn")
+        logger.info(f"✅ DEV: Successfully generated AI response ({len(ai_response)} characters)")
+        
+        # Log token analysis for development mode
         if token_analysis:
-            logger.info(f"📊 DEV: Final tokens: {token_analysis.get('total_tokens', 0)}/{token_analysis.get('max_tokens', 0)} ({token_analysis.get('usage_percentage', 0):.1f}%)")
+            logger.info(f"🧪 DEV Token Analysis: {json.dumps({
+                'total_tokens': token_analysis.get('total_tokens', 0),
+                'usage_percentage': round(token_analysis.get('usage_percentage', 0), 1),
+                'was_compacted': was_compacted,
+                'message_count': token_analysis.get('message_count', 0)
+            })}")
         
         return {
             "success": True,
             "response": ai_response,
-            "compacted_chat_history": compacted_chat_history,
             "development_mode": True,
             "metadata": {
                 "contact_name": request.contact.get('name', 'AI'),
