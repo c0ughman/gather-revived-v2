@@ -561,17 +561,25 @@ class DatabaseService:
     async def search_past_conversations(self, agent_id: str, query: str, limit: int = None, user_token: str = None) -> List[Dict[str, Any]]:
         """Search past conversations for an agent"""
         try:
+            logger.info(f'🚀 SEARCH_PAST_CONVERSATIONS CALLED')
+            logger.info(f'🚀 Parameters: agent_id={agent_id}, query="{query}", limit={limit}, user_token_provided={user_token is not None}')
+            
             # Use centralized limit configuration
             if limit is None:
                 limit = context_limits.SEARCH_PAST_CONVERSATIONS_DEFAULT_LIMIT
             limit = context_limits.clamp_search_limit(limit, 'past_conversations')
             
-            logger.info(f'🔍 Searching past conversations for agent {agent_id} with query: "{query}", limit: {limit}')
+            logger.info(f'🔍 CONVERSATION SEARCH: agent={agent_id}, query="{query}", limit={limit}')
+            logger.info(f'🔍 DB_MULTIPLIER={context_limits.SEARCH_PAST_CONVERSATIONS_DB_MULTIPLIER}, fetching {limit * context_limits.SEARCH_PAST_CONVERSATIONS_DB_MULTIPLIER} records')
             
             # Use user client if token provided, otherwise use admin client
             supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            logger.info(f'🔍 Using {"user" if user_token else "admin"} supabase client')
             
             # Search for sessions that have matching messages using ilike for case-insensitive pattern matching
+            logger.info(f'🔍 EXECUTING CONVERSATION SEARCH QUERY...')
+            logger.info(f'🔍 Query: content ILIKE %{query}% AND agent_id={agent_id} AND is_archived=false')
+            
             result = supabase_client.from_('conversation_messages').select(f"""
                 session_id,
                 content,
@@ -587,7 +595,13 @@ class DatabaseService:
                 )
             """).ilike('content', f'%{query}%').eq('conversation_sessions.agent_id', agent_id).eq('conversation_sessions.is_archived', False).limit(limit * context_limits.SEARCH_PAST_CONVERSATIONS_DB_MULTIPLIER).execute()  # Get more to find best matches
             
-            logger.info(f'🔍 Database search query executed, found {len(result.data) if result.data else 0} messages')
+            logger.info(f'🔍 CONVERSATION SEARCH RESULTS: found {len(result.data) if result.data else 0} matching messages')
+            if result.data:
+                logger.info(f'🔍 First 3 matching messages:')
+                for i, msg in enumerate(result.data[:3]):
+                    logger.info(f'🔍   {i+1}. Session: {msg.get("session_id")}, Role: {msg.get("role")}, Content: "{msg.get("content", "")[:100]}..."')
+            else:
+                logger.info(f'🔍 No conversation messages found matching query "{query}"')
             
             if not result.data:
                 logger.info(f'🔍 No conversation messages found matching query: "{query}"')
@@ -656,12 +670,18 @@ class DatabaseService:
                 })
             
             # Also search memories for the same query
-            logger.info(f'🧠 Searching memories for query: "{query}"')
+            logger.info(f'🧠 EXECUTING MEMORY SEARCH QUERY...')
+            logger.info(f'🧠 Query: content ILIKE %{query}% AND agent_id={agent_id}')
+            
             # Search memories using standard PostgreSQL ILIKE syntax
             memory_result = supabase_client.from_('agent_medium_memories').select('*').eq('agent_id', agent_id).ilike('content', f'%{query}%').order('importance_score', desc=True).order('last_accessed_at', desc=True).limit(limit).execute()
             
+            logger.info(f'🧠 MEMORY SEARCH RESULTS: found {len(memory_result.data) if memory_result.data else 0} matching memories')
+            
             if memory_result.data:
-                logger.info(f'🧠 Found {len(memory_result.data)} matching memories')
+                logger.info(f'🧠 First 3 matching memories:')
+                for i, mem in enumerate(memory_result.data[:3]):
+                    logger.info(f'🧠   {i+1}. ID: {mem.get("id")}, Content: "{mem.get("content", "")[:100]}..."')
                 
                 # Add memory results to the search results
                 for memory in memory_result.data:
@@ -695,11 +715,26 @@ class DatabaseService:
                         'title': f"Memory - {memory.get('topic', 'General')}"
                     })
             
-            logger.info(f'✅ Found {len(formatted_results)} relevant conversations and memories')
+            logger.info(f'✅ FINAL SEARCH RESULTS: {len(formatted_results)} total results')
+            logger.info(f'✅ Result breakdown:')
+            conversation_count = len([r for r in formatted_results if r.get('conversation_type') != 'memory'])
+            memory_count = len([r for r in formatted_results if r.get('conversation_type') == 'memory'])
+            logger.info(f'✅   - Conversations: {conversation_count}')
+            logger.info(f'✅   - Memories: {memory_count}')
+            
+            if formatted_results:
+                logger.info(f'✅ First 3 results:')
+                for i, result in enumerate(formatted_results[:3]):
+                    logger.info(f'✅   {i+1}. Type: {result.get("conversation_type")}, Title: "{result.get("title", "")}", Excerpt: "{result.get("relevant_excerpt", "")[:50]}..."')
+            
+            logger.info(f'🚀 SEARCH_PAST_CONVERSATIONS RETURNING {len(formatted_results)} results')
             return formatted_results
             
         except Exception as error:
-            logger.error(f'❌ Error searching past conversations: {error}')
+            logger.error(f'❌ SEARCH_PAST_CONVERSATIONS ERROR: {error}')
+            logger.error(f'❌ Error type: {type(error).__name__}')
+            import traceback
+            logger.error(f'❌ Traceback: {traceback.format_exc()}')
             return []
 
     async def get_all_agent_context(self, agent_id: str, user_token: str = None) -> Dict[str, Any]:

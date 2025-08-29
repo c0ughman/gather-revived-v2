@@ -607,8 +607,13 @@ Keep the summary detailed but concise."""
                         elif function_name == "search_past_conversations":
                             # Get agent_id from contact
                             agent_id = contact.get('id')
-                            logger.info(f"🔍 Search past conversations: agent_id={agent_id}, args={function_args}")
+                            logger.info(f"🚀 AI CALLED search_past_conversations")
+                            logger.info(f"🔍 AI Function args: {function_args}")
+                            logger.info(f"🔍 Contact agent_id: {agent_id}")
+                            logger.info(f"🔍 Contact name: {contact.get('name', 'Unknown')}")
+                            
                             if not agent_id:
+                                logger.error(f"❌ Agent ID not found in contact: {contact}")
                                 result = {"success": False, "error": "Agent ID not found"}
                             else:
                                 query = function_args.get('query')
@@ -617,12 +622,18 @@ Keep the summary detailed but concise."""
                                     'past_conversations'
                                 )
                                 
-                                logger.info(f"🔍 Searching conversations for query: '{query}', limit: {limit}")
+                                logger.info(f"🔍 AI SEARCH PARAMETERS: query='{query}', limit={limit}")
+                                logger.info(f"🔍 About to call database_service.search_past_conversations...")
                                 
                                 # Search past conversations
                                 conversations = await database_service.search_past_conversations(agent_id, query, limit)
                                 
-                                logger.info(f"🔍 Search results: {len(conversations) if conversations else 0} conversations found")
+                                logger.info(f"🔍 AI SEARCH COMPLETED: {len(conversations) if conversations else 0} results returned")
+                                
+                                if conversations:
+                                    logger.info(f"🔍 AI received conversation results:")
+                                    for i, conv in enumerate(conversations[:3]):
+                                        logger.info(f"🔍   {i+1}. {conv.get('conversation_type', 'unknown')} - {conv.get('title', 'No title')}")
                                 
                                 if conversations:
                                     # Format results for AI consumption
@@ -643,7 +654,10 @@ Keep the summary detailed but concise."""
                                         "conversations": formatted_results,
                                         "message": f"Found {len(formatted_results)} relevant past conversation{'s' if len(formatted_results) != 1 else ''}."
                                     }
-                                    logger.info(f"🔍 Formatted {len(formatted_results)} conversation results for AI")
+                                    
+                                    logger.info(f"🔍 AI RESULT SUCCESS: {len(formatted_results)} results formatted for AI")
+                                    if formatted_results:
+                                        logger.info(f"🔍 Sample result structure: {list(formatted_results[0].keys()) if formatted_results else 'N/A'}")
                                 else:
                                     result = {
                                         "success": True,
@@ -651,7 +665,7 @@ Keep the summary detailed but concise."""
                                         "results_count": 0,
                                         "message": "No relevant past conversations found for this query."
                                     }
-                                    logger.info(f"🔍 No conversations found for query: '{query}'")
+                                    logger.info(f"🔍 AI RESULT EMPTY: No conversations found for query '{query}'")
                         else:
                             result = {"success": False, "error": f"Unknown function: {function_name}"}
                         
@@ -659,6 +673,9 @@ Keep the summary detailed but concise."""
                             "name": function_name,
                             "response": result
                         })
+                        
+                        if function_name == "search_past_conversations":
+                            logger.info(f"🔍 AI FUNCTION RESPONSE ADDED: {function_name} -> success={result.get('success')}, count={result.get('results_count', 0)}")
                         
                     except Exception as e:
                         logger.error(f"❌ Function {function_name} failed: {e}")
