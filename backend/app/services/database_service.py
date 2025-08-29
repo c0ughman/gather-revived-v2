@@ -603,71 +603,71 @@ class DatabaseService:
             else:
                 logger.info(f'🔍 No conversation messages found matching query "{query}"')
             
-            if not result.data:
-                logger.info(f'🔍 No conversation messages found matching query: "{query}"')
-                return []
-            
-            # Group messages by session and find best excerpts
-            sessions_data = {}
-            for item in result.data:
-                session_id = item['session_id']
-                session_info = item['conversation_sessions']
-                message = item
-                
-                if session_id not in sessions_data:
-                    sessions_data[session_id] = {
-                        'session_info': session_info,
-                        'messages': [],
-                        'best_excerpt': ''
-                    }
-                
-                sessions_data[session_id]['messages'].append(message)
-                
-                # Find best excerpt containing the search query
-                content = message['content'].lower()
-                query_lower = query.lower()
-                
-                if query_lower in content:
-                    # Extract context around the match
-                    index = content.find(query_lower)
-                    start = max(0, index - context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
-                    end = min(len(message['content']), index + len(query) + context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
-                    
-                    excerpt = message['content'][start:end]
-                    if start > 0:
-                        excerpt = '...' + excerpt
-                    if end < len(message['content']):
-                        excerpt = excerpt + '...'
-                    
-                    # Enforce maximum excerpt length
-                    if len(excerpt) > context_limits.SEARCH_EXCERPT_MAX_LENGTH:
-                        excerpt = excerpt[:context_limits.SEARCH_EXCERPT_MAX_LENGTH - 3] + '...'
-                    
-                    # Keep the best (longest) excerpt
-                    if len(excerpt) > len(sessions_data[session_id]['best_excerpt']):
-                        sessions_data[session_id]['best_excerpt'] = excerpt
-            
-            # Format results
+            # Initialize results list
             formatted_results = []
-            for session_id, data in list(sessions_data.items())[:limit]:
-                session = data['session_info']
+            
+            # Process conversation results if found
+            if result.data:
+                # Group messages by session and find best excerpts
+                sessions_data = {}
+                for item in result.data:
+                    session_id = item['session_id']
+                    session_info = item['conversation_sessions']
+                    message = item
+                    
+                    if session_id not in sessions_data:
+                        sessions_data[session_id] = {
+                            'session_info': session_info,
+                            'messages': [],
+                            'best_excerpt': ''
+                        }
+                    
+                    sessions_data[session_id]['messages'].append(message)
                 
-                # Create a summary from the first few messages
-                summary_parts = []
-                for msg in sorted(data['messages'], key=lambda x: x['created_at'])[:3]:
-                    role = "User" if msg['role'] == 'user' else "AI"
-                    content = msg['content'][:100]
-                    summary_parts.append(f"{role}: {content}{'...' if len(msg['content']) > 100 else ''}")
+                    # Find best excerpt containing the search query
+                    content = message['content'].lower()
+                    query_lower = query.lower()
+                    
+                    if query_lower in content:
+                        # Extract context around the match
+                        index = content.find(query_lower)
+                        start = max(0, index - context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        end = min(len(message['content']), index + len(query) + context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        
+                        excerpt = message['content'][start:end]
+                        if start > 0:
+                            excerpt = '...' + excerpt
+                        if end < len(message['content']):
+                            excerpt = excerpt + '...'
+                        
+                        # Enforce maximum excerpt length
+                        if len(excerpt) > context_limits.SEARCH_EXCERPT_MAX_LENGTH:
+                            excerpt = excerpt[:context_limits.SEARCH_EXCERPT_MAX_LENGTH - 3] + '...'
+                        
+                        # Keep the best (longest) excerpt
+                        if len(excerpt) > len(sessions_data[session_id]['best_excerpt']):
+                            sessions_data[session_id]['best_excerpt'] = excerpt
                 
-                formatted_results.append({
-                    'session_id': session_id,
-                    'date': session['started_at'],
-                    'summary': ' | '.join(summary_parts),
-                    'excerpt': data['best_excerpt'],
-                    'message_count': session['message_count'],
-                    'conversation_type': session['conversation_type'],
-                    'title': session.get('title', 'Untitled Conversation')
-                })
+                # Format conversation results
+                for session_id, data in list(sessions_data.items())[:limit]:
+                    session = data['session_info']
+                    
+                    # Create a summary from the first few messages
+                    summary_parts = []
+                    for msg in sorted(data['messages'], key=lambda x: x['created_at'])[:3]:
+                        role = "User" if msg['role'] == 'user' else "AI"
+                        content = msg['content'][:100]
+                        summary_parts.append(f"{role}: {content}{'...' if len(msg['content']) > 100 else ''}")
+                    
+                    formatted_results.append({
+                        'session_id': session_id,
+                        'date': session['started_at'],
+                        'summary': ' | '.join(summary_parts),
+                        'excerpt': data['best_excerpt'],
+                        'message_count': session['message_count'],
+                        'conversation_type': session['conversation_type'],
+                        'title': session.get('title', 'Untitled Conversation')
+                    })
             
             # Also search memories for the same query
             logger.info(f'🧠 EXECUTING MEMORY SEARCH QUERY...')
