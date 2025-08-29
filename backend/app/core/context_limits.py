@@ -46,7 +46,7 @@ class ContextLimits:
     PAPER_NOTES_CONTEXT_MAX_TOKENS = 4000      # Max tokens for paper notes in context
     
     # Medium term memory limit - 4k tokens
-    MEDIUM_TERM_MEMORY_MAX_TOKENS = 4000       # Max tokens for medium term memory
+    MEDIUM_TERM_MEMORY_MAX_TOKENS = 500       #TESTING # Max tokens for medium term memory
     
     # Document limits
     DOCUMENT_MAX_TOKENS_PER_DOCUMENT = 20000   # 20k tokens per individual document
@@ -410,25 +410,51 @@ class ContextLimits:
     def filter_memory_by_token_limit(cls, memory_items: list) -> Dict[str, Any]:
         """
         Filter medium term memory items to stay within token limit.
+        Respects pinned-first ordering: pinned memories (importance_score >= 1.0) are included first,
+        then unpinned memories until token limit is reached.
         
         Args:
-            memory_items: List of memory items (should be sorted by timestamp)
+            memory_items: List of memory items (should already be sorted with pinned first)
             
         Returns:
             Dictionary with included and excluded memory items
         """
         from .token_utils import TokenCounter
         
-        included, excluded = TokenCounter.filter_items_by_token_limit(
-            memory_items,
-            cls.MEDIUM_TERM_MEMORY_MAX_TOKENS,
-            content_field='content'
-        )
+        if not memory_items:
+            return {
+                'included_memory': [],
+                'excluded_memory': [],
+                'total_tokens': 0,
+                'max_tokens': cls.MEDIUM_TERM_MEMORY_MAX_TOKENS
+            }
+        
+        included_items = []
+        excluded_items = []
+        current_tokens = 0
+        
+        # Process items in order (pinned first due to database sorting)
+        for item in memory_items:
+            item_tokens = TokenCounter.count_tokens(item.get('content', ''))
+            is_pinned = item.get('importance_score', 0) >= 1.0
+            
+            if is_pinned:
+                # Always include pinned items (they have priority)
+                included_items.append(item)
+                current_tokens += item_tokens
+            else:
+                # Include unpinned items only if they fit within remaining token limit
+                if current_tokens + item_tokens <= cls.MEDIUM_TERM_MEMORY_MAX_TOKENS:
+                    included_items.append(item)
+                    current_tokens += item_tokens
+                else:
+                    # Exclude items that would exceed token limit
+                    excluded_items.append(item)
         
         return {
-            'included_memory': included,
-            'excluded_memory': excluded,
-            'total_tokens': TokenCounter.count_tokens_in_notes(included),
+            'included_memory': included_items,
+            'excluded_memory': excluded_items,
+            'total_tokens': current_tokens,
             'max_tokens': cls.MEDIUM_TERM_MEMORY_MAX_TOKENS
         }
 

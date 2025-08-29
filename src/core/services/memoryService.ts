@@ -30,6 +30,16 @@ class MemoryService implements MemoryServiceInterface {
   // =============================================
   
   async createMediumTermMemory(request: CreateMediumTermMemoryRequest): Promise<MediumTermMemory> {
+    // Check for similar memories before creating new one
+    const existingMemoryId = await this.checkForSimilarMemory(request.agent_id, request.content, request.summary);
+    
+    if (existingMemoryId) {
+      // Update existing memory timestamp instead of creating duplicate
+      console.log(`🔄 Found similar memory, updating timestamp instead of creating duplicate`);
+      return await this.updateMemoryAccess(existingMemoryId);
+    }
+
+    // No similar memory found, create new one
     const { data, error } = await supabase
       .from('agent_medium_memories')
       .insert([{
@@ -70,7 +80,7 @@ class MemoryService implements MemoryServiceInterface {
     return data as MediumTermMemory[];
   }
 
-  async updateMemoryAccess(memoryId: string): Promise<void> {
+  async updateMemoryAccess(memoryId: string): Promise<MediumTermMemory> {
     // First get current access count
     const { data: currentData } = await supabase
       .from('agent_medium_memories')
@@ -78,21 +88,33 @@ class MemoryService implements MemoryServiceInterface {
       .eq('id', memoryId)
       .single();
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('agent_medium_memories')
       .update({
         access_count: (currentData?.access_count || 0) + 1,
         last_accessed_at: new Date().toISOString()
       })
-      .eq('id', memoryId);
+      .eq('id', memoryId)
+      .select()
+      .single();
 
     if (error) {
       console.error('Error updating memory access:', error);
       throw new Error(`Failed to update memory access: ${error.message}`);
     }
+
+    return data as MediumTermMemory;
   }
 
   async updateMediumTermMemory(memoryId: string, updates: Partial<MediumTermMemory>): Promise<MediumTermMemory> {
+    // If trying to pin a memory, check if pinned memories would exceed token limit
+    if (updates.importance_score !== undefined && updates.importance_score >= 1.0) {
+      const canPin = await this.canPinMemory(memoryId);
+      if (!canPin) {
+        throw new Error('Cannot pin memory: Pinned memories already at token limit');
+      }
+    }
+
     const { data, error } = await supabase
       .from('agent_medium_memories')
       .update(updates)
@@ -106,6 +128,52 @@ class MemoryService implements MemoryServiceInterface {
     }
 
     return data as MediumTermMemory;
+  }
+
+  /**
+   * Check if a memory can be pinned without exceeding token limits
+   */
+  private async canPinMemory(memoryId: string): Promise<boolean> {
+    try {
+      // Get the memory to be pinned
+      const { data: memoryToPin } = await supabase
+        .from('agent_medium_memories')
+        .select('agent_id, content')
+        .eq('id', memoryId)
+        .single();
+
+      if (!memoryToPin) return false;
+
+      // Get all current pinned memories for this agent
+      const { data: pinnedMemories } = await supabase
+        .from('agent_medium_memories')
+        .select('content')
+        .eq('agent_id', memoryToPin.agent_id)
+        .gte('importance_score', 1.0);
+
+      // Calculate tokens for existing pinned memories
+      const existingPinnedTokens = (pinnedMemories || [])
+        .reduce((total, mem) => total + this.countTokens(mem.content || ''), 0);
+
+      // Calculate tokens for memory to be pinned
+      const memoryTokens = this.countTokens(memoryToPin.content || '');
+
+      // Check if total would exceed limit (500 tokens based on context_limits)
+      const totalTokens = existingPinnedTokens + memoryTokens;
+      return totalTokens <= 500; // MEDIUM_TERM_MEMORY_MAX_TOKENS
+
+    } catch (error) {
+      console.error('Error checking pin capability:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Simple token counting (4 chars per token approximation)
+   */
+  private countTokens(text: string): number {
+    if (!text) return 0;
+    return Math.ceil(text.length / 4);
   }
 
   async deleteMediumTermMemory(memoryId: string): Promise<void> {
@@ -152,6 +220,125 @@ class MemoryService implements MemoryServiceInterface {
     return data as MemoryTopic[];
   }
 
+  /**
+   * Check if a similar memory already exists using AI analysis
+   * Returns the ID of similar memory if found, null otherwise
+   */
+  async checkForSimilarMemory(agentId: string, content: string, summary?: string): Promise<string | null> {
+    try {
+      // Get existing memories in context for this agent
+      const existingMemories = await this.getMediumTermMemories(agentId, 100);
+      
+      if (existingMemories.length === 0) {
+        return null; // No existing memories to compare against
+      }
+
+      // Use AI to analyze similarity - create a prompt for the AI
+      const prompt = this.buildSimilarityAnalysisPrompt(content, summary, existingMemories);
+      
+      // Call AI service to analyze similarity
+      const result = await this.analyzeMemorySimilarity(prompt);
+      
+      if (result.hasSimilar) {
+        console.log(`🔍 Memory deduplication: Found similar memory ID ${result.similarMemoryId}`);
+        return result.similarMemoryId;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error checking for similar memory:', error);
+      // Don't block memory saving if similarity check fails
+      return null;
+    }
+  }
+
+  /**
+   * Build prompt for AI similarity analysis
+   */
+  private buildSimilarityAnalysisPrompt(newContent: string, newSummary: string | undefined, existingMemories: any[]): string {
+    const memoryListText = existingMemories.map((memory, index) => 
+      `${index + 1}. ID: ${memory.id} | Content: "${memory.content}" | Summary: "${memory.summary || 'N/A'}"`
+    ).join('\n');
+
+    return `You are analyzing whether a new memory should be saved or if it's too similar to existing memories.
+
+NEW MEMORY TO SAVE:
+Content: "${newContent}"
+Summary: "${newSummary || 'N/A'}"
+
+EXISTING MEMORIES:
+${memoryListText}
+
+TASK: Determine if the new memory is substantially similar to any existing memory. Two memories are considered similar if they contain essentially the same information, facts, or insights, even if worded differently.
+
+Examples of SIMILAR memories that should NOT be saved:
+- "User likes pizza" vs "User enjoys eating pizza" 
+- "Meeting is at 3pm tomorrow" vs "Tomorrow's meeting starts at 15:00"
+- "John works at Google" vs "John is employed by Google Inc."
+
+Examples of DIFFERENT memories that SHOULD be saved:
+- "User likes pizza" vs "User is allergic to mushrooms"
+- "Meeting at 3pm" vs "Meeting location is Conference Room A"
+- "John works at Google" vs "John graduated from Stanford"
+
+Respond with ONLY a JSON object:
+{
+  "hasSimilar": boolean,
+  "similarMemoryId": "memory_id_if_similar_found_or_null",
+  "reasoning": "brief explanation of your decision"
+}`;
+  }
+
+  /**
+   * Use AI service to analyze memory similarity
+   */
+  private async analyzeMemorySimilarity(prompt: string): Promise<{
+    hasSimilar: boolean;
+    similarMemoryId: string | null;
+    reasoning: string;
+  }> {
+    // For now, implement a simple keyword-based similarity check
+    // TODO: Replace with actual AI service call when available
+    
+    // Extract key information from the prompt for basic similarity detection
+    const lines = prompt.split('\n');
+    const newContentLine = lines.find(line => line.startsWith('Content:'));
+    const existingMemoriesStart = lines.findIndex(line => line === 'EXISTING MEMORIES:');
+    
+    if (!newContentLine || existingMemoriesStart === -1) {
+      return { hasSimilar: false, similarMemoryId: null, reasoning: 'Could not parse prompt' };
+    }
+    
+    const newContent = newContentLine.replace('Content: "', '').replace('"', '').toLowerCase();
+    const existingMemoryLines = lines.slice(existingMemoriesStart + 1).filter(line => line.trim().length > 0);
+    
+    // Simple similarity check: look for very similar content
+    for (const memoryLine of existingMemoryLines) {
+      const idMatch = memoryLine.match(/ID: ([^|]+)/);
+      const contentMatch = memoryLine.match(/Content: "([^"]+)"/);
+      
+      if (idMatch && contentMatch) {
+        const existingContent = contentMatch[1].toLowerCase();
+        
+        // Simple similarity: if 70% of words overlap, consider similar
+        const newWords = new Set(newContent.split(/\s+/).filter(word => word.length > 3));
+        const existingWords = new Set(existingContent.split(/\s+/).filter(word => word.length > 3));
+        
+        const intersection = new Set([...newWords].filter(word => existingWords.has(word)));
+        const similarity = intersection.size / Math.max(newWords.size, existingWords.size);
+        
+        if (similarity > 0.7) {
+          return {
+            hasSimilar: true,
+            similarMemoryId: idMatch[1].trim(),
+            reasoning: `Found ${Math.round(similarity * 100)}% word similarity with existing memory`
+          };
+        }
+      }
+    }
+    
+    return { hasSimilar: false, similarMemoryId: null, reasoning: 'No similar memories found' };
+  }
 
   // =============================================
   // PAPER NOTES OPERATIONS

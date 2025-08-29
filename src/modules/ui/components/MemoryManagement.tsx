@@ -68,12 +68,24 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
       // Update local state immediately for responsiveness
       setMemories(prev => prev.map(memory => 
         memory.id === memoryId 
-          ? { ...memory, content: newContent, token_count: estimateTokenCount(newContent) }
+          ? { 
+              ...memory, 
+              content: newContent, 
+              token_count: estimateTokenCount(newContent),
+              last_accessed_at: new Date().toISOString(), // Update access time
+              updated_at: new Date().toISOString()
+            }
           : memory
       ));
 
-      // Update in database
-      await memoryService.updateMediumTermMemory(memoryId, { content: newContent });
+      // Update in database with new content and access time
+      await memoryService.updateMediumTermMemory(memoryId, { 
+        content: newContent,
+        last_accessed_at: new Date().toISOString()
+      });
+      
+      // Reload to get proper sorting after access time change
+      loadMemories();
     } catch (error) {
       console.error('Error updating memory:', error);
       setError('Failed to update memory.');
@@ -100,6 +112,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
     try {
       const newImportanceScore = currentlyPinned ? 0.5 : 1.0; // Pinned = max importance
       
+      // Update local state optimistically
       setMemories(prev => prev.map(memory => 
         memory.id === memoryId 
           ? { ...memory, importance_score: newImportanceScore }
@@ -107,9 +120,20 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
       ));
 
       await memoryService.updateMediumTermMemory(memoryId, { importance_score: newImportanceScore });
+      
+      // Reload to get proper sorting after pin change
+      loadMemories();
     } catch (error) {
       console.error('Error toggling pin:', error);
-      setError('Failed to update memory.');
+      
+      // Show specific error message for token limit
+      if (error instanceof Error && error.message.includes('token limit')) {
+        setError('Cannot pin memory: Pinned memories already at token limit. Unpin some memories first.');
+      } else {
+        setError('Failed to update memory.');
+      }
+      
+      // Revert optimistic update
       loadMemories();
     }
   };

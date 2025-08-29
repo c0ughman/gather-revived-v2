@@ -477,8 +477,24 @@ class DatabaseService:
             # Use user client if token provided, otherwise use admin client
             supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
             
-            # Order by importance and recency for context
+            # Order by pinned status first (importance_score >= 1.0), then by recency
+            # This ensures pinned memories appear at top, then unpinned memories by most recent access
             result = supabase_client.from_('agent_medium_memories').select('*').eq('agent_id', agent_id).order('importance_score', desc=True).order('last_accessed_at', desc=True).execute()
+            
+            # Sort in Python to ensure proper pinned-first ordering
+            if result.data:
+                # Separate pinned (>=1.0) and unpinned (<1.0) memories
+                pinned_memories = [m for m in result.data if m.get('importance_score', 0) >= 1.0]
+                unpinned_memories = [m for m in result.data if m.get('importance_score', 0) < 1.0]
+                
+                # Sort pinned by last_accessed_at descending (most recent first)
+                pinned_memories.sort(key=lambda x: x.get('last_accessed_at', ''), reverse=True)
+                
+                # Sort unpinned by last_accessed_at descending (most recent first)  
+                unpinned_memories.sort(key=lambda x: x.get('last_accessed_at', ''), reverse=True)
+                
+                # Combine: pinned first, then unpinned
+                result.data = pinned_memories + unpinned_memories
             
             logger.info(f'🧠 Database query result: {result.data is not None}, count: {len(result.data) if result.data else 0}')
             
