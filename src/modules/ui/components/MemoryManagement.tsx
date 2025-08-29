@@ -71,10 +71,9 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
   // Debounced save function
   const saveMemoryToDatabase = useCallback(async (memoryId: string, content: string) => {
     try {
-      // Update in database with new content and access time
+      // Update in database with new content only (don't update access time for editing)
       await memoryService.updateMediumTermMemory(memoryId, { 
-        content: content,
-        last_accessed_at: new Date().toISOString()
+        content: content
       });
       
       // Remove from pending saves
@@ -84,8 +83,12 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
         return newPending;
       });
       
-      // Reload to get proper sorting after access time change
-      loadMemories();
+      // Don't reload - just update token count locally since position doesn't change
+      setMemories(prev => prev.map(memory => 
+        memory.id === memoryId 
+          ? { ...memory, token_count: estimateTokenCount(content) }
+          : memory
+      ));
     } catch (error) {
       console.error('Error updating memory:', error);
       setError('Failed to update memory.');
@@ -103,14 +106,13 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
   }, []);
 
   const handleMemoryChange = (memoryId: string, newContent: string) => {
-    // Update local state immediately for responsiveness
+    // Update local state immediately for responsiveness (no access time change)
     setMemories(prev => prev.map(memory => 
       memory.id === memoryId 
         ? { 
             ...memory, 
             content: newContent, 
             token_count: estimateTokenCount(newContent),
-            last_accessed_at: new Date().toISOString(), // Update access time
             updated_at: new Date().toISOString()
           }
         : memory
