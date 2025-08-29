@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Pin } from 'lucide-react';
 import { MediumTermMemory } from '../../../core/types/memory';
 import { memoryService } from '../../../core/services/memoryService';
@@ -21,6 +21,11 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Debounced saving state
+  const [pendingSaves, setPendingSaves] = useState<Record<string, string>>({});
+  const saveTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
+  const DEBOUNCE_DELAY = 2000; // 2 seconds
 
   useEffect(() => {
     loadMemories();
@@ -63,25 +68,20 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
     }
   };
 
-  const handleMemoryChange = async (memoryId: string, newContent: string) => {
+  // Debounced save function
+  const saveMemoryToDatabase = useCallback(async (memoryId: string, content: string) => {
     try {
-      // Update local state immediately for responsiveness
-      setMemories(prev => prev.map(memory => 
-        memory.id === memoryId 
-          ? { 
-              ...memory, 
-              content: newContent, 
-              token_count: estimateTokenCount(newContent),
-              last_accessed_at: new Date().toISOString(), // Update access time
-              updated_at: new Date().toISOString()
-            }
-          : memory
-      ));
-
       // Update in database with new content and access time
       await memoryService.updateMediumTermMemory(memoryId, { 
-        content: newContent,
+        content: content,
         last_accessed_at: new Date().toISOString()
+      });
+      
+      // Remove from pending saves
+      setPendingSaves(prev => {
+        const newPending = { ...prev };
+        delete newPending[memoryId];
+        return newPending;
       });
       
       // Reload to get proper sorting after access time change
@@ -89,10 +89,69 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
     } catch (error) {
       console.error('Error updating memory:', error);
       setError('Failed to update memory.');
+      
+      // Remove from pending saves on error
+      setPendingSaves(prev => {
+        const newPending = { ...prev };
+        delete newPending[memoryId];
+        return newPending;
+      });
+      
       // Reload to revert changes
       loadMemories();
     }
+  }, []);
+
+  const handleMemoryChange = (memoryId: string, newContent: string) => {
+    // Update local state immediately for responsiveness
+    setMemories(prev => prev.map(memory => 
+      memory.id === memoryId 
+        ? { 
+            ...memory, 
+            content: newContent, 
+            token_count: estimateTokenCount(newContent),
+            last_accessed_at: new Date().toISOString(), // Update access time
+            updated_at: new Date().toISOString()
+          }
+        : memory
+    ));
+
+    // Track pending save
+    setPendingSaves(prev => ({ ...prev, [memoryId]: newContent }));
+
+    // Clear existing timeout for this memory
+    if (saveTimeoutRefs.current[memoryId]) {
+      clearTimeout(saveTimeoutRefs.current[memoryId]);
+    }
+
+    // Set new timeout for debounced save
+    saveTimeoutRefs.current[memoryId] = setTimeout(() => {
+      saveMemoryToDatabase(memoryId, newContent);
+      delete saveTimeoutRefs.current[memoryId];
+    }, DEBOUNCE_DELAY);
   };
+
+  // Handle blur event for immediate save on focus loss
+  const handleMemoryBlur = (memoryId: string) => {
+    const pendingContent = pendingSaves[memoryId];
+    if (pendingContent !== undefined) {
+      // Clear the timeout and save immediately
+      if (saveTimeoutRefs.current[memoryId]) {
+        clearTimeout(saveTimeoutRefs.current[memoryId]);
+        delete saveTimeoutRefs.current[memoryId];
+      }
+      saveMemoryToDatabase(memoryId, pendingContent);
+    }
+  };
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimeoutRefs.current).forEach(timeout => {
+        clearTimeout(timeout);
+      });
+    };
+  }, []);
 
   const handleDeleteMemory = async (memoryId: string) => {
     if (!confirm('Are you sure you want to delete this memory? This action cannot be undone.')) {
@@ -182,6 +241,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
                 <textarea
                   value={memory.content}
                   onChange={(e) => handleMemoryChange(memory.id, e.target.value)}
+                  onBlur={() => handleMemoryBlur(memory.id)}
                   className={`w-full bg-transparent resize-none border-none outline-none text-base leading-relaxed min-h-[100px] p-0 transition-colors duration-200 ${
                     isExcluded ? 'text-slate-400 italic' : 'text-white'
                   }`}
@@ -199,6 +259,9 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
                     <span className="text-slate-400 text-sm">
                       {lastEdited.toLocaleDateString()} at {lastEdited.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
+                    {pendingSaves[memory.id] !== undefined && (
+                      <span className="text-yellow-400 text-xs">Saving...</span>
+                    )}
                   </div>
                   
                   <div className="flex items-center space-x-2">
