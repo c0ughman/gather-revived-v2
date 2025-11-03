@@ -7,6 +7,13 @@ export interface DocumentInfo {
   content: string;
   summary?: string;
   extractedText?: string; // For binary files like PDF, DOCX
+  // Layered context fields
+  layer1_summary?: string; // ~500 tokens - gestalt overview
+  layer1_word_bank?: string; // ~200 tokens - entities, keywords
+  layer2_summary?: string; // ~2000 tokens - comprehensive facts OR full content if ≤2000 tokens
+  layer3_full_text?: string; // Full document text (only for >2000 token docs)
+  layered_processing_complete?: boolean; // Track if layered processing is done
+  estimated_tokens?: number; // Estimated token count for processing decisions
   metadata?: {
     pageCount?: number;
     wordCount?: number;

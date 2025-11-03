@@ -64,6 +64,7 @@ class MemoryService implements MemoryServiceInterface {
   }
 
   async getMediumTermMemories(agentId: string, limit = 50): Promise<MediumTermMemory[]> {
+    console.log('🏴‍☠️ MEDIUM TERM MEMORY ACCESSED - Barcelona - Agent:', agentId, '- Action: GET_MEMORIES - Limit:', limit);
     const { data, error } = await supabase
       .from('agent_medium_memories')
       .select('*')
@@ -189,6 +190,7 @@ class MemoryService implements MemoryServiceInterface {
   }
 
   async searchMediumTermMemories(agentId: string, query: string): Promise<MediumTermMemory[]> {
+    console.log('🏴‍☠️ MEDIUM TERM MEMORY SEARCH ACCESSED - Barcelona - Agent:', agentId, '- SEARCH KEYWORD:', `"${query}"`);
     const { data, error } = await supabase
       .from('agent_medium_memories')
       .select('*')
@@ -290,17 +292,14 @@ Respond with ONLY a JSON object:
   }
 
   /**
-   * Use AI service to analyze memory similarity
+   * Enhanced similarity analysis with improved algorithms
    */
   private async analyzeMemorySimilarity(prompt: string): Promise<{
     hasSimilar: boolean;
     similarMemoryId: string | null;
     reasoning: string;
   }> {
-    // For now, implement a simple keyword-based similarity check
-    // TODO: Replace with actual AI service call when available
-    
-    // Extract key information from the prompt for basic similarity detection
+    // Extract key information from the prompt for enhanced similarity detection
     const lines = prompt.split('\n');
     const newContentLine = lines.find(line => line.startsWith('Content:'));
     const existingMemoriesStart = lines.findIndex(line => line === 'EXISTING MEMORIES:');
@@ -309,29 +308,33 @@ Respond with ONLY a JSON object:
       return { hasSimilar: false, similarMemoryId: null, reasoning: 'Could not parse prompt' };
     }
     
-    const newContent = newContentLine.replace('Content: "', '').replace('"', '').toLowerCase();
-    const existingMemoryLines = lines.slice(existingMemoriesStart + 1).filter(line => line.trim().length > 0);
+    const newContent = newContentLine.replace(/Content: "/g, '').replace(/"$/g, '');
+    const existingMemoryLines = lines.slice(existingMemoriesStart + 1).filter(line => line.trim().length > 0 && !line.startsWith('TASK:'));
     
-    // Simple similarity check: look for very similar content
+    // Enhanced similarity check with multiple techniques
     for (const memoryLine of existingMemoryLines) {
       const idMatch = memoryLine.match(/ID: ([^|]+)/);
       const contentMatch = memoryLine.match(/Content: "([^"]+)"/);
       
       if (idMatch && contentMatch) {
-        const existingContent = contentMatch[1].toLowerCase();
+        const existingContent = contentMatch[1];
         
-        // Simple similarity: if 70% of words overlap, consider similar
-        const newWords = new Set(newContent.split(/\s+/).filter(word => word.length > 3));
-        const existingWords = new Set(existingContent.split(/\s+/).filter(word => word.length > 3));
+        // Calculate multiple similarity scores
+        const wordSimilarity = this.calculateWordSimilarity(newContent, existingContent);
+        const fuzzyScore = this.calculateFuzzyMatchScore(newContent, existingContent);
+        const semanticScore = this.calculateSemanticSimilarity(newContent, existingContent);
         
-        const intersection = new Set([...newWords].filter(word => existingWords.has(word)));
-        const similarity = intersection.size / Math.max(newWords.size, existingWords.size);
+        // Combined similarity score with weights
+        const combinedScore = (wordSimilarity * 0.4) + (fuzzyScore * 0.3) + (semanticScore * 0.3);
         
-        if (similarity > 0.7) {
+        console.log(`🔍 Memory similarity analysis: word=${Math.round(wordSimilarity*100)}%, fuzzy=${Math.round(fuzzyScore*100)}%, semantic=${Math.round(semanticScore*100)}%, combined=${Math.round(combinedScore*100)}%`);
+        
+        // Lowered threshold to 50%
+        if (combinedScore > 0.5) {
           return {
             hasSimilar: true,
             similarMemoryId: idMatch[1].trim(),
-            reasoning: `Found ${Math.round(similarity * 100)}% word similarity with existing memory`
+            reasoning: `Found ${Math.round(combinedScore * 100)}% similarity (word: ${Math.round(wordSimilarity*100)}%, fuzzy: ${Math.round(fuzzyScore*100)}%, semantic: ${Math.round(semanticScore*100)}%)`
           };
         }
       }
@@ -727,6 +730,148 @@ Respond with ONLY a JSON object:
     return keywords[0].charAt(0).toUpperCase() + keywords[0].slice(1);
   }
 
+
+  // =============================================
+  // ENHANCED SIMILARITY DETECTION METHODS
+  // =============================================
+
+  /**
+   * Calculate word-based similarity with improved normalization
+   */
+  private calculateWordSimilarity(content1: string, content2: string): number {
+    const words1 = this.normalizeContent(content1);
+    const words2 = this.normalizeContent(content2);
+    
+    if (words1.size === 0 || words2.size === 0) return 0;
+    
+    const intersection = new Set([...words1].filter(word => words2.has(word)));
+    return intersection.size / Math.max(words1.size, words2.size);
+  }
+
+  /**
+   * Calculate semantic similarity using synonym detection
+   */
+  private calculateSemanticSimilarity(content1: string, content2: string): number {
+    const words1 = this.normalizeContent(content1);
+    const words2 = this.normalizeContent(content2);
+    
+    if (words1.size === 0 || words2.size === 0) return 0;
+    
+    let synonymMatches = 0;
+    let totalWords = 0;
+    
+    for (const word1 of words1) {
+      totalWords++;
+      if (words2.has(word1)) {
+        synonymMatches++; // Direct match
+      } else {
+        // Check for synonyms
+        const synonyms = this.getSynonyms(word1);
+        if (synonyms.some(synonym => words2.has(synonym))) {
+          synonymMatches++;
+        }
+      }
+    }
+    
+    return totalWords > 0 ? synonymMatches / totalWords : 0;
+  }
+
+  /**
+   * Calculate fuzzy matching score for slight variations
+   */
+  private calculateFuzzyMatchScore(content1: string, content2: string): number {
+    const normalized1 = content1.toLowerCase().trim();
+    const normalized2 = content2.toLowerCase().trim();
+    
+    // Calculate Levenshtein distance-based similarity
+    const distance = this.levenshteinDistance(normalized1, normalized2);
+    const maxLength = Math.max(normalized1.length, normalized2.length);
+    
+    if (maxLength === 0) return 1;
+    
+    return 1 - (distance / maxLength);
+  }
+
+  /**
+   * Normalize content by removing stop words and handling punctuation
+   */
+  private normalizeContent(content: string): Set<string> {
+    const stopWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+      'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did',
+      'will', 'would', 'could', 'should', 'may', 'might', 'can', 'am', 'i', 'you', 'he', 'she',
+      'it', 'we', 'they', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its',
+      'our', 'their', 'me', 'him', 'her', 'us', 'them'
+    ]);
+    
+    return new Set(
+      content
+        .toLowerCase()
+        .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
+        .split(/\s+/)
+        .filter(word => word.length > 2 && !stopWords.has(word))
+    );
+  }
+
+  /**
+   * Get synonyms for common word pairs
+   */
+  private getSynonyms(word: string): string[] {
+    const synonymMap: { [key: string]: string[] } = {
+      'like': ['love', 'enjoy', 'prefer', 'adore'],
+      'love': ['like', 'enjoy', 'adore'],
+      'enjoy': ['like', 'love', 'prefer'],
+      'prefer': ['like', 'enjoy', 'favor'],
+      'work': ['job', 'employment', 'career', 'position'],
+      'works': ['employed', 'job'],
+      'employed': ['works', 'job'],
+      'job': ['work', 'employment', 'career', 'position'],
+      'eat': ['consume', 'have'],
+      'eating': ['consuming', 'having'],
+      'food': ['meal', 'dish'],
+      'good': ['great', 'excellent', 'nice', 'wonderful'],
+      'great': ['good', 'excellent', 'awesome', 'wonderful'],
+      'bad': ['poor', 'terrible', 'awful'],
+      'big': ['large', 'huge', 'massive'],
+      'small': ['little', 'tiny', 'mini'],
+      'fast': ['quick', 'rapid', 'speedy'],
+      'slow': ['gradual', 'sluggish'],
+      'happy': ['glad', 'joyful', 'pleased'],
+      'sad': ['unhappy', 'depressed', 'upset'],
+      'smart': ['intelligent', 'clever', 'bright'],
+      'learn': ['study', 'understand'],
+      'learning': ['studying', 'understanding'],
+      'create': ['make', 'build', 'develop'],
+      'creating': ['making', 'building', 'developing'],
+      'use': ['utilize', 'employ'],
+      'using': ['utilizing', 'employing']
+    };
+    
+    return synonymMap[word] || [];
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,     // deletion
+          matrix[j - 1][i] + 1,     // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
 
   // =============================================
   // AUTO-GENERATION HELPERS

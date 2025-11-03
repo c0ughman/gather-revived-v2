@@ -41,8 +41,16 @@ export default function CallScreen({
     timestamp: Date;
   }>>([]);
   const [currentDocumentIndex, setCurrentDocumentIndex] = useState<number>(-1);
+  const pendingPaperUpdateRef = useRef<{ content: string, hasChanged: boolean } | null>(null);
+  const [currentEditorContent, setCurrentEditorContent] = useState<string>("");
+  const currentEditorContentRef = useRef<string>("");
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
+  
+  // Timers for document sync
+  const debounceTimerRef = useRef<number | null>(null);
+  const periodicTimerRef = useRef<number | null>(null);
+  const lastChangeTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (callState.status === 'connecting') {
@@ -116,8 +124,28 @@ export default function CallScreen({
               // Show the new document
               setDocumentContent(document.content);
               setDocumentWordCount(document.wordCount);
+              setCurrentEditorContent(document.content);
+              currentEditorContentRef.current = document.content;
               setShowDocument(true);
             });
+            
+            // Set up callback to send paper updates when user starts talking (fallback for immediate sync)
+            const handleUserStartTalking = () => {
+              // Check if there are pending changes that haven't been sent yet
+              const currentPendingUpdate = pendingPaperUpdateRef.current;
+              if (currentPendingUpdate?.hasChanged) {
+                console.log('👤 User started talking, sending pending paper update immediately...');
+                sendDocumentToAI(currentPendingUpdate.content);
+                
+                // Clear the debounce timer since we're sending now
+                if (debounceTimerRef.current) {
+                  clearTimeout(debounceTimerRef.current);
+                  debounceTimerRef.current = null;
+                }
+              }
+            };
+            
+            geminiLiveService.setOnUserStartTalkingCallback(handleUserStartTalking);
             
             // Initialize audio
             const initialized = await geminiLiveService.initialize();
@@ -125,6 +153,8 @@ export default function CallScreen({
               console.log("✅ Audio initialized, starting session...");
               await geminiLiveService.startSession(contact);
               serviceInitialized.current = true;
+              
+              
               console.log("✅ Service fully initialized");
             } else {
               console.error("❌ Audio initialization failed");
@@ -160,6 +190,14 @@ export default function CallScreen({
         serviceInitialized.current = false;
         console.log("✅ Voice service cleanup completed");
       }
+      
+      // Clean up timers
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (periodicTimerRef.current) {
+        clearInterval(periodicTimerRef.current);
+      }
     };
   }, [contact.id]); // Only depend on contact.id, not callState.status
 
@@ -185,6 +223,26 @@ export default function CallScreen({
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const sendDocumentToAI = async (content: string) => {
+    if (!content || !content.trim()) {
+      console.warn('⚠️ No content to send to AI');
+      return;
+    }
+    
+    if (callState.status !== 'connected') {
+      console.warn('⚠️ Call not connected, cannot send document update');
+      return;
+    }
+    
+    try {
+      console.log('📝 Sending document update to AI...', content.substring(0, 100) + '...');
+      await geminiLiveService.sendPaperChanges(content);
+      console.log('✅ Document update sent to AI successfully');
+    } catch (error) {
+      console.error('❌ Failed to send document update to AI:', error);
+    }
   };
 
   const getStatusText = () => {
@@ -316,9 +374,81 @@ export default function CallScreen({
       setDocumentContent(doc.content);
       setDocumentWordCount(doc.wordCount);
       setCurrentDocumentIndex(index);
+      setCurrentEditorContent(doc.content);
+      currentEditorContentRef.current = doc.content;
       setShowDocument(true);
     }
   };
+
+  const handlePaperContentChange = (newContent: string, hasChanged: boolean) => {
+    // Update the document content locally
+    setDocumentContent(newContent);
+    
+    // Always track current editor content for voice integration
+    setCurrentEditorContent(newContent);
+    currentEditorContentRef.current = newContent;
+    
+    // Update the document in history
+    if (currentDocumentIndex >= 0 && currentDocumentIndex < documentHistory.length) {
+      setDocumentHistory(prev => {
+        const updated = [...prev];
+        updated[currentDocumentIndex] = {
+          ...updated[currentDocumentIndex],
+          content: newContent,
+          wordCount: newContent.split(' ').length
+        };
+        return updated;
+      });
+    }
+    
+    // Store pending update if document has been changed
+    if (hasChanged) {
+      const now = Date.now();
+      const update = { content: newContent, hasChanged: true };
+      pendingPaperUpdateRef.current = update;
+      lastChangeTimeRef.current = now;
+      
+      // Clear existing debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Set up 5-second debounced update
+      debounceTimerRef.current = window.setTimeout(() => {
+        // Double-check that enough time has passed since last change
+        const timeSinceLastChange = Date.now() - lastChangeTimeRef.current;
+        
+        if (timeSinceLastChange >= 4900) { // Allow small margin for timer precision
+          sendDocumentToAI(pendingPaperUpdateRef.current?.content || newContent);
+        }
+        debounceTimerRef.current = null;
+      }, 5000);
+      
+      // Start periodic timer if not already running
+      if (!periodicTimerRef.current) {
+        periodicTimerRef.current = window.setInterval(() => {
+          const currentPending = pendingPaperUpdateRef.current;
+          if (currentPending?.hasChanged) {
+            sendDocumentToAI(currentPending.content);
+          }
+        }, 30000);
+      }
+    } else {
+      // Clear pending update if document is back to original
+      pendingPaperUpdateRef.current = null;
+      
+      // Clear timers since no changes to sync
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      if (periodicTimerRef.current) {
+        clearInterval(periodicTimerRef.current);
+        periodicTimerRef.current = null;
+      }
+    }
+  };
+
 
   const showNextDocument = () => {
     if (currentDocumentIndex < documentHistory.length - 1) {
@@ -351,6 +481,7 @@ export default function CallScreen({
             canNavigate={documentHistory.length > 1}
             agentId={contact.id}
             onSaveToNotes={handleSaveToNotes}
+            onContentChange={handlePaperContentChange}
           />
         </div>
       )}

@@ -394,6 +394,17 @@ class GeminiLiveService {
         }
       });
 
+      // Add document retrieval function for real-time collaboration
+      functionDeclarations.push({
+        name: 'get_current_document',
+        description: 'Get the current content of the document the user is working on. Use this to see what they have written or to reference specific parts of their document.',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      });
+
       
       // Add backend function declarations if available
       if (backendSession && backendSession.function_declarations && backendSession.function_declarations.length > 0) {
@@ -415,20 +426,26 @@ class GeminiLiveService {
       });
       
       // Check for potential issues and limit system instruction for voice calls
-      const VOICE_SYSTEM_INSTRUCTION_MAX_CHARS = 8000; // From backend context_limits.py
-      if (config.systemInstruction && config.systemInstruction.length > VOICE_SYSTEM_INSTRUCTION_MAX_CHARS) {
-        console.warn('⚠️ System instruction too long for voice:', config.systemInstruction.length, 'characters, max:', VOICE_SYSTEM_INSTRUCTION_MAX_CHARS);
-        // Truncate to fit limit while preserving essential parts
+      const VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS = 16000; // From backend context_limits.py - UPDATED to match backend
+      
+      // Calculate tokens using approximate conversion (4 chars = 1 token)
+      const estimatedTokens = Math.ceil(config.systemInstruction?.length / 4) || 0;
+      
+      if (config.systemInstruction && estimatedTokens > VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS) {
+        console.warn('⚠️ System instruction too long for voice:', estimatedTokens, 'tokens, max:', VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS);
+        // Truncate to fit token limit while preserving essential parts
+        const maxChars = VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS * 4; // Convert tokens to approximate chars
         const essentialPrompt = `You are ${contact.name}. ${contact.description}`;
-        const remainingSpace = VOICE_SYSTEM_INSTRUCTION_MAX_CHARS - essentialPrompt.length;
-        if (remainingSpace > 100) {
+        const remainingSpace = maxChars - essentialPrompt.length;
+        if (remainingSpace > 400) {
           // Keep some integration instructions if there's space
           const truncatedInstructions = config.systemInstruction.substring(essentialPrompt.length, essentialPrompt.length + remainingSpace - 100) + '...';
           config.systemInstruction = essentialPrompt + truncatedInstructions;
         } else {
           config.systemInstruction = essentialPrompt;
         }
-        console.log('🔧 Truncated system instruction to', config.systemInstruction.length, 'characters for voice calls');
+        const finalTokens = Math.ceil(config.systemInstruction.length / 4);
+        console.log('✂️ Truncated system instruction to:', config.systemInstruction.length, 'characters,', finalTokens, 'tokens');
       }
 
       // Create Live API session following docs pattern
@@ -591,6 +608,27 @@ class GeminiLiveService {
                   error: backendResult.error || 'Backend function call failed'
                 }
               });
+            } else if (fc.name === 'get_current_document') {
+              // Handle document retrieval locally - this is the KEY to real-time collaboration
+              console.log(`📄 AI requested current document content`);
+              
+              const documentContent = this.currentPaperContent || 'No document content available';
+              
+              functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: {
+                  success: true,
+                  document_content: documentContent,
+                  last_updated: new Date().toISOString(),
+                  word_count: documentContent.split(' ').length,
+                  character_count: documentContent.length,
+                  message: 'Current document content retrieved successfully'
+                }
+              });
+              
+              console.log(`📄 Provided document content to AI (${documentContent.length} chars)`);
+              
             } else {
               // Route all other function calls through backend
               const backendResult = await voiceApiService.handleFunctionCall(fc.name, fc.args);
@@ -883,6 +921,11 @@ class GeminiLiveService {
       // Starting audio capture
       this.isRecording = true;
       this.updateState('listening');
+      
+      // Trigger callback when user starts talking
+      if (this.onUserStartTalkingCallback) {
+        this.onUserStartTalkingCallback();
+      }
 
       // Create audio source from microphone
       const source = this.audioContext.createMediaStreamSource(this.audioStream);
@@ -1545,6 +1588,10 @@ class GeminiLiveService {
     this.currentContact = null;
     this.isSessionActive = false;
     
+    // Clear paper context
+    this.lastPaperHash = '';
+    this.currentPaperContent = null;
+    
     // Stop speech recognition
     this.stopSpeechRecognition();
     
@@ -1597,6 +1644,8 @@ class GeminiLiveService {
     // Final cleanup of references
     this.activeSession = null;
     this.currentContact = null;
+    this.lastPaperHash = '';
+    this.currentPaperContent = null;
     this.genAI = null;
     
     // Clear callbacks and document generation tracking
@@ -1772,6 +1821,105 @@ class GeminiLiveService {
     await this.refreshNotesContext();
   }
 
+  // Track current paper content for context updates
+  private currentPaperContent: string | null = null;
+  private lastPaperHash: string = '';
+
+  /**
+   * Send paper changes to the voice agent for real-time collaboration
+   * Documents are kept in memory only - not saved to Documents tab
+   */
+  public async sendPaperChanges(content: string): Promise<void> {
+    if (!this.activeSession || !this.currentContact) {
+      console.warn('⚠️ No active voice session or contact to send paper changes to');
+      return;
+    }
+
+    try {
+      console.log('📝 Sending paper changes for real-time collaboration...');
+      
+      // Store current paper content for AI access (in-memory only)
+      this.currentPaperContent = content;
+      
+      // Create hash to track changes
+      const paperHash = this.hashString(content);
+      
+      // Only send if content has actually changed
+      if (paperHash === this.lastPaperHash) {
+        console.log('📝 Paper content unchanged, skipping update');
+        return;
+      }
+      
+      this.lastPaperHash = paperHash;
+      
+      // Prompt the AI to retrieve the updated document content
+      await this.forceDocumentVisibility(content);
+      
+      console.log('✅ Paper content updated and AI notified of changes');
+      
+    } catch (error) {
+      console.error('❌ Failed to send paper changes to voice agent:', error);
+      throw error;
+    }
+  }
+
+
+  /**
+   * Update document content and prompt AI to retrieve it via function calling
+   * This is the CORRECT Live API approach using proper function calling
+   */
+  private async forceDocumentVisibility(content: string): Promise<void> {
+    if (!this.activeSession) {
+      console.warn('⚠️ No active session for document update');
+      return;
+    }
+
+    try {
+      console.log('🔍 Updating current paper content and prompting AI to retrieve it');
+      
+      // Store the current document content so AI can access it when it calls get_current_document
+      this.currentPaperContent = content;
+      
+      // Prompt the AI to call the get_current_document function
+      // This uses the proper text input method to request a function call
+      const promptMessage = `I just updated the document. Please check the current document content to see what I've written.`;
+      
+      this.activeSession.sendClientContent({
+        turns: [
+          {
+            role: "user",
+            parts: [{ text: promptMessage }]
+          }
+        ],
+        turnComplete: true
+      });
+      
+      console.log('✅ Prompted AI to retrieve updated document content');
+      console.log('📄 Document content ready for AI retrieval:', content.length, 'characters');
+      
+    } catch (error) {
+      console.error('❌ Failed to prompt AI for document retrieval:', error);
+      console.error('❌ Error details:', {
+        name: (error as Error).name,
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
+      
+      // Don't throw - this is not critical to core functionality
+      console.warn('⚠️ Document update notification failed, but document content is still available');
+    }
+  }
+
+
+  /**
+   * Set callback for when user starts talking (for triggering paper updates)
+   */
+  private onUserStartTalkingCallback?: () => void;
+  
+  public setOnUserStartTalkingCallback(callback: () => void): void {
+    this.onUserStartTalkingCallback = callback;
+  }
+
   /**
    * Refresh notes context during an active voice session
    * Sends updated notes context as incremental update to the Live API
@@ -1799,15 +1947,27 @@ class GeminiLiveService {
       
       this.lastNotesHash = notesHash;
       
-      // Send context update to Live API using incremental content
+      // Send context update to Live API using proper incremental content format
       if (documentContext.memoryContext) {
-        const contextUpdate = `[SYSTEM UPDATE] Your notes and memory have been updated:\n\n${documentContext.memoryContext}`;
+        const contextUpdate = `[MEMORY CONTEXT UPDATE]
+
+Your notes and memory have been updated:
+
+${documentContext.memoryContext}
+
+Please reference this information in our ongoing conversation.`;
         
         this.activeSession.sendClientContent({
-          turns: contextUpdate
+          turns: [
+            {
+              role: "user",
+              parts: [{ text: contextUpdate }]
+            }
+          ],
+          turnComplete: false
         });
         
-        console.log('✅ Notes context updated in voice session');
+        console.log('✅ Notes context updated in voice session using proper Live API format');
       }
       
     } catch (error) {

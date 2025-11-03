@@ -52,6 +52,8 @@ class VoiceService:
             "search_web": self._handle_web_search,
             "scrape_website": self._handle_website_scraping,
             "search_past_conversations": self._handle_past_conversations_search,
+            "search_conversation_history": self._handle_conversation_history_search,
+            "expand_document_context": self._handle_expand_document_context,
         }
         logger.info(f"📋 Registered {len(self.function_handlers)} function handlers")
 
@@ -71,6 +73,7 @@ class VoiceService:
             session_context = {
                 "session_id": session_id,
                 "user_id": user_id,
+                "user_token": user_token,  # Store user token for function calls
                 "contact": contact,
                 "created_at": datetime.utcnow().isoformat(),
                 "ephemeral_token": ephemeral_token,
@@ -329,7 +332,7 @@ class VoiceService:
         # Always add past chat search function for enhanced memory and context
         function_declarations.append({
             "name": "search_past_conversations",
-            "description": "Search through past conversations with this user to find relevant information, context, or details. Use this tool when the user asks about previous discussions, mentions something from earlier conversations, asks follow-up questions about past topics, or when you think past context would help provide a better answer. This is especially useful for questions like 'What did we discuss about X?', 'Remember when...', or when the user references previous conversations.",
+            "description": "Search past conversations and memories to find specific information or context from previous interactions. Use when you need to recall details, facts, or discussions to provide a better response.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -346,6 +349,59 @@ class VoiceService:
                     }
                 },
                 "required": ["query"]
+            }
+        })
+        # Add conversation history search function as alternative to memory search
+        function_declarations.append({
+            "name": "search_conversation_history", 
+            "description": "Search detailed conversation history for comprehensive discussion context and topics. Use when you need to find specific conversations, detailed exchanges, or discussion threads from past interactions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search terms to find in conversation history. Use keywords related to topics, discussions, or context the user is asking about."
+                    },
+                    "limit": {
+                        "type": "number", 
+                        "description": "Maximum number of conversations to return (1-10)",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 10
+                    }
+                },
+                "required": ["query"]
+            }
+        })
+
+        # Always add document context expansion function for comprehensive document access
+        function_declarations.append({
+            "name": "expand_document_context",
+            "description": "🔍 EXPAND DOCUMENT CONTEXT: Use this function when you need more detailed information from specific documents in your knowledge base. This loads deeper layers of document content when the basic summaries aren't sufficient to answer the user's question. WHEN TO USE: User asks specific questions about document details, wants comprehensive information from a particular document, needs exact quotes or data from documents, or when Layer 1 summaries don't contain enough detail to provide a complete answer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_names": {
+                        "type": "array",
+                        "description": "List of document names to expand context for (e.g., ['report.pdf', 'data.xlsx']). Use the exact document names from your knowledge base.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 5
+                    },
+                    "target_layer": {
+                        "type": "string",
+                        "description": "Target layer for expansion: 2 = comprehensive facts summary (~2000 tokens), 3 = complete document content (use sparingly, max 2 docs)",
+                        "enum": ["2", "3"],
+                        "default": "2"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Brief explanation of why you need expanded context (for logging and optimization)"
+                    }
+                },
+                "required": ["document_names", "reason"]
             }
         })
         
@@ -404,10 +460,10 @@ class VoiceService:
             
             for note in paper_notes:
                 prefix = '📌 ' if note.get('is_pinned') else '• '
-                system_prompt += f"{prefix}{note.get('title', 'Untitled')}: {note.get('content', '')[:200]}"
-                if len(note.get('content', '')) > 200:
-                    system_prompt += '...'
-                system_prompt += '\n'
+                title = note.get('title', 'Untitled')
+                content = note.get('content', '')
+                # Include full note content - don't truncate
+                system_prompt += f"{prefix}**{title}**: {content}\n"
             
             system_prompt += '\nReference these notes when relevant to provide personalized and informed responses.\n'
         
@@ -430,7 +486,16 @@ class VoiceService:
                 for doc in conversation_docs:
                     system_prompt += self._format_document_for_ai(doc) + '\n\n'
             
-            system_prompt += 'This is your knowledge base. Reference this information throughout conversations to provide accurate responses.\n'
+            system_prompt += 'This is your knowledge base. Reference this information throughout conversations to provide accurate responses.\n\n'
+            system_prompt += '💡 **IMPORTANT**: These are lightweight Layer 1 summaries (~700 tokens each). When you need more detailed information from any document, you MUST use the `expand_document_context` function to access:\n'
+            system_prompt += '- Layer 2: Comprehensive facts and details (~2000 tokens) - for most detailed questions\n'
+            system_prompt += '- Layer 3: Complete document content - for exact quotes, specific data, or comprehensive analysis\n'
+            system_prompt += '\n🔍 **USE expand_document_context WHEN**:\n'
+            system_prompt += '- User asks specific questions requiring document details\n'
+            system_prompt += '- User wants exact quotes, data, or specific information from documents\n' 
+            system_prompt += '- Layer 1 summaries don\'t contain sufficient detail to answer the question\n'
+            system_prompt += '- User asks "what does the document say about X" or similar detailed queries\n'
+            system_prompt += '\n**Example**: If user asks "What are the specific recommendations in the report?", call `expand_document_context([\"report.pdf\"], target_layer=2, reason=\"User needs specific recommendations\")`\n'
 
         system_prompt += """
 
@@ -459,14 +524,20 @@ SAVE TO NOTES INSTRUCTIONS:
 - IMPORTANT: Do not mention that you are using a tool or function to save to notes. Simply respond naturally like "I've saved that to your notes" and let the action happen automatically
 - The note will appear immediately in the notes section without requiring a page refresh
 
-PAST CONVERSATIONS SEARCH INSTRUCTIONS:
-- Use the search_past_conversations function when the user asks about previous discussions or when past context would help answer their question
-- ALWAYS search when the user says things like: "What did we discuss about...", "Remember when...", "You mentioned before...", "Did we talk about...", "What was that thing you told me about..."
-- Also search when you think past conversations might contain relevant information for the current topic
-- Search for relevant keywords related to what the user is asking about
+CONVERSATION SEARCH INSTRUCTIONS:
+- Use search_conversation_history for detailed conversation context and discussion topics
+- Use search_past_conversations for specific facts, information, or quick recalls
+- You have access to both search functions when needed to provide better responses
 - Do not mention that you are searching - simply use the information naturally in your response
-- If no relevant past conversations are found, just answer normally without mentioning the search
-- Examples: User asks "What was that book you recommended?" → search for "book recommendation"
+- If no relevant information is found, answer normally based on available context
+
+DOCUMENT CONTEXT EXPANSION INSTRUCTIONS:
+- Use the expand_document_context function when users ask specific questions about documents that require detailed information
+- ALWAYS expand when users ask questions like: "What does the report say about...", "Give me the specific details from...", "What are the exact recommendations...", "Quote from the document...", etc.
+- Use Layer 2 for most detailed questions, Layer 3 only when you need the complete document text
+- Do not mention that you are expanding context - simply use the detailed information naturally in your response
+- If expansion fails, answer with the available Layer 1 summary and suggest the user check the document directly
+- Examples: "What are the key findings in the research?" → expand_document_context(["research.pdf"], target_layer=2, reason="User needs detailed findings")
 
 CRITICAL VOICE MODE INSTRUCTIONS:
 - NEVER read out technical details, data structures, or code-like content
@@ -476,7 +547,22 @@ CRITICAL VOICE MODE INSTRUCTIONS:
 - Use natural speech patterns and contractions
 - If you need to pause, use natural speech fillers like "let me think..." rather than silence"""
 
-        logger.info(f'📝 Final system prompt length: {len(system_prompt)} characters')
+        # Token-based validation and truncation
+        from ..core.token_utils import TokenCounter
+        
+        system_prompt_tokens = TokenCounter.count_tokens(system_prompt)
+        logger.info(f'📝 Final system prompt: {len(system_prompt)} characters, {system_prompt_tokens} tokens')
+        
+        # Truncate if exceeds token limit
+        if system_prompt_tokens > context_limits.VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS:
+            logger.warning(f'⚠️ System prompt exceeds {context_limits.VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS} token limit, truncating...')
+            system_prompt = TokenCounter.truncate_to_token_limit(
+                system_prompt, 
+                context_limits.VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS
+            )
+            final_tokens = TokenCounter.count_tokens(system_prompt)
+            logger.info(f'✂️ Truncated system prompt: {len(system_prompt)} characters, {final_tokens} tokens')
+        
         if all_documents:
             logger.info(f'📚 System prompt includes {len(all_documents)} documents')
         else:
@@ -486,25 +572,35 @@ CRITICAL VOICE MODE INSTRUCTIONS:
 
     def _format_document_for_ai(self, document: Dict[str, Any]) -> str:
         """
-        Format document for AI context (similar to frontend formatDocumentForAI)
+        Format document for AI context using layered document system
         """
-        formatted = f'📄 Document: {document.get("name", "Untitled")}\n'
-        formatted += f'📊 Type: {document.get("file_type", document.get("type", "unknown"))}, Size: {self._format_file_size(document.get("file_size", document.get("size", 0)))}\n'
+        doc_name = document.get("name", "Untitled")
         
-        if document.get("summary"):
-            formatted += f'📝 Summary: {document.get("summary")}\n'
-        
-        # Include full document content (up to configured limit for voice)
-        content = None
-        if document.get("extracted_text"):
-            content = document.get("extracted_text")
-        elif document.get("content"):
-            content = document.get("content")
+        # Check if document has layered processing
+        if document.get('layered_processing_complete'):
+            # Use Layer 1 summary and word bank for voice context
+            layer1_summary = document.get('layer1_summary', '')
+            layer1_word_bank = document.get('layer1_word_bank', '')
+            estimated_tokens = document.get('estimated_tokens', 0)
             
-        if content:
-            # Limit content for voice mode (to reduce latency)
-            content_excerpt = context_limits.truncate_document_content(content, "voice")
-            formatted += f'📖 Content:\n{content_excerpt}'
+            formatted = f'📄 **{doc_name}** ({estimated_tokens} tokens)\n'
+            if layer1_summary:
+                formatted += f'📋 Summary: {layer1_summary}\n'
+            if layer1_word_bank:
+                formatted += f'🏷️ Keywords: {layer1_word_bank}\n'
+        else:
+            # Fallback to basic content for unprocessed documents
+            formatted = f'📄 Document: {doc_name}\n'
+            formatted += f'📊 Type: {document.get("file_type", document.get("type", "unknown"))}, Size: {self._format_file_size(document.get("file_size", document.get("size", 0)))}\n'
+            
+            if document.get("summary"):
+                formatted += f'📝 Summary: {document.get("summary")}\n'
+            
+            # Include truncated content for unprocessed documents
+            content = document.get("extracted_text") or document.get("content")
+            if content:
+                content_excerpt = context_limits.truncate_document_content(content, "voice")
+                formatted += f'📖 Content:\n{content_excerpt}'
         
         return formatted
 
@@ -764,6 +860,7 @@ CRITICAL VOICE MODE INSTRUCTIONS:
             # Ensure limit is within bounds using centralized configuration
             limit = context_limits.clamp_search_limit(limit, 'past_conversations')
             
+            logger.info(f"🏴‍☠️ VOICE CALLED PAST CHATS - Barcelona - SEARCH KEYWORD: \"{query}\" - Limit: {limit}")
             logger.info(f"🔍 Searching past conversations: '{query}' (limit: {limit})")
             
             # Get agent_id from session
@@ -813,6 +910,139 @@ CRITICAL VOICE MODE INSTRUCTIONS:
                 "query": query,
                 "error": f"Search failed: {str(e)}",
                 "message": "Unable to search past conversations at this time."
+            }
+
+    async def _handle_conversation_history_search(self, session: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle conversation history search function calls"""
+        try:
+            query = args.get("query")
+            limit = args.get("limit", 5)
+            
+            if not query:
+                raise ValueError("Query is required for conversation history search")
+            
+            # Ensure limit is within bounds using centralized configuration
+            limit = context_limits.clamp_search_limit(limit, 'past_conversations')
+            
+            logger.info(f"🏴‍☠️ VOICE CALLED CONVERSATION HISTORY - Barcelona - SEARCH KEYWORD: \"{query}\" - Limit: {limit}")
+            logger.info(f"🔍 Searching conversation history: '{query}' (limit: {limit})")
+            
+            # Get agent_id from session
+            agent_id = session.get("contact", {}).get("id")
+            if not agent_id:
+                raise ValueError("Agent ID not found in session")
+            
+            # Get user token from session for authentication
+            user_token = session.get("user_token")
+            
+            # Search for conversations using the new conversation history search
+            conversations = await database_service.search_conversation_history(agent_id, query, limit, user_token)
+            
+            # Format results for AI consumption
+            if not conversations:
+                return {
+                    "success": True,
+                    "query": query,
+                    "results_count": 0,
+                    "message": "No relevant conversations found in chat history for this query.",
+                    "search_type": "conversation_history"
+                }
+            
+            # Format conversation results
+            formatted_results = []
+            for conv in conversations:
+                formatted_results.append({
+                    "conversation_id": conv.get("session_id"),
+                    "date": conv.get("date"),
+                    "summary": conv.get("summary", ""),
+                    "relevant_excerpt": conv.get("excerpt", ""),
+                    "message_count": conv.get("message_count", 0),
+                    "conversation_type": conv.get("conversation_type", "chat"),
+                    "title": conv.get("title", "Untitled Conversation"),
+                    "relevance_score": conv.get("relevance_score", 0),
+                    "search_type": "conversation_history"
+                })
+            
+            result = {
+                "success": True,
+                "query": query,
+                "results_count": len(formatted_results),
+                "conversations": formatted_results,
+                "message": f"Found {len(formatted_results)} relevant conversation{'s' if len(formatted_results) != 1 else ''} in chat history.",
+                "search_type": "conversation_history"
+            }
+            
+            logger.info(f"✅ Conversation history search completed: {len(formatted_results)} results")
+            if formatted_results:
+                logger.info(f"✅ Top result relevance: {formatted_results[0].get('relevance_score', 0):.2f}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Conversation history search failed: {e}")
+            return {
+                "success": False,
+                "query": query,
+                "error": f"Search failed: {str(e)}",
+                "message": "Unable to search conversation history at this time.",
+                "search_type": "conversation_history"
+            }
+
+    async def _handle_expand_document_context(self, session: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle document context expansion function calls"""
+        try:
+            document_names = args.get("document_names", [])
+            target_layer = int(args.get("target_layer", "2"))
+            reason = args.get("reason", "Voice session requested expansion")
+            
+            if not document_names:
+                raise ValueError("Document names are required for context expansion")
+            
+            logger.info(f"📈 Voice session expanding document context")
+            logger.info(f"🔍 Documents: {document_names}, Layer: {target_layer}")
+            logger.info(f"📝 Reason: {reason}")
+            
+            # Get agent_id from session
+            agent_id = session.get("contact", {}).get("id")
+            if not agent_id:
+                raise ValueError("Agent ID not found in session")
+            
+            # Get user_token from session
+            user_id = session.get("user_id")
+            user_token = session.get("user_token")
+            
+            logger.info(f"📈 Voice session auth: user_id={user_id[:8] if user_id else 'None'}, token={'✅ Available' if user_token else '❌ None'}")
+            
+            # Import here to avoid circular imports
+            from .document_context_expansion_service import document_context_expansion_service
+            
+            # Execute context expansion
+            result = await document_context_expansion_service.expand_document_context(
+                agent_id=agent_id,
+                document_names=document_names,
+                target_layer=target_layer,
+                user_token=user_token
+            )
+            
+            logger.info(f"📈 Voice context expansion result: success={result.get('success')}")
+            if result.get('success'):
+                context_length = result.get('metadata', {}).get('context_length', 0)
+                matched_docs = result.get('metadata', {}).get('matched_documents', 0)
+                logger.info(f"📈 Voice expansion success: {matched_docs} documents, {context_length} chars")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Document context expansion failed in voice session: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Unable to expand document context at this time.",
+                "expanded_context": "",
+                "metadata": {
+                    "requested_documents": document_names,
+                    "target_layer": target_layer
+                }
             }
 
     async def get_session_context(self, session_id: str) -> Dict[str, Any]:

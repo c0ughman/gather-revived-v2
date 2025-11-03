@@ -7,7 +7,7 @@ import DocumentUpload, { DocumentList } from './DocumentUpload';
 import IntegrationsLibrary from './IntegrationsLibrary';
 import IntegrationSetup from './IntegrationSetup';
 import { getIntegrationById } from '../../integrations/data/integrations';
-import { documentApiService } from '../../../core/services/documentApiService';
+import { supabaseService } from '../../database';
 import TokenCounter from '../../../core/components/TokenCounter';
 import { validateTokenLimit, MEMORY_LIMITS } from '../../../core/utils/tokenUtils';
 import { InlineTokenError } from '../../../core/components/TokenLimitError';
@@ -106,14 +106,28 @@ export default function SettingsScreen({
     }
   };
 
-  const handleDocumentUploaded = (document: DocumentInfo) => {
-    if (onDocumentsChange) {
-      onDocumentsChange([...documents, document]);
-    } else {
-      setLocalDocuments(prev => [...prev, document]);
-      setLocalHasChanges(true);
+  const handleDocumentUploaded = async (document: DocumentInfo) => {
+    try {
+      console.log(`💾 Saving document to database: ${document.name}`);
+      
+      // Save document to database - this will trigger layered processing
+      await supabaseService.createAgentDocument(contact.id, document);
+      
+      console.log(`✅ Document saved to database: ${document.name}`);
+      
+      // Update local state
+      if (onDocumentsChange) {
+        onDocumentsChange([...documents, document]);
+      } else {
+        setLocalDocuments(prev => [...prev, document]);
+        setLocalHasChanges(true);
+      }
+      setUploadError(null);
+      
+    } catch (error) {
+      console.error(`❌ Failed to save document to database:`, error);
+      setUploadError(`Failed to save ${document.name}: ${error.message || error}`);
     }
-    setUploadError(null);
   };
 
   const handleDocumentError = (error: string) => {

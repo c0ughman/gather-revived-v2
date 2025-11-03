@@ -98,6 +98,8 @@ export default function App() {
   // Note viewing state
   const [viewingNote, setViewingNote] = useState<any>(null);
   const [showNoteDocument, setShowNoteDocument] = useState(false);
+  const [noteHasUnsavedChanges, setNoteHasUnsavedChanges] = useState(false);
+  const [pendingNoteContent, setPendingNoteContent] = useState<string>('');
   
   // Shared state for settings synchronization
   const [settingsFormData, setSettingsFormData] = useState({
@@ -127,13 +129,23 @@ export default function App() {
   // Setup conversation session management
   useEffect(() => {
     // Handle app/tab close
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = async () => {
+      // Save note if there are unsaved changes
+      if (showNoteDocument && noteHasUnsavedChanges) {
+        await saveNoteIfChanged();
+      }
+      
       conversationSessionManager.handleAppClose();
     };
 
     // Handle page visibility change (tab switch, window minimize)
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.hidden) {
+        // Save note if there are unsaved changes when user switches away
+        if (showNoteDocument && noteHasUnsavedChanges) {
+          await saveNoteIfChanged();
+        }
+        
         conversationSessionManager.handleScreenLeave();
       }
     };
@@ -594,6 +606,11 @@ export default function App() {
   };
 
   const handleChatClick = async (contact: AIContact) => {
+    // Save note if user is switching agents while editing a note
+    if (showNoteDocument) {
+      await saveNoteIfChanged();
+    }
+    
     // Start new conversation session
     if (user) {
       conversationSessionManager.startSession(contact, user.id);
@@ -625,7 +642,12 @@ export default function App() {
     // Integration execution moved to backend - all integrations now execute on-demand during conversations
   };
 
-  const handleCallClick = (contact: AIContact) => {
+  const handleCallClick = async (contact: AIContact) => {
+    // Save note if user is switching agents while editing a note
+    if (showNoteDocument) {
+      await saveNoteIfChanged();
+    }
+    
     // Initialize shared settings state with contact data for sidebar
     setSettingsFormData({
       name: contact.name,
@@ -758,19 +780,68 @@ export default function App() {
   const handleViewNote = (note: any) => {
     setViewingNote(note);
     setShowNoteDocument(true);
+    // Reset note editing state for new note
+    setNoteHasUnsavedChanges(false);
+    setPendingNoteContent(note.content || '');
   };
 
-  const handleCloseNoteDocument = () => {
+  const saveNoteIfChanged = async () => {
+    if (viewingNote && noteHasUnsavedChanges && pendingNoteContent.trim()) {
+      try {
+        console.log('💾 Saving note on close...');
+        await memoryService.updatePaperNote(viewingNote.id, {
+          content: pendingNoteContent.trim()
+        });
+        
+        // Update the viewing note with new content
+        setViewingNote(prev => prev ? { ...prev, content: pendingNoteContent.trim() } : null);
+        
+        // Refresh notes list in sidebar
+        if (notesTabRef.current) {
+          notesTabRef.current.refreshNotes();
+        }
+        
+        console.log('✅ Note saved successfully');
+        setNoteHasUnsavedChanges(false);
+      } catch (error) {
+        console.error('❌ Failed to save note:', error);
+        throw error;
+      }
+    }
+  };
+
+  const handleCloseNoteDocument = async () => {
+    // Save any pending changes before closing
+    await saveNoteIfChanged();
+    
     setShowNoteDocument(false);
     setViewingNote(null);
+    setNoteHasUnsavedChanges(false);
+    setPendingNoteContent('');
   };
 
-  const handleMemoryClick = (contact: AIContact) => {
+  const handleNoteContentChange = (content: string, hasChanged: boolean) => {
+    // Just track the changes, don't save immediately
+    setPendingNoteContent(content);
+    setNoteHasUnsavedChanges(hasChanged);
+  };
+
+  const handleMemoryClick = async (contact: AIContact) => {
+    // Save note if user is switching agents while editing a note
+    if (showNoteDocument) {
+      await saveNoteIfChanged();
+    }
+    
     setSelectedContact(contact);
     setCurrentView('memory');
   };
 
-  const handlePastChatsClick = (contact: AIContact) => {
+  const handlePastChatsClick = async (contact: AIContact) => {
+    // Save note if user is switching agents while editing a note
+    if (showNoteDocument) {
+      await saveNoteIfChanged();
+    }
+    
     setSelectedContact(contact);
     setCurrentView('past-chats');
   };
@@ -793,7 +864,12 @@ export default function App() {
   };
 
 
-  const handleSettingsClick = (contact?: AIContact) => {
+  const handleSettingsClick = async (contact?: AIContact) => {
+    // Save note if user is switching agents while editing a note
+    if (showNoteDocument) {
+      await saveNoteIfChanged();
+    }
+    
     if (contact) {
       setSelectedContact(contact);
       
@@ -1159,9 +1235,9 @@ export default function App() {
     }
 
     try {
-      // Get conversation history for this contact
+      // Get conversation history for this contact (excluding current message since it's sent separately)
       const contactMessages = messages.filter(m => m.contactId === selectedContact.id);
-      const chatHistory = [...contactMessages, userMessage];
+      const chatHistory = contactMessages; // Don't include userMessage since backend adds it separately
 
       // Get fresh document context from Supabase for AI (includes memory)
       const documentContext = await documentContextService.getAgentDocumentContext(selectedContact);
@@ -1633,70 +1709,27 @@ export default function App() {
                     right: showSidebar ? '20rem' : '0', // 80px for right sidebar if shown
                   }}
                 >
-                  <div className="w-full h-full p-[7px]">
-                    <div className="w-full h-full shadow-2xl border border-gray-200 overflow-hidden rounded-[20px] flex flex-col relative" 
-                         style={{ background: 'linear-gradient(135deg, #ffffff 0%, #fefcfc 50%, #fdf9f9 100%)' }}>
-                      
-                      {/* Close Button */}
-                      <button
-                        onClick={handleCloseNoteDocument}
-                        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 shadow-sm"
-                      >
-                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-
-                      {/* Header */}
-                      <div className="p-6 border-b border-gray-200">
-                        <div className="flex items-center space-x-3">
-                          <h1 className="text-xl font-bold text-gray-900">{viewingNote.title || 'Note'}</h1>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await memoryService.deletePaperNote(viewingNote.id);
-                                setShowNoteDocument(false);
-                                setViewingNote(null);
-                                if (notesTabRef.current) {
-                                  notesTabRef.current.refreshNotes();
-                                }
-                              } catch (error) {
-                                console.error('Error deleting note:', error);
-                              }
-                            }}
-                            className="p-1 hover:bg-gray-100 rounded transition-colors duration-200"
-                            title="Delete"
-                          >
-                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {new Date(viewingNote.created_at).toLocaleDateString()} • {viewingNote.content ? viewingNote.content.split(' ').length : 0} words
-                          {viewingNote.note_type && ` • ${viewingNote.note_type}`}
-                          {viewingNote.is_pinned && ' • Pinned'}
-                        </p>
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 p-6 overflow-y-auto">
-                        <div className="prose prose-gray max-w-none">
-                          <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                            {viewingNote.content}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="p-4 border-t border-gray-200 bg-gray-50">
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Note from {selectedContact?.name}</span>
-                          <span>{viewingNote.content?.length || 0} characters</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <DocumentDisplay
+                    content={viewingNote.content || ''}
+                    isVisible={showNoteDocument}
+                    onClose={handleCloseNoteDocument}
+                    title={viewingNote.title}
+                    onContentChange={handleNoteContentChange}
+                    agentId={selectedContact?.id || ''}
+                    onDelete={async () => {
+                      try {
+                        await memoryService.deletePaperNote(viewingNote.id);
+                        setShowNoteDocument(false);
+                        setViewingNote(null);
+                        if (notesTabRef.current) {
+                          notesTabRef.current.refreshNotes();
+                        }
+                      } catch (error) {
+                        console.error('Error deleting note:', error);
+                        throw error;
+                      }
+                    }}
+                  />
                 </div>
               )}
           </div>

@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional
 import logging
 import json
 from ....services.ai_service import ai_service
-from ....core.auth import get_current_user
+from ....core.auth import get_current_user, get_current_user_with_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -19,16 +19,24 @@ class SummarizeRequest(BaseModel):
     document_content: str
     filename: str
 
+class GenerateTextRequest(BaseModel):
+    prompt: str
+    max_tokens: Optional[int] = 1000
+    temperature: Optional[float] = 0.7
+
 @router.post("/generate-response")
 async def generate_ai_response(
     request: ChatRequest,
-    current_user = Depends(get_current_user)
+    auth_data = Depends(get_current_user_with_token)
 ):
     """
     Generate AI response using Google Gemini API.
     This endpoint replaces the frontend geminiService for better performance.
     """
     try:
+        current_user = auth_data["user"]
+        user_token = auth_data["token"]
+        
         logger.info(f"🤖 Generating AI response for user {current_user.id}")
         
         # Validate request
@@ -43,7 +51,8 @@ async def generate_ai_response(
             contact=request.contact,
             user_message=request.user_message,
             chat_history=request.chat_history,
-            conversation_documents=request.conversation_documents
+            conversation_documents=request.conversation_documents,
+            user_token=user_token
         )
         
         # Extract response text and metadata
@@ -124,6 +133,45 @@ async def summarize_document(
     except Exception as e:
         logger.error(f"❌ Error summarizing document: {e}")
         raise HTTPException(status_code=500, detail=f"Summarization error: {str(e)}")
+
+@router.post("/generate-text")
+async def generate_text(
+    request: GenerateTextRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    Generate text using AI for document processing tasks (summaries, word banks, etc.).
+    """
+    try:
+        logger.info(f"🤖 Generating text for user {current_user.id} (prompt: {len(request.prompt)} chars)")
+        
+        # Validate request
+        if not request.prompt.strip():
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+        
+        # Generate text using ai_service
+        text = await ai_service.generate_text(
+            prompt=request.prompt,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature
+        )
+        
+        logger.info(f"✅ Generated text: {len(text)} characters")
+        
+        return {
+            "success": True,
+            "text": text,
+            "metadata": {
+                "prompt_length": len(request.prompt),
+                "response_length": len(text),
+                "max_tokens": request.max_tokens,
+                "temperature": request.temperature
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating text: {e}")
+        raise HTTPException(status_code=500, detail=f"Text generation error: {str(e)}")
 
 @router.get("/health")
 async def ai_service_health():

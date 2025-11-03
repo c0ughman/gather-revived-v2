@@ -94,7 +94,9 @@ class AIService:
         contact: Dict[str, Any],
         user_message: str,
         chat_history: List[Dict[str, Any]],
-        conversation_documents: List[Dict[str, Any]] = None
+        conversation_documents: List[Dict[str, Any]] = None,
+        current_conversation: List[Dict[str, Any]] = None,
+        user_token: str = None
     ) -> Dict[str, Any]:
         """
         Generate AI response using Google Gemini API.
@@ -119,7 +121,7 @@ class AIService:
             logger.info(f"🔧 Available functions: {[f['name'] for f in self.function_declarations]}")
             
             # Build full system instruction
-            full_system_instruction = context + "\n\nIMPORTANT: You have access to helpful functions. Use them when appropriate:\n\n- search_web: Search for current information using Tavily\n- scrape_website: Extract content from websites using Firecrawl\n- search_past_conversations: Search through past CHAT CONVERSATIONS with this user\n\nCRITICAL SEARCH INSTRUCTIONS:\nYour memory context above contains general notes and knowledge. However, when users ask about specific past conversations, you MUST use the search_past_conversations function to find actual chat history.\n\nUse search_past_conversations when users mention:\n- \"What did we talk about\" / \"What did we discuss\"\n- \"Remember when\" / \"Do you remember\"\n- \"Last time\" / \"Previously\" / \"Earlier\"\n- \"You said\" / \"I told you\" / \"We talked about\"\n- References to past topics, recommendations, or conversations\n- Follow-up questions about previous discussions\n\nEXAMPLES REQUIRING SEARCH:\n- \"What movie did you recommend last time?\"\n- \"Remember when we discussed TypeScript?\"\n- \"What was that book we talked about?\"\n- \"You mentioned something about React earlier\"\n- \"What did I tell you about my project?\"\n\nDo NOT mention that you're searching - just use the results naturally. If no results are found, say you don't recall that specific conversation but offer to help with the topic anyway."
+            full_system_instruction = context + "\n\n🚨 SEARCH CAPABILITY 🚨\n\nYou have access to search functions to find information from past conversations when needed. Use search_conversation_history for detailed conversation context and search_past_conversations for quick fact lookups. Your memory context above contains general patterns, but you can search for specific details when helpful."
             
             # Log the full prompt being sent to Gemini API
             logger.info("=" * 80)
@@ -219,7 +221,7 @@ class AIService:
                 logger.info(f"📋 Gemini response: {len(parts)} parts, function_calls={has_function_calls}, text={has_text}")
             
             # Handle function calling response
-            ai_response = await self._handle_function_calling_response(response, conversation_contents, payload, contact)
+            ai_response = await self._handle_function_calling_response(response, conversation_contents, payload, contact, user_token)
             
             # Return simple response (no compacting, no token analysis)
             return {
@@ -289,6 +291,69 @@ Keep the summary detailed but concise."""
         except Exception as error:
             logger.error(f"❌ Error summarizing document {filename}: {error}")
             return f"Summary: {filename} - Error generating summary: {str(error)}"
+
+    async def generate_text(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
+        """
+        Generate text using Gemini API for document processing tasks.
+        This method is optimized for layered document processing.
+        """
+        if not self.google_api_key:
+            raise Exception("Google API key not configured")
+        
+        try:
+            logger.info(f"🤖 Generating text with Gemini (prompt: {len(prompt)} chars, max_tokens: {max_tokens})")
+            
+            # Build request payload
+            payload = {
+                "contents": [
+                    {
+                        "parts": [{"text": prompt}]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": temperature,
+                    "topP": 1.0,
+                    "topK": 1
+                },
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            }
+            
+            # Make API call
+            response = await self._call_gemini_api("models/gemini-1.5-flash:generateContent", payload)
+            
+            # Extract text from response
+            if "candidates" in response and len(response["candidates"]) > 0:
+                candidate = response["candidates"][0]
+                if "content" in candidate and "parts" in candidate["content"]:
+                    generated_text = candidate["content"]["parts"][0].get("text", "")
+                    logger.info(f"✅ Text generated successfully ({len(generated_text)} chars)")
+                    return generated_text
+            
+            # Fallback if no valid response
+            logger.warning("⚠️ No valid text generated from Gemini API")
+            return "Error: No text generated"
+            
+        except Exception as error:
+            logger.error(f"❌ Error generating text: {error}")
+            raise Exception(f"Text generation failed: {str(error)}")
     
     async def _call_gemini_api(self, endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -378,17 +443,41 @@ Keep the summary detailed but concise."""
         # Add documents to context if available
         if documents:
             context += "\n\n=== YOUR KNOWLEDGE BASE ===\n"
-            context += "You have access to the following documents. Use this information to provide accurate and detailed responses:\n\n"
+            context += "You have access to the following documents. Use the expand_document_context function when you need more detailed information:\n\n"
             
             for doc in documents:
-                # Format document for AI consumption (simplified version)
-                doc_content = doc.get('extracted_text') or doc.get('content', '')
-                if doc_content:
-                    context += f"📄 DOCUMENT: {doc.get('name', 'Unknown')}\n"
-                    context += f"📋 Type: {doc.get('type', 'Unknown')}\n"
-                    context += f"📖 CONTENT:\n{context_limits.truncate_document_content(doc_content, 'chat')}\n\n"  # Limit content length
+                # Use Layer 1 context (always available) - summary + word bank
+                doc_name = doc.get('name', 'Unknown')
+                
+                # Check if document has layered processing
+                if doc.get('layered_processing_complete'):
+                    # Use Layer 1 summary and word bank
+                    layer1_summary = doc.get('layer1_summary', '')
+                    layer1_word_bank = doc.get('layer1_word_bank', '')
+                    estimated_tokens = doc.get('estimated_tokens', 0)
+                    
+                    context += f"📄 **{doc_name}** ({estimated_tokens} tokens)\n"
+                    if layer1_summary:
+                        context += f"📋 Summary: {layer1_summary}\n"
+                    if layer1_word_bank:
+                        context += f"🏷️ Keywords: {layer1_word_bank}\n"
+                    context += "\n"
+                else:
+                    # Fallback to basic content for unprocessed documents
+                    doc_content = doc.get('extracted_text') or doc.get('content', '')
+                    if doc_content:
+                        context += f"📄 **{doc_name}** (unprocessed)\n"
+                        context += f"📖 Content: {context_limits.truncate_document_content(doc_content, 'chat')}\n\n"
             
-            context += "This is your knowledge base. Reference this information throughout conversations to provide accurate responses."
+            context += "💡 **IMPORTANT**: These are lightweight Layer 1 summaries (~700 tokens each). When you need more detailed information from any document, you MUST use the `expand_document_context` function to access:\n"
+            context += "- Layer 2: Comprehensive facts and details (~2000 tokens) - for most detailed questions\n"
+            context += "- Layer 3: Complete document content - for exact quotes, specific data, or comprehensive analysis\n"
+            context += "\n🔍 **USE expand_document_context WHEN**:\n"
+            context += "- User asks specific questions requiring document details\n"
+            context += "- User wants exact quotes, data, or specific information from documents\n" 
+            context += "- Layer 1 summaries don't contain sufficient detail to answer the question\n"
+            context += "- User asks 'what does the document say about X' or similar detailed queries\n"
+            context += "\n**Example**: If user asks 'What are the specific recommendations in the report?', call `expand_document_context([\"report.pdf\"], target_layer=2, reason=\"User needs specific recommendations\")`"
         
         return context
     
@@ -495,23 +584,73 @@ Keep the summary detailed but concise."""
             },
             {
                 "name": "search_past_conversations",
-                "description": "Search through past conversations with this user to find relevant information, context, or details. Use this tool when the user asks about previous discussions, mentions something from earlier conversations, asks follow-up questions about past topics, or when you think past context would help provide a better answer. This is especially useful for questions like 'What did we discuss about X?', 'Remember when...', or when the user references previous conversations.",
+                "description": "Search past conversations and saved memories to find specific information, facts, or details from previous interactions. Use when you need to recall specific information the user has shared or discussed.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Search terms to find in past conversations. Use keywords related to the topic the user is asking about."
+                            "description": "Key search terms extracted from user's question. Examples: 'password' for 'what was the password', 'book' for 'that book you mentioned', 'project' for 'my project', 'React' for 'React discussion', etc. Use the main subject/topic the user is asking about."
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of conversations to return (1-10)",
+                            "description": "Maximum number of results to return (1-10). Default is 3.",
                             "default": 3,
                             "minimum": 1,
                             "maximum": 10
                         }
                     },
                     "required": ["query"]
+                }
+            },
+            {
+                "name": "search_conversation_history",
+                "description": "Search detailed conversation history for discussions, topics, and context. Use when you need to find specific past conversations, detailed discussion context, or when the user asks about previous chats or topics you've discussed together.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Key search terms for finding conversations. Examples: 'project discussion', 'API documentation', 'meeting notes', 'code review', etc."
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of conversation results to return (1-10). Default is 5.",
+                            "default": 5,
+                            "minimum": 1,
+                            "maximum": 10
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "expand_document_context",
+                "description": "🔍 EXPAND DOCUMENT CONTEXT: Use this function when you need more detailed information from specific documents in your knowledge base. This loads deeper layers of document content when the basic summaries aren't sufficient to answer the user's question. WHEN TO USE: User asks specific questions about document details, wants comprehensive information from a particular document, needs exact quotes or data from documents, or when Layer 1 summaries don't contain enough detail to provide a complete answer.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "document_names": {
+                            "type": "array",
+                            "description": "List of document names to expand context for (e.g., ['report.pdf', 'data.xlsx']). Use the exact document names from your knowledge base.",
+                            "items": {
+                                "type": "string"
+                            },
+                            "minItems": 1,
+                            "maxItems": 5
+                        },
+                        "target_layer": {
+                            "type": "string", 
+                            "description": "Target layer for expansion: 2 = comprehensive facts summary (~2000 tokens), 3 = complete document content (use sparingly, max 2 docs)",
+                            "enum": ["2", "3"],
+                            "default": "2"
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Brief explanation of why you need expanded context (for logging and optimization)"
+                        }
+                    },
+                    "required": ["document_names", "reason"]
                 }
             }
         ]
@@ -547,7 +686,7 @@ Keep the summary detailed but concise."""
         
         return contents
     
-    async def _handle_function_calling_response(self, response: Dict[str, Any], conversation_contents: List[Dict[str, Any]], original_payload: Dict[str, Any], contact: Dict[str, Any]) -> str:
+    async def _handle_function_calling_response(self, response: Dict[str, Any], conversation_contents: List[Dict[str, Any]], original_payload: Dict[str, Any], contact: Dict[str, Any], user_token: str = None) -> str:
         """Handle Gemini API response with function calling"""
         try:
             candidates = response.get('candidates', [])
@@ -607,6 +746,8 @@ Keep the summary detailed but concise."""
                         elif function_name == "search_past_conversations":
                             # Get agent_id from contact
                             agent_id = contact.get('id')
+                            query = function_args.get('query')
+                            logger.info(f"🏴‍☠️ AI CALLED PAST CHATS - Barcelona - Agent: {agent_id} - SEARCH KEYWORD: \"{query}\"")
                             logger.info(f"🚀 AI CALLED search_past_conversations")
                             logger.info(f"🔍 AI Function args: {function_args}")
                             logger.info(f"🔍 Contact agent_id: {agent_id}")
@@ -625,7 +766,7 @@ Keep the summary detailed but concise."""
                                 logger.info(f"🔍 AI SEARCH PARAMETERS: query='{query}', limit={limit}")
                                 logger.info(f"🔍 About to call database_service.search_past_conversations...")
                                 
-                                # Search past conversations
+                                # Search past conversations in database (NOT current chat history)
                                 conversations = await database_service.search_past_conversations(agent_id, query, limit)
                                 
                                 logger.info(f"🔍 AI SEARCH COMPLETED: {len(conversations) if conversations else 0} results returned")
@@ -666,6 +807,107 @@ Keep the summary detailed but concise."""
                                         "message": "No relevant past conversations found for this query."
                                     }
                                     logger.info(f"🔍 AI RESULT EMPTY: No conversations found for query '{query}'")
+                        elif function_name == "search_conversation_history":
+                            # Get agent_id from contact
+                            agent_id = contact.get('id')
+                            query = function_args.get('query')
+                            logger.info(f"🏴‍☠️ AI CALLED CONVERSATION HISTORY - Barcelona - Agent: {agent_id} - SEARCH KEYWORD: \"{query}\"")
+                            logger.info(f"🔍 AI CALLED search_conversation_history")
+                            logger.info(f"🔍 Function args: {function_args}")
+                            logger.info(f"👤 Agent ID: {agent_id}")
+                            
+                            if not agent_id:
+                                logger.error(f"❌ Agent ID not found in contact: {contact}")
+                                result = {"success": False, "error": "Agent ID not found"}
+                            else:
+                                query = function_args.get('query')
+                                limit = context_limits.clamp_search_limit(
+                                    function_args.get('limit', 5),
+                                    'past_conversations'
+                                )
+                                
+                                logger.info(f"🔍 CONVERSATION HISTORY SEARCH PARAMETERS: query='{query}', limit={limit}")
+                                logger.info(f"🔍 About to call database_service.search_conversation_history...")
+                                
+                                # Search conversation history using the new separate function
+                                conversations = await database_service.search_conversation_history(agent_id, query, limit, user_token)
+                                
+                                logger.info(f"🔍 CONVERSATION HISTORY SEARCH COMPLETED: {len(conversations) if conversations else 0} results returned")
+                                
+                                if conversations:
+                                    logger.info(f"🔍 Conversation history results:")
+                                    for i, conv in enumerate(conversations[:3]):
+                                        logger.info(f"🔍   {i+1}. Score: {conv.get('relevance_score', 0):.2f}, Type: {conv.get('conversation_type', 'unknown')}, Title: {conv.get('title', 'No title')}")
+                                
+                                if conversations:
+                                    # Format results for AI consumption
+                                    formatted_results = []
+                                    for conv in conversations:
+                                        formatted_results.append({
+                                            "date": conv.get("date"),
+                                            "summary": conv.get("summary", ""),
+                                            "relevant_excerpt": conv.get("excerpt", ""),
+                                            "message_count": conv.get("message_count", 0),
+                                            "conversation_type": conv.get("conversation_type", "chat"),
+                                            "title": conv.get("title", "Untitled Conversation"),
+                                            "relevance_score": conv.get("relevance_score", 0),
+                                            "search_type": "conversation_history"
+                                        })
+                                    
+                                    result = {
+                                        "success": True,
+                                        "query": query,
+                                        "results_count": len(formatted_results),
+                                        "conversations": formatted_results,
+                                        "message": f"Found {len(formatted_results)} relevant conversation{'s' if len(formatted_results) != 1 else ''} in chat history.",
+                                        "search_type": "conversation_history"
+                                    }
+                                    
+                                    logger.info(f"🔍 CONVERSATION HISTORY RESULT SUCCESS: {len(formatted_results)} results formatted for AI")
+                                else:
+                                    result = {
+                                        "success": True,
+                                        "query": query,
+                                        "results_count": 0,
+                                        "message": "No relevant conversations found in chat history for this query.",
+                                        "search_type": "conversation_history"
+                                    }
+                                    logger.info(f"🔍 CONVERSATION HISTORY RESULT EMPTY: No conversations found for query '{query}'")
+                        elif function_name == "expand_document_context":
+                            # Get agent_id from contact
+                            agent_id = contact.get('id')
+                            logger.info(f"📈 AI CALLED expand_document_context")
+                            logger.info(f"🔍 Function args: {function_args}")
+                            logger.info(f"👤 Agent ID: {agent_id}")
+                            
+                            if not agent_id:
+                                logger.error(f"❌ Agent ID not found in contact: {contact}")
+                                result = {"success": False, "error": "Agent ID not found"}
+                            else:
+                                # Import here to avoid circular imports
+                                from .document_context_expansion_service import document_context_expansion_service
+                                
+                                document_names = function_args.get('document_names', [])
+                                target_layer = int(function_args.get('target_layer', "2"))
+                                reason = function_args.get('reason', 'AI requested expansion')
+                                
+                                logger.info(f"📈 EXPANSION REQUEST: documents={document_names}, layer={target_layer}, reason='{reason}'")
+                                
+                                # Use the user token passed from the API endpoint
+                                logger.info(f"📈 Using user token: {'✅ Available' if user_token else '❌ None'}")
+                                
+                                # Execute context expansion
+                                result = await document_context_expansion_service.expand_document_context(
+                                    agent_id=agent_id,
+                                    document_names=document_names,
+                                    target_layer=target_layer,
+                                    user_token=user_token
+                                )
+                                
+                                logger.info(f"📈 EXPANSION RESULT: success={result.get('success')}, docs_matched={result.get('metadata', {}).get('matched_documents', 0)}")
+                                if result.get('success'):
+                                    context_length = result.get('metadata', {}).get('context_length', 0)
+                                    logger.info(f"📈 EXPANSION SUCCESS: {context_length} chars of additional context loaded")
                         else:
                             result = {"success": False, "error": f"Unknown function: {function_name}"}
                         

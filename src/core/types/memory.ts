@@ -179,7 +179,7 @@ export interface MemoryServiceInterface {
   // Medium-term memory
   createMediumTermMemory(request: CreateMediumTermMemoryRequest): Promise<MediumTermMemory>;
   getMediumTermMemories(agentId: string, limit?: number): Promise<MediumTermMemory[]>;
-  updateMemoryAccess(memoryId: string): Promise<void>;
+  updateMemoryAccess(memoryId: string): Promise<MediumTermMemory>;
   searchMediumTermMemories(agentId: string, query: string): Promise<MediumTermMemory[]>;
   
   // Paper notes

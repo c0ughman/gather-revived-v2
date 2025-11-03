@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import asyncio
 from supabase import create_client
 from ..core.config import settings
 from ..core.context_limits import context_limits
@@ -251,9 +252,15 @@ class DatabaseService:
             
             if result.data is None or len(result.data) == 0:
                 raise Exception("Failed to create agent document")
-                
+            
+            created_document = result.data[0]
             logger.info('✅ Created agent document')
-            return result.data[0]
+            
+            # Trigger layered processing asynchronously (fire-and-forget)
+            document_id = created_document['id']
+            asyncio.create_task(self._trigger_layered_processing(document_id, user_token))
+            
+            return created_document
             
         except Exception as error:
             logger.error(f'❌ Error creating agent document: {error}')
@@ -366,9 +373,15 @@ class DatabaseService:
             
             if result.data is None or len(result.data) == 0:
                 raise Exception("Failed to save conversation document")
-                
+            
+            created_document = result.data[0]
+            document_id = created_document["id"]
             logger.info('✅ Saved conversation document')
-            return result.data[0]["id"]
+            
+            # Trigger layered processing asynchronously (fire-and-forget)
+            asyncio.create_task(self._trigger_layered_processing(document_id, user_token))
+            
+            return document_id
             
         except Exception as error:
             logger.error(f'❌ Error saving conversation document: {error}')
@@ -472,6 +485,7 @@ class DatabaseService:
     async def get_medium_term_memory(self, agent_id: str, user_token: str = None, for_context: bool = False) -> List[Dict[str, Any]]:
         """Get medium-term memory for an agent"""
         try:
+            logger.info(f'🏴‍☠️ MEDIUM TERM MEMORY ACCESSED - Barcelona - Agent: {agent_id} - Action: GET_MEMORIES - Context: {for_context}')
             logger.info(f'🧠 Fetching medium-term memory for agent: {agent_id}')
             
             # Use user client if token provided, otherwise use admin client
@@ -558,9 +572,152 @@ class DatabaseService:
                 'max_tokens': context_limits.MEDIUM_TERM_MEMORY_MAX_TOKENS
             }
 
+    async def search_conversation_history(self, agent_id: str, query: str, limit: int = None, user_token: str = None) -> List[Dict[str, Any]]:
+        """Search conversation history as an alternative to medium-term memory search"""
+        try:
+            logger.info(f'🏴‍☠️ CONVERSATION HISTORY SEARCH ACCESSED - Barcelona - Agent: {agent_id} - SEARCH KEYWORD: "{query}" - Limit: {limit}')
+            logger.info(f'🔍 CONVERSATION_HISTORY_SEARCH: agent={agent_id}, query="{query}", limit={limit}')
+            
+            # Use centralized limit configuration
+            if limit is None:
+                limit = context_limits.SEARCH_PAST_CONVERSATIONS_DEFAULT_LIMIT
+            limit = context_limits.clamp_search_limit(limit, 'past_conversations')
+            
+            # Use user client if token provided, otherwise use admin client
+            supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
+            
+            # Enhanced search with semantic similarity (similar to medium-term memory search approach)
+            # Search for sessions with matching messages using multiple strategies
+            logger.info(f'🔍 EXECUTING ENHANCED CONVERSATION HISTORY SEARCH...')
+            
+            # Strategy 1: Direct content matching (primary method)
+            result = supabase_client.from_('conversation_messages').select(f"""
+                session_id,
+                content,
+                role,
+                created_at,
+                conversation_sessions!inner(
+                    id,
+                    title,
+                    conversation_type,
+                    message_count,
+                    started_at,
+                    last_message_at
+                )
+            """).ilike('content', f'%{query}%').eq('conversation_sessions.agent_id', agent_id).eq('conversation_sessions.is_archived', False).limit(limit * context_limits.SEARCH_PAST_CONVERSATIONS_DB_MULTIPLIER).execute()
+            
+            logger.info(f'🔍 CONVERSATION HISTORY SEARCH RESULTS: found {len(result.data) if result.data else 0} matching messages')
+            
+            # Initialize results list
+            formatted_results = []
+            
+            # Process conversation results if found
+            if result.data:
+                # Group messages by session and find best excerpts (similar to memory search logic)
+                sessions_data = {}
+                for item in result.data:
+                    session_id = item['session_id']
+                    session_info = item['conversation_sessions']
+                    message = item
+                    
+                    if session_id not in sessions_data:
+                        sessions_data[session_id] = {
+                            'session_info': session_info,
+                            'messages': [],
+                            'best_excerpt': '',
+                            'relevance_score': 0
+                        }
+                    
+                    sessions_data[session_id]['messages'].append(message)
+                    
+                    # Calculate relevance score (semantic similarity approach)
+                    content = message['content'].lower()
+                    query_lower = query.lower()
+                    
+                    if query_lower in content:
+                        # Calculate word overlap and context quality
+                        query_words = set(query_lower.split())
+                        content_words = set(content.split())
+                        overlap = len(query_words.intersection(content_words))
+                        relevance = (overlap / len(query_words)) if query_words else 0
+                        
+                        # Boost relevance for exact phrase matches
+                        if query_lower in content:
+                            relevance += 0.5
+                            
+                        sessions_data[session_id]['relevance_score'] = max(
+                            sessions_data[session_id]['relevance_score'], 
+                            relevance
+                        )
+                        
+                        # Extract context around the match
+                        index = content.find(query_lower)
+                        start = max(0, index - context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        end = min(len(message['content']), index + len(query) + context_limits.SEARCH_EXCERPT_CONTEXT_CHARS)
+                        
+                        excerpt = message['content'][start:end]
+                        if start > 0:
+                            excerpt = '...' + excerpt
+                        if end < len(message['content']):
+                            excerpt = excerpt + '...'
+                        
+                        # Enforce maximum excerpt length
+                        if len(excerpt) > context_limits.SEARCH_EXCERPT_MAX_LENGTH:
+                            excerpt = excerpt[:context_limits.SEARCH_EXCERPT_MAX_LENGTH - 3] + '...'
+                        
+                        # Keep the best (highest relevance) excerpt
+                        if relevance >= sessions_data[session_id]['relevance_score']:
+                            sessions_data[session_id]['best_excerpt'] = excerpt
+                
+                # Sort sessions by relevance score (similar to medium-term memory ranking)
+                sorted_sessions = sorted(
+                    sessions_data.items(), 
+                    key=lambda x: x[1]['relevance_score'], 
+                    reverse=True
+                )
+                
+                # Format conversation results (enhanced with relevance scoring)
+                for session_id, data in sorted_sessions[:limit]:
+                    session = data['session_info']
+                    
+                    # Create a summary from the most relevant messages
+                    summary_parts = []
+                    relevant_messages = sorted(data['messages'], key=lambda x: x['created_at'])[:3]
+                    for msg in relevant_messages:
+                        role = "User" if msg['role'] == 'user' else "AI"
+                        content = msg['content'][:100]
+                        summary_parts.append(f"{role}: {content}{'...' if len(msg['content']) > 100 else ''}")
+                    
+                    formatted_results.append({
+                        'session_id': session_id,
+                        'date': session['started_at'],
+                        'summary': ' | '.join(summary_parts),
+                        'excerpt': data['best_excerpt'],
+                        'message_count': session['message_count'],
+                        'conversation_type': session['conversation_type'],
+                        'title': session.get('title', 'Untitled Conversation'),
+                        'relevance_score': data['relevance_score'],
+                        'search_type': 'conversation_history'
+                    })
+            
+            logger.info(f'✅ CONVERSATION HISTORY SEARCH RESULTS: {len(formatted_results)} total results')
+            logger.info(f'✅ Top results by relevance:')
+            for i, result in enumerate(formatted_results[:3]):
+                logger.info(f'✅   {i+1}. Score: {result.get("relevance_score", 0):.2f}, Title: "{result.get("title", "")}", Excerpt: "{result.get("excerpt", "")[:50]}..."')
+            
+            return formatted_results
+            
+        except Exception as error:
+            logger.error(f'❌ CONVERSATION_HISTORY_SEARCH ERROR: {error}')
+            logger.error(f'❌ Error type: {type(error).__name__}')
+            import traceback
+            logger.error(f'❌ Traceback: {traceback.format_exc()}')
+            return []
+
     async def search_past_conversations(self, agent_id: str, query: str, limit: int = None, user_token: str = None) -> List[Dict[str, Any]]:
         """Search past conversations for an agent"""
         try:
+            logger.info(f'🏴‍☠️ PAST CHATS ACCESSED - Barcelona - Agent: {agent_id} - SEARCH KEYWORD: "{query}" - Limit: {limit}')
             logger.info(f'🚀 SEARCH_PAST_CONVERSATIONS CALLED')
             logger.info(f'🚀 Parameters: agent_id={agent_id}, query="{query}", limit={limit}, user_token_provided={user_token is not None}')
             
@@ -575,6 +732,20 @@ class DatabaseService:
             # Use user client if token provided, otherwise use admin client
             supabase_client = self.get_user_client(user_token) if user_token else self.admin_supabase
             logger.info(f'🔍 Using {"user" if user_token else "admin"} supabase client')
+            
+            # First check if there are any conversation sessions for this agent
+            session_check = supabase_client.from_('conversation_sessions').select('id, title, message_count').eq('agent_id', agent_id).eq('is_archived', False).limit(5).execute()
+            logger.info(f'🔍 AGENT SESSIONS CHECK: found {len(session_check.data) if session_check.data else 0} sessions for agent {agent_id}')
+            if session_check.data:
+                for i, session in enumerate(session_check.data[:3]):
+                    logger.info(f'🔍   Session {i+1}: {session.get("id")} - "{session.get("title")}" ({session.get("message_count")} messages)')
+            
+            # Check if there are any conversation messages at all
+            message_check = supabase_client.from_('conversation_messages').select('id, session_id, content').limit(5).execute()
+            logger.info(f'🔍 MESSAGES CHECK: found {len(message_check.data) if message_check.data else 0} total messages in database')
+            if message_check.data:
+                for i, msg in enumerate(message_check.data[:3]):
+                    logger.info(f'🔍   Message {i+1}: Session {msg.get("session_id")} - "{msg.get("content", "")[:50]}..."')
             
             # Search for sessions that have matching messages using ilike for case-insensitive pattern matching
             logger.info(f'🔍 EXECUTING CONVERSATION SEARCH QUERY...')
@@ -715,11 +886,12 @@ class DatabaseService:
                         'title': f"Memory - {memory.get('topic', 'General')}"
                     })
             
+            
             logger.info(f'✅ FINAL SEARCH RESULTS: {len(formatted_results)} total results')
             logger.info(f'✅ Result breakdown:')
-            conversation_count = len([r for r in formatted_results if r.get('conversation_type') != 'memory'])
+            conversation_count = len([r for r in formatted_results if r.get('conversation_type') == 'chat'])
             memory_count = len([r for r in formatted_results if r.get('conversation_type') == 'memory'])
-            logger.info(f'✅   - Conversations: {conversation_count}')
+            logger.info(f'✅   - Past Conversations: {conversation_count}')
             logger.info(f'✅   - Memories: {memory_count}')
             
             if formatted_results:
@@ -795,13 +967,18 @@ class DatabaseService:
             if paper_notes:
                 logger.info(f'🧠 Adding {len(paper_notes)} paper notes to context')
                 context_parts.append("\n📝 YOUR NOTES:")
+                context_parts.append("You have access to your complete notes from previous conversations. These contain important information you've saved:")
+                context_parts.append("")
                 for note in paper_notes:
                     title = note.get('title', 'Untitled')
                     content = note.get('content', '')
-                    if len(content) > 100:
-                        content = content[:97] + '...'
-                    logger.info(f'🧠 Note: {title}: {content}')
-                    context_parts.append(f"📌 {title}: {content}")
+                    is_pinned = note.get('is_pinned', False)
+                    prefix = '📌 [PINNED]' if is_pinned else '📝'
+                    # Don't truncate notes - include full content
+                    logger.info(f'🧠 Note: {title}: {content[:100]}{"..." if len(content) > 100 else ""}')
+                    context_parts.append(f"{prefix} **{title}**")
+                    context_parts.append(f"{content}")
+                    context_parts.append("")  # Add spacing between notes
             
             if context_parts:
                 memory_context = '\n'.join(context_parts)
@@ -859,6 +1036,28 @@ class DatabaseService:
         except Exception as error:
             logger.error(f'❌ Error creating user profile: {error}')
             raise error
+    
+    async def _trigger_layered_processing(self, document_id: str, user_token: str = None) -> None:
+        """
+        Trigger layered document processing asynchronously
+        This is a fire-and-forget operation that doesn't block document uploads
+        """
+        try:
+            # Import here to avoid circular imports
+            from .layered_document_service import layered_document_service
+            import asyncio
+            
+            logger.info(f"🚀 Triggering layered processing for document: {document_id}")
+            
+            # Wait a moment to ensure database transaction is committed
+            await asyncio.sleep(1)
+            
+            # Process document layers asynchronously
+            await layered_document_service.process_document_async(document_id, user_token)
+            
+        except Exception as error:
+            logger.error(f"❌ Failed to trigger layered processing for document {document_id}: {error}")
+            # Don't re-raise - this shouldn't break document upload
 
 # Create singleton instance
 database_service = DatabaseService()

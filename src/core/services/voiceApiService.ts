@@ -18,6 +18,7 @@
  */
 
 import { AIContact } from '../types/types';
+import { MemorySearchResult } from '../types/memory';
 import { documentContextService } from '../../modules/fileManagement/services/documentContextService';
 import { memoryService } from './memoryService';
 
@@ -405,10 +406,11 @@ class VoiceApiService {
 
   /**
    * Handle past conversations search function call locally
+   * Searches BOTH conversation messages AND memories (matching backend implementation)
    */
   private async handlePastConversationsSearch(args: any): Promise<FunctionCallResult> {
     try {
-      console.log('🔍 Voice: AI is searching past conversations:', args);
+      console.log('🔍 Voice: AI is searching past conversations and memories:', args);
 
       if (!this.currentSession?.agent_id) {
         throw new Error('No agent ID available for searching past conversations');
@@ -421,20 +423,31 @@ class VoiceApiService {
 
       const limit = Math.max(1, Math.min(10, args.limit || 5));
 
-      // Import conversation history service dynamically to avoid circular dependencies
+      // Import services dynamically to avoid circular dependencies
       const { conversationHistoryService } = await import('../services/conversationHistoryService');
+      const { memoryService } = await import('./memoryService');
 
-      // Search for past conversations
-      const sessions = await conversationHistoryService.searchAgentMessages(this.currentSession.agent_id, args.query);
+      // Search both conversations AND memories (like backend implementation)
+      const [conversationSessions, memories] = await Promise.all([
+        conversationHistoryService.searchAgentMessages(this.currentSession.agent_id, args.query),
+        memoryService.searchAllMemories({
+          query: args.query,
+          agent_id: this.currentSession.agent_id,
+          memory_types: ['medium', 'paper', 'documents'],
+          limit: Math.floor(limit * 0.3)
+        })
+      ]);
 
-      // Limit results
-      const limitedSessions = sessions.slice(0, limit);
+      // Limit conversation results
+      const limitedSessions = conversationSessions.slice(0, Math.ceil(limit * 0.7)); // 70% for conversations
+      const limitedMemories = memories.slice(0, Math.floor(limit * 0.3)); // 30% for memories
 
       // Create conversation previews
-      const previews = await conversationHistoryService.createConversationPreviews(limitedSessions, args.query);
+      const conversationPreviews = await conversationHistoryService.createConversationPreviews(limitedSessions, args.query);
 
-      // Format results for AI consumption
-      const formattedResults = previews.map(preview => ({
+      // Format conversation results
+      const conversationResults = conversationPreviews.map(preview => ({
+        type: 'conversation',
         conversation_id: preview.id,
         title: preview.title,
         date: preview.lastMessageAt.toISOString(),
@@ -444,13 +457,36 @@ class VoiceApiService {
         conversation_type: preview.conversationType
       }));
 
+      // Format memory results
+      const memoryResults = limitedMemories.map((memory: MemorySearchResult) => ({
+        type: 'memory',
+        memory_id: memory.id,
+        title: memory.metadata?.topic || memory.summary || 'Memory',
+        date: memory.metadata?.created_at || new Date().toISOString(),
+        summary: memory.content.substring(0, 200) + (memory.content.length > 200 ? '...' : ''),
+        relevant_excerpt: memory.content,
+        importance: memory.metadata?.importance || 'medium',
+        memory_type: memory.type,
+        relevance_score: memory.relevance_score
+      }));
+
+      // Combine and sort all results by date (most recent first)
+      const allResults = [...conversationResults, ...memoryResults]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, limit);
+
+      const conversationCount = allResults.filter(r => r.type === 'conversation').length;
+      const memoryCount = allResults.filter(r => r.type === 'memory').length;
+
       const result = {
         query: args.query,
-        results_count: formattedResults.length,
-        conversations: formattedResults,
-        message: formattedResults.length > 0 
-          ? `Found ${formattedResults.length} relevant past conversation${formattedResults.length !== 1 ? 's' : ''}.`
-          : 'No relevant past conversations found for this query.'
+        results_count: allResults.length,
+        conversation_results: conversationCount,
+        memory_results: memoryCount,
+        results: allResults,
+        message: allResults.length > 0 
+          ? `Found ${allResults.length} relevant result${allResults.length !== 1 ? 's' : ''} (${conversationCount} conversation${conversationCount !== 1 ? 's' : ''}, ${memoryCount} memor${memoryCount !== 1 ? 'ies' : 'y'}).`
+          : 'No relevant past conversations or memories found for this query.'
       };
 
       return {
@@ -459,11 +495,11 @@ class VoiceApiService {
         result
       };
     } catch (error) {
-      console.error('❌ Error searching past conversations:', error);
+      console.error('❌ Error searching past conversations and memories:', error);
       return {
         success: false,
         function: 'search_past_conversations',
-        error: `Failed to search past conversations: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `Failed to search past conversations and memories: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }

@@ -45,13 +45,20 @@ class ContextLimits:
     # Paper notes context limit - 4k tokens
     PAPER_NOTES_CONTEXT_MAX_TOKENS = 4000      # Max tokens for paper notes in context
     
-    # Medium term memory limit - 4k tokens
-    MEDIUM_TERM_MEMORY_MAX_TOKENS = 500       #TESTING # Max tokens for medium term memory
+    # Medium term memory limit - 500 tokens (temporarily for testing)
+    MEDIUM_TERM_MEMORY_MAX_TOKENS = 500      # Max tokens for medium term memory
     
     # Document limits
     DOCUMENT_MAX_TOKENS_PER_DOCUMENT = 20000   # 20k tokens per individual document
-    AGENT_DOCUMENTS_MAX_COUNT = 10             # Max 10 documents per agent
+    AGENT_DOCUMENTS_MAX_COUNT = 5              # Max 5 documents per agent
     CONVERSATION_DOCUMENTS_MAX_TOKENS = 20000  # 20k tokens cumulative for conversation docs
+    
+    # Document layer-specific limits (for layered processing)
+    DOCUMENT_LAYER1_SUMMARY_MAX_TOKENS = 600   # Layer 1 summary (~600 tokens)
+    DOCUMENT_LAYER1_WORD_BANK_MAX_TOKENS = 200 # Layer 1 word bank (~200 tokens)
+    DOCUMENT_LAYER1_TOTAL_MAX_TOKENS = 800     # Total Layer 1 per document (summary + word bank)
+    DOCUMENT_LAYER2_SUMMARY_MAX_TOKENS = 2000  # Layer 2 comprehensive summary (~2000 tokens)
+    DOCUMENT_LAYER1_CONTEXT_TOTAL_MAX_TOKENS = 4000  # Total Layer 1 context (5 docs × 800 tokens)
     
     # ===========================================
     # LEGACY CHARACTER-BASED LIMITS
@@ -124,10 +131,10 @@ class ContextLimits:
     # ===========================================
     
     # Voice conversation limits (optimized for lower latency)
-    VOICE_DOCUMENT_CONTENT_MAX_CHARS = 2000    # Same as chat for consistency
+    VOICE_DOCUMENT_CONTENT_MAX_CHARS = None    # Same as chat for consistency
     VOICE_SEARCH_DEFAULT_LIMIT = 5             # More results for voice context
     VOICE_SEARCH_MAX_LIMIT = 10                # Maximum for voice search
-    VOICE_SYSTEM_INSTRUCTION_MAX_CHARS = 8000  # System instruction limit for Gemini Live API
+    VOICE_SYSTEM_INSTRUCTION_MAX_TOKENS = 16000  # System instruction token limit for Gemini Live API
     
     # ===========================================
     # INTEGRATION LIMITS

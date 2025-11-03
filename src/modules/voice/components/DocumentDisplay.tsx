@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Typography from '@tiptap/extension-typography';
+import Link from '@tiptap/extension-link';
 import { Copy, X, Download, Check, BookOpen, Trash2 } from 'lucide-react';
+import './tiptap-editor.css';
 
 interface DocumentDisplayProps {
   content: string;
@@ -16,6 +19,7 @@ interface DocumentDisplayProps {
   onSaveToNotes?: (title: string, content: string) => void;
   onDelete?: () => void;
   title?: string;
+  onContentChange?: (content: string, hasChanged: boolean) => void;
 }
 
 export default function DocumentDisplay({ 
@@ -30,7 +34,8 @@ export default function DocumentDisplay({
   agentId,
   onSaveToNotes,
   onDelete,
-  title
+  title,
+  onContentChange
 }: DocumentDisplayProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -38,6 +43,103 @@ export default function DocumentDisplay({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [originalContent, setOriginalContent] = useState(content);
+  const [hasBeenEdited, setHasBeenEdited] = useState(false);
+  const [isUpdatingFromProps, setIsUpdatingFromProps] = useState(false);
+  const [lastNotifiedContent, setLastNotifiedContent] = useState(content);
+
+  // Convert markdown to HTML for initial content
+  const markdownToHtml = (markdown: string) => {
+    // Simple markdown to HTML conversion for initial display
+    return markdown
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
+      .replace(/^\d+\. (.*$)/gm, '<ol><li>$1</li></ol>')
+      .split('\n\n') // Split by double newlines to preserve paragraphs
+      .map(para => {
+        if (para.trim() === '') return '';
+        if (para.startsWith('<h') || para.startsWith('<ul') || para.startsWith('<ol')) return para;
+        return `<p>${para.replace(/\n/g, '<br>')}</p>`; // Preserve single line breaks as <br>
+      })
+      .join('\n')
+      .replace(/<\/ul>\s*<ul>/g, '')
+      .replace(/<\/ol>\s*<ol>/g, '');
+  };
+
+  // Convert HTML back to markdown
+  const htmlToMarkdown = (html: string) => {
+    return html
+      .replace(/<h1>(.*?)<\/h1>/g, '# $1\n\n')
+      .replace(/<h2>(.*?)<\/h2>/g, '## $1\n\n')
+      .replace(/<h3>(.*?)<\/h3>/g, '### $1\n\n')
+      .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+      .replace(/<em>(.*?)<\/em>/g, '*$1*')
+      .replace(/<code>(.*?)<\/code>/g, '`$1`')
+      .replace(/<br\s*\/?>/g, '\n') // Convert <br> back to newlines
+      .replace(/<p>(.*?)<\/p>/g, '$1\n\n')
+      .replace(/<li>(.*?)<\/li>/g, '* $1\n')
+      .replace(/<\/?ul>/g, '')
+      .replace(/<\/?ol>/g, '')
+      .replace(/\n{3,}/g, '\n\n') // Limit excessive newlines
+      .trim();
+  };
+
+  // Set up Tiptap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        hardBreak: {
+          keepMarks: false,
+        },
+      }),
+      Typography,
+      Link.configure({
+        openOnClick: false,
+      }),
+    ],
+    content: markdownToHtml(content),
+    onUpdate: ({ editor }) => {
+      // Skip if we're updating from props to prevent infinite loop
+      if (isUpdatingFromProps) {
+        return;
+      }
+      
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      
+      // Only notify if content has actually changed from last notification
+      if (markdown === lastNotifiedContent) {
+        return;
+      }
+      
+      // Check if content has changed from original
+      const hasChanged = markdown !== originalContent;
+      setHasBeenEdited(hasChanged);
+      setLastNotifiedContent(markdown);
+      
+      // Notify parent with current content and change status
+      if (onContentChange) {
+        onContentChange(markdown, hasChanged);
+      }
+    },
+    onCreate: ({ editor }) => {
+      console.log('Tiptap editor created and mounted');
+    },
+  });
+
 
   useEffect(() => {
     if (isVisible) {
@@ -55,23 +157,101 @@ export default function DocumentDisplay({
     }
   }, [isVisible]);
 
-  // Reset animation state when content changes (for new documents)
+  // Set animation state true when component first becomes visible
   useEffect(() => {
-    if (isVisible && content) {
-      // Reset animation state to show new content
-      setIsAnimating(false);
+    if (isVisible && !isAnimating) {
       setTimeout(() => setIsAnimating(true), 50);
     }
-  }, [content, isVisible]);
+  }, [isVisible, isAnimating]);
+
+  // Update content tracking when props change
+  useEffect(() => {
+    setOriginalContent(content);
+    setLastNotifiedContent(content);
+    setHasBeenEdited(false);
+  }, [content]);
+
+  // Update editor content when props change (preserve cursor position)
+  useEffect(() => {
+    if (isVisible && content && editor && editor.commands) {
+      const currentHtml = editor.getHTML();
+      const expectedHtml = markdownToHtml(content);
+      
+      // Only update if the content is actually different and we're not currently editing
+      if (currentHtml !== expectedHtml && !editor.isFocused) {
+        setIsUpdatingFromProps(true);
+        
+        // Save current cursor position
+        const selection = editor.state.selection;
+        const { from, to } = selection;
+        
+        // Update content
+        editor.commands.setContent(expectedHtml);
+        
+        // Restore cursor position if possible
+        try {
+          const newDoc = editor.state.doc;
+          const newFrom = Math.min(from, newDoc.content.size);
+          const newTo = Math.min(to, newDoc.content.size);
+          editor.commands.setTextSelection({ from: newFrom, to: newTo });
+        } catch (error) {
+          // If cursor restoration fails, just focus at the end
+          console.warn('Could not restore cursor position:', error);
+        }
+        
+        // Reset flag after update completes
+        setTimeout(() => setIsUpdatingFromProps(false), 50);
+      }
+    }
+  }, [content, editor, isVisible]);
+  
+
+  // Initialize editor state when editor is created
+  useEffect(() => {
+    if (editor && content) {
+      // Reset tracking state when editor is created
+      setOriginalContent(content);
+      setLastNotifiedContent(content);
+      setHasBeenEdited(false);
+      setIsUpdatingFromProps(false);
+    }
+  }, [editor]);
+
+  // Cleanup editor on unmount
+  useEffect(() => {
+    return () => {
+      if (editor) {
+        editor.destroy();
+      }
+    };
+  }, [editor]);
 
   const handleCopy = async () => {
     try {
-      if (!content) {
+      // Get current content from editor or fallback to props content
+      let contentToCopy = content;
+      if (editor) {
+        const html = editor.getHTML();
+        contentToCopy = html
+          .replace(/<h1>(.*?)<\/h1>/g, '# $1')
+          .replace(/<h2>(.*?)<\/h2>/g, '## $1')
+          .replace(/<h3>(.*?)<\/h3>/g, '### $1')
+          .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+          .replace(/<em>(.*?)<\/em>/g, '*$1*')
+          .replace(/<code>(.*?)<\/code>/g, '`$1`')
+          .replace(/<p>(.*?)<\/p>/g, '$1\n\n')
+          .replace(/<li>(.*?)<\/li>/g, '* $1\n')
+          .replace(/<ul>|<\/ul>/g, '')
+          .replace(/<ol>|<\/ol>/g, '')
+          .trim();
+      }
+      
+      if (!contentToCopy) {
         setError('No content to copy');
         setTimeout(() => setError(null), 3000);
         return;
       }
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(contentToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -83,12 +263,30 @@ export default function DocumentDisplay({
 
   const handleDownload = () => {
     try {
-      if (!content) {
+      // Get current content from editor or fallback to props content
+      let contentToDownload = content;
+      if (editor) {
+        const html = editor.getHTML();
+        contentToDownload = html
+          .replace(/<h1>(.*?)<\/h1>/g, '# $1')
+          .replace(/<h2>(.*?)<\/h2>/g, '## $1')
+          .replace(/<h3>(.*?)<\/h3>/g, '### $1')
+          .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+          .replace(/<em>(.*?)<\/em>/g, '*$1*')
+          .replace(/<code>(.*?)<\/code>/g, '`$1`')
+          .replace(/<p>(.*?)<\/p>/g, '$1\n\n')
+          .replace(/<li>(.*?)<\/li>/g, '* $1\n')
+          .replace(/<ul>|<\/ul>/g, '')
+          .replace(/<ol>|<\/ol>/g, '')
+          .trim();
+      }
+      
+      if (!contentToDownload) {
         setError('No content to download');
         setTimeout(() => setError(null), 3000);
         return;
       }
-      const blob = new Blob([content], { type: 'text/markdown' });
+      const blob = new Blob([contentToDownload], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -104,9 +302,6 @@ export default function DocumentDisplay({
     }
   };
 
-  const handleDocumentClick = () => {
-    handleCopy();
-  };
 
   const handleClose = () => {
     setIsAnimating(false);
@@ -116,15 +311,33 @@ export default function DocumentDisplay({
   };
 
   const handleSaveToNotes = async () => {
-    if (!onSaveToNotes || !content || isSaving || saved) return;
+    // Get current content from editor or fallback to props content
+    let contentToSave = content;
+    if (editor) {
+      const html = editor.getHTML();
+      contentToSave = html
+        .replace(/<h1>(.*?)<\/h1>/g, '# $1')
+        .replace(/<h2>(.*?)<\/h2>/g, '## $1')
+        .replace(/<h3>(.*?)<\/h3>/g, '### $1')
+        .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+        .replace(/<em>(.*?)<\/em>/g, '*$1*')
+        .replace(/<code>(.*?)<\/code>/g, '`$1`')
+        .replace(/<p>(.*?)<\/p>/g, '$1\n\n')
+        .replace(/<li>(.*?)<\/li>/g, '* $1\n')
+        .replace(/<ul>|<\/ul>/g, '')
+        .replace(/<ol>|<\/ol>/g, '')
+        .trim();
+    }
+    
+    if (!onSaveToNotes || !contentToSave || isSaving || saved) return;
 
     try {
       setIsSaving(true);
       // Generate a title from the first line or first few words of content
-      const lines = content.split('\n').filter(line => line.trim());
+      const lines = contentToSave.split('\n').filter((line: string) => line.trim());
       const title = lines[0]?.trim().substring(0, 100) || `Document ${new Date().toLocaleDateString()}`;
       
-      await onSaveToNotes(title, content);
+      await onSaveToNotes(title, contentToSave);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -189,7 +402,7 @@ export default function DocumentDisplay({
                 )}
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                {new Date().toLocaleDateString()} • {content ? content.split(' ').length : 0} words
+{new Date().toLocaleDateString()} • {content ? content.split(' ').length : 0} words
                 {totalDocuments > 1 && (
                   <span className="ml-2">• Document {documentIndex + 1} of {totalDocuments}</span>
                 )}
@@ -284,105 +497,20 @@ export default function DocumentDisplay({
           </div>
         )}
 
-        {/* Document Content */}
-        <div className={`flex-1 p-6 overflow-y-auto cursor-pointer transition-all duration-500 transform ${
+        {/* Document Content - Tiptap Editor */}
+        <div className={`flex-1 overflow-hidden transition-all duration-500 transform ${
           isAnimating 
             ? 'translate-y-0 opacity-100' 
             : 'translate-y-4 opacity-0'
         }`} 
-        style={{ transitionDelay: isAnimating ? '100ms' : '0ms' }}
-        onClick={handleDocumentClick}>
-          <div className="prose prose-gray max-w-none">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                // Custom styling for markdown elements
-                h1: ({ children }) => (
-                  <h1 className="text-2xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-xl font-semibold text-gray-800 mb-3 mt-6">
-                    {children}
-                  </h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-lg font-medium text-gray-800 mb-2 mt-4">
-                    {children}
-                  </h3>
-                ),
-                p: ({ children }) => (
-                  <p className="text-gray-700 mb-4 leading-relaxed">
-                    {children}
-                  </p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-6 mb-4 text-gray-700">
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-6 mb-4 text-gray-700">
-                    {children}
-                  </ol>
-                ),
-                li: ({ children }) => (
-                  <li className="mb-1">
-                    {children}
-                  </li>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 mb-4">
-                    {children}
-                  </blockquote>
-                ),
-                code: ({ children, className }) => {
-                  const isInline = !className;
-                  if (isInline) {
-                    return (
-                      <code className="bg-gray-100 px-1 py-0.5 rounded text-sm text-gray-800 font-mono">
-                        {children}
-                      </code>
-                    );
-                  }
-                  return (
-                    <code className="block bg-gray-100 p-3 rounded text-sm text-gray-800 font-mono overflow-x-auto">
-                      {children}
-                    </code>
-                  );
-                },
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-gray-900">
-                    {children}
-                  </strong>
-                ),
-                em: ({ children }) => (
-                  <em className="italic text-gray-700">
-                    {children}
-                  </em>
-                ),
-                table: ({ children }) => (
-                  <div className="overflow-x-auto mb-4">
-                    <table className="min-w-full border border-gray-200">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                th: ({ children }) => (
-                  <th className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-left font-semibold text-gray-700">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="px-4 py-2 border-b border-gray-200 text-gray-700">
-                    {children}
-                  </td>
-                ),
-              }}
-            >
-              {content || 'Loading document content...'}
-            </ReactMarkdown>
+        style={{ transitionDelay: isAnimating ? '100ms' : '0ms' }}>
+          <div className="h-full p-6 overflow-y-auto">
+            <div className="prose prose-gray max-w-none">
+              <EditorContent 
+                editor={editor} 
+                className="min-h-[400px] focus:outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -394,7 +522,7 @@ export default function DocumentDisplay({
         }`}
         style={{ transitionDelay: isAnimating ? '300ms' : '0ms' }}>
           <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Click anywhere to copy • Generated by AI</span>
+            <span>Click anywhere to edit • Generated by AI</span>
             <span>{content.length} characters</span>
           </div>
         </div>

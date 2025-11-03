@@ -260,6 +260,49 @@ class PythonApiService {
   }
 
   /**
+   * Generate text using AI (for document processing)
+   */
+  async generateText(prompt: string, options?: {
+    max_tokens?: number;
+    temperature?: number;
+  }): Promise<string> {
+    try {
+      console.log(`🤖 Generating text via Python backend (${prompt.length} chars)`);
+
+      const response = await fetch(`${this.baseUrl}/api/v1/ai/generate-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          max_tokens: options?.max_tokens || 1000,
+          temperature: options?.temperature || 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Text generation failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Text generation failed');
+      }
+
+      console.log(`✅ Text generated (${result.text.length} characters)`);
+      return result.text;
+
+    } catch (error) {
+      console.error('❌ Error generating text:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get supported document types from Python backend
    */
   async getSupportedTypes(): Promise<{

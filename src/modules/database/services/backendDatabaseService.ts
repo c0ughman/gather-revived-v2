@@ -78,9 +78,23 @@ export class BackendDatabaseService {
   async testConnection(): Promise<boolean> {
     try {
       console.log('🔍 Testing backend database connection...');
-      
-      const result = await this.makeRequest('/health')
-      
+
+      // Use direct fetch for health check (not through makeRequest which adds /api/v1/database prefix)
+      const authToken = this.getAuthToken()
+      const response = await fetch(`${this.baseUrl}/health`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+        }
+      })
+
+      if (!response.ok) {
+        console.error('❌ Backend health check failed:', response.status);
+        return false;
+      }
+
+      const result = await response.json()
+
       if (result.status === 'healthy') {
         console.log('✅ Backend database connection test successful');
         return true;

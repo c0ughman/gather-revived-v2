@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Bot, Loader2, Paperclip, X, MessageSquarePlus, Phone, ChevronRight, ChevronLeft, MoreVertical, Brain, Clock } from 'lucide-react';
+import { ArrowLeft, Send, Bot, Loader2, Paperclip, X, Plus, Phone, ChevronRight, ChevronLeft, MoreVertical, Brain, Clock } from 'lucide-react';
 import MemoryScreen from '../../ui/components/MemoryScreen';
 import PastChatsScreen from '../../ui/components/PastChatsScreen';
 import { AIContact, Message } from '../../../core/types/types';
@@ -266,37 +266,35 @@ export default function ChatScreen({
             </div>
           </div>
 
-          {/* Center section - Memory & Past Chats Buttons */}
-          <div className="flex items-center justify-center space-x-2">
-            <button
-              onClick={() => setShowMemory(true)}
-              className="flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-              title="View Memory"
-            >
-              <Brain className="w-4 h-4 text-slate-300" />
-              <span className="text-slate-300 text-sm font-medium">Memory</span>
-            </button>
-            
-            <button
-              onClick={() => onPastChatsClick?.(contact)}
-              className="flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-              title="View Past Chats"
-            >
-              <Clock className="w-4 h-4 text-slate-300" />
-              <span className="text-slate-300 text-sm font-medium">History</span>
-            </button>
-          </div>
-
-          {/* Right section */}
-          <div className="flex items-center justify-end space-x-1">
+          {/* Center section - New Chat, Memory & History Icons */}
+          <div className="flex items-center justify-center space-x-3">
             <button
               onClick={() => onNewChatClick(contact)}
               className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
               title="Start new conversation"
             >
-              <MessageSquarePlus className="w-4 h-4 text-slate-400" />
+              <Plus className="w-5 h-5 text-slate-400" />
             </button>
             
+            <button
+              onClick={() => setShowMemory(true)}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              title="Memory"
+            >
+              <Brain className="w-4 h-4 text-slate-400" />
+            </button>
+            
+            <button
+              onClick={() => onPastChatsClick?.(contact)}
+              className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"
+              title="History"
+            >
+              <Clock className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+
+          {/* Right section */}
+          <div className="flex items-center justify-end space-x-1">
             <button
               onClick={() => onCallClick(contact)}
               className="p-2 rounded-full hover:bg-slate-700 transition-colors duration-200"

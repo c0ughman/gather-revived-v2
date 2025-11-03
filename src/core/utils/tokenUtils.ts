@@ -62,16 +62,25 @@ export function formatTokenCount(tokens: number): string {
 
 // Memory management constants - Updated to match new token limits
 export const MEMORY_LIMITS = {
-  // New token-based limits
+  // New token-based limits - UPDATED to match backend context_limits.py
   AGENT_DESCRIPTION: 4000,           // 4k tokens for agent description
-  MEDIUM_TERM_MEMORY: 4000,          // 4k tokens for medium term memory
+  MEDIUM_TERM_MEMORY: 500,          // 500 tokens for medium term memory (temporarily for testing)
   PAPER_NOTES: 4000,                 // 4k tokens for paper notes context
   CONVERSATION_CONTEXT: 4000,        // 4k tokens for conversation messages
   
-  // Document limits
+  // Document limits - UPDATED to match backend
   DOCUMENT_PER_DOCUMENT: 20000,      // 20k tokens per individual document
-  AGENT_DOCUMENTS_MAX_COUNT: 10,     // Max 10 documents per agent
+  AGENT_DOCUMENTS_MAX_COUNT: 5,      // Max 5 documents per agent (FIXED from 10)
   CONVERSATION_DOCUMENTS_CUMULATIVE: 20000, // 20k tokens cumulative for conversation docs
+  
+  // Voice system instruction - UPDATED to match backend
+  VOICE_SYSTEM_INSTRUCTION: 16000,   // 16k tokens for voice system instruction
+  
+  // Document layer limits - ADDED from backend
+  DOCUMENT_LAYER1_SUMMARY: 600,      // Layer 1 summary max tokens
+  DOCUMENT_LAYER1_WORD_BANK: 200,    // Layer 1 word bank max tokens  
+  DOCUMENT_LAYER1_TOTAL: 800,        // Total Layer 1 per document
+  DOCUMENT_LAYER2_SUMMARY: 2000,     // Layer 2 comprehensive summary
   
   // Legacy limits (kept for backward compatibility)
   DOCUMENT_SUMMARY: 700,

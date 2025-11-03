@@ -555,6 +555,14 @@ RESPONSE (JSON only, no other text):`;
   }
 
   /**
+   * Force save current session immediately (for testing search functionality)
+   */
+  forceSaveCurrentSession(): void {
+    console.log('🔧 FORCE SAVING current session for testing...');
+    this.saveCurrentSession();
+  }
+
+  /**
    * Save voice conversation with transcript from backend
    * This is called when a voice call ends
    */
