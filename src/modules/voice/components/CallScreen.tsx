@@ -15,6 +15,8 @@ interface CallScreenProps {
   showSidebar?: boolean;
   onToggleSidebar?: () => void;
   onNoteAdded?: () => void;
+  isEndingCall?: boolean;
+  onCallReady?: () => void; // Callback when call is ready and listening
 }
 
 export default function CallScreen({ 
@@ -25,7 +27,9 @@ export default function CallScreen({
   onToggleMute,
   showSidebar = true,
   onToggleSidebar,
-  onNoteAdded
+  onNoteAdded,
+  isEndingCall = false,
+  onCallReady
 }: CallScreenProps) {
   const [pulseAnimation, setPulseAnimation] = useState(false);
   const [responseText, setResponseText] = useState<string>("");
@@ -46,6 +50,7 @@ export default function CallScreen({
   const currentEditorContentRef = useRef<string>("");
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
+  const initializedContactIdRef = useRef<string | null>(null);
   
   // Timers for document sync
   const debounceTimerRef = useRef<number | null>(null);
@@ -53,7 +58,13 @@ export default function CallScreen({
   const lastChangeTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    if (callState.status === 'connecting') {
+    // Only run initialization if we're connecting and haven't initialized for this contact yet
+    const needsInitialization = callState.status === 'connecting' && 
+                                 initializedContactIdRef.current !== contact.id &&
+                                 !initializationInProgress.current;
+    
+    if (needsInitialization) {
+      console.log(`🎯 Initializing call for contact: ${contact.id}`);
       setPulseAnimation(true);
       
       // Clear document history for new call
@@ -66,131 +77,148 @@ export default function CallScreen({
       
       // Initialize the Gemini Live service when call is connecting
       const initService = async () => {
-        if (!serviceInitialized.current && !initializationInProgress.current) {
-          initializationInProgress.current = true;
-          try {
-            console.log("🚀 Starting service initialization...");
+        initializationInProgress.current = true;
+        const startTime = Date.now();
+        console.log("⏱️ [0ms] Starting call initialization...");
+        
+        try {
+          console.log("🚀 Starting service initialization...");
+          
+          // Set up event handlers first
+          geminiLiveService.onResponse((response) => {
+            setResponseText(response.text);
+          });
+          
+          geminiLiveService.onError((error) => {
+            console.error("Gemini Live error:", error);
+            setResponseText("I'm having trouble with the connection. Let's try again.");
+          });
+          
+          geminiLiveService.onStateChange((state) => {
+            console.log(`🔄 Service state changed to: ${state}`);
+            setServiceState(state);
             
-            // Set up event handlers first
-            geminiLiveService.onResponse((response) => {
-              setResponseText(response.text);
-            });
-            
-            geminiLiveService.onError((error) => {
-              console.error("Gemini Live error:", error);
-              setResponseText("I'm having trouble with the connection. Let's try again.");
-            });
-            
-            geminiLiveService.onStateChange((state) => {
-              console.log(`🔄 Service state changed to: ${state}`);
-              setServiceState(state);
+            // Detect when document generation might be starting
+            if (state === 'processing') {
+              // Check if the last response text contains document-related keywords
+              const lastResponse = responseText.toLowerCase();
+              const documentKeywords = [
+                'write', 'document', 'paper', 'essay', 'create', 'generate', 
+                'put that down', 'write that down', 'make a note', 'take notes',
+                'draft', 'compose', 'formulate', 'prepare', 'develop'
+              ];
               
-              // Detect when document generation might be starting
-              if (state === 'processing') {
-                // Check if the last response text contains document-related keywords
-                const lastResponse = responseText.toLowerCase();
-                const documentKeywords = [
-                  'write', 'document', 'paper', 'essay', 'create', 'generate', 
-                  'put that down', 'write that down', 'make a note', 'take notes',
-                  'draft', 'compose', 'formulate', 'prepare', 'develop'
-                ];
-                
-                const hasDocumentKeywords = documentKeywords.some(keyword => 
-                  lastResponse.includes(keyword)
-                );
-                
-                if (hasDocumentKeywords) {
-                  setIsGeneratingDocument(true);
-                }
+              const hasDocumentKeywords = documentKeywords.some(keyword => 
+                lastResponse.includes(keyword)
+              );
+              
+              if (hasDocumentKeywords) {
+                setIsGeneratingDocument(true);
               }
-            });
+            }
+          });
+          
+          // Set up document generation callback
+          geminiLiveService.onDocumentGeneration((document) => {
+            console.log("📄 Document generated:", document);
+            setIsGeneratingDocument(false);
             
-            // Set up document generation callback
-            geminiLiveService.onDocumentGeneration((document) => {
-              console.log("📄 Document generated:", document);
-              setIsGeneratingDocument(false);
-              
-              // Add new document to history
-              const newDocument = {
-                id: Date.now().toString(),
-                content: document.content,
-                wordCount: document.wordCount,
-                timestamp: new Date()
-              };
-              
-              setDocumentHistory(prev => [...prev, newDocument]);
-              setCurrentDocumentIndex(prev => prev + 1);
-              
-              // Show the new document
-              setDocumentContent(document.content);
-              setDocumentWordCount(document.wordCount);
-              setCurrentEditorContent(document.content);
-              currentEditorContentRef.current = document.content;
-              setShowDocument(true);
-            });
-            
-            // Set up callback to send paper updates when user starts talking (fallback for immediate sync)
-            const handleUserStartTalking = () => {
-              // Check if there are pending changes that haven't been sent yet
-              const currentPendingUpdate = pendingPaperUpdateRef.current;
-              if (currentPendingUpdate?.hasChanged) {
-                console.log('👤 User started talking, sending pending paper update immediately...');
-                sendDocumentToAI(currentPendingUpdate.content);
-                
-                // Clear the debounce timer since we're sending now
-                if (debounceTimerRef.current) {
-                  clearTimeout(debounceTimerRef.current);
-                  debounceTimerRef.current = null;
-                }
-              }
+            // Add new document to history
+            const newDocument = {
+              id: Date.now().toString(),
+              content: document.content,
+              wordCount: document.wordCount,
+              timestamp: new Date()
             };
             
-            geminiLiveService.setOnUserStartTalkingCallback(handleUserStartTalking);
+            setDocumentHistory(prev => [...prev, newDocument]);
+            setCurrentDocumentIndex(prev => prev + 1);
             
-            // Initialize audio
-            const initialized = await geminiLiveService.initialize();
-            if (initialized) {
-              console.log("✅ Audio initialized, starting session...");
-              await geminiLiveService.startSession(contact);
-              serviceInitialized.current = true;
+            // Show the new document
+            setDocumentContent(document.content);
+            setDocumentWordCount(document.wordCount);
+            setCurrentEditorContent(document.content);
+            currentEditorContentRef.current = document.content;
+            setShowDocument(true);
+          });
+          
+          // Set up callback to send paper updates when user starts talking (fallback for immediate sync)
+          const handleUserStartTalking = () => {
+            // Check if there are pending changes that haven't been sent yet
+            const currentPendingUpdate = pendingPaperUpdateRef.current;
+            if (currentPendingUpdate?.hasChanged) {
+              console.log('👤 User started talking, sending pending paper update immediately...');
+              sendDocumentToAI(currentPendingUpdate.content);
               
-              
-              console.log("✅ Service fully initialized");
-            } else {
-              console.error("❌ Audio initialization failed");
-              setResponseText("Could not access microphone. Please check permissions.");
+              // Clear the debounce timer since we're sending now
+              if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+                debounceTimerRef.current = null;
+              }
             }
-          } catch (error) {
-            console.error("❌ Failed to initialize Gemini Live service:", error);
-            setResponseText("Failed to start voice chat. Please try again.");
-          } finally {
-            initializationInProgress.current = false;
+          };
+          
+          geminiLiveService.setOnUserStartTalkingCallback(handleUserStartTalking);
+          
+          // 🔀 PARALLEL EXECUTION: Initialize audio AND start session simultaneously
+          const audioStartTime = Date.now();
+          console.log(`⏱️ [${audioStartTime - startTime}ms] 🔀 Starting PARALLEL initialization (audio + session)...`);
+          
+          // Start both operations at the same time
+          const [initialized, sessionResult] = await Promise.all([
+            geminiLiveService.initialize(),
+            (async () => {
+              const sessionStartTime = Date.now();
+              console.log(`⏱️ [${sessionStartTime - startTime}ms] 🔀 Starting Gemini session (parallel)...`);
+              await geminiLiveService.startSession(contact);
+              const sessionEndTime = Date.now();
+              console.log(`⏱️ [${sessionEndTime - startTime}ms] ✅ Session started (took ${sessionEndTime - sessionStartTime}ms)`);
+              return true;
+            })()
+          ]);
+          
+          const parallelEndTime = Date.now();
+          console.log(`⏱️ [${parallelEndTime - startTime}ms] ✅ PARALLEL operations completed (took ${parallelEndTime - audioStartTime}ms)`);
+          
+          if (initialized && sessionResult) {
+            console.log("✅ Both audio and session ready!");
+            
+            serviceInitialized.current = true;
+            initializedContactIdRef.current = contact.id; // Mark this contact as initialized
+            
+            // Force listening state immediately (defensive - session should already be listening)
+            setServiceState('listening');
+            console.log('🎤 Forced listening state for immediate UI feedback');
+            
+            // Notify parent that call is ready - no artificial delay!
+            if (onCallReady) {
+              onCallReady();
+            }
+            
+            const totalTime = Date.now() - startTime;
+            console.log(`⏱️ ✅ TOTAL TIME: ${totalTime}ms - Service fully initialized and ready to listen`);
+            console.log(`🚀 Phase 2 speedup: Operations ran in parallel!`);
+          } else {
+            console.error("❌ Initialization failed");
+            setResponseText("Could not start voice session. Please try again.");
           }
+        } catch (error) {
+          console.error("❌ Failed to initialize Gemini Live service:", error);
+          setResponseText("Failed to start voice chat. Please try again.");
+        } finally {
+          initializationInProgress.current = false;
         }
       };
       
       initService();
+    } else if (callState.status === 'connecting' && !needsInitialization) {
+      // Just update animation if already initialized
+      setPulseAnimation(true);
     } else {
       setPulseAnimation(false);
     }
     
     return () => {
-      // Enhanced cleanup when component unmounts - prevents memory leaks
-      if (serviceInitialized.current) {
-        console.log("🧹 CallScreen unmounting - cleaning up voice service");
-        
-        if (callState.status === 'ended') {
-          // If call ended, do complete shutdown to free all resources
-          geminiLiveService.shutdown();
-        } else {
-          // If call still active, just end session properly
-          geminiLiveService.endSession();
-        }
-        
-        serviceInitialized.current = false;
-        console.log("✅ Voice service cleanup completed");
-      }
-      
       // Clean up timers
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -199,7 +227,22 @@ export default function CallScreen({
         clearInterval(periodicTimerRef.current);
       }
     };
-  }, [contact.id]); // Only depend on contact.id, not callState.status
+  }, [contact.id, callState.status]); // Depend on both contact.id and callState.status
+  
+  // Separate effect to handle actual component unmount
+  useEffect(() => {
+    return () => {
+      // This runs only when component actually unmounts
+      if (serviceInitialized.current) {
+        console.log("🧹 CallScreen unmounting - ending session (not shutdown)");
+        // Use endSession instead of shutdown to preserve the API client for next call
+        geminiLiveService.endSession();
+        serviceInitialized.current = false;
+        initializedContactIdRef.current = null;
+        console.log("✅ Voice service cleanup completed");
+      }
+    };
+  }, []); // Empty deps = runs only on mount/unmount
 
   // Keyboard event listener for document navigation
   useEffect(() => {
@@ -307,8 +350,9 @@ export default function CallScreen({
     }
   };
 
-  const handleEndCall = async () => {
-    await geminiLiveService.endSession();
+  const handleEndCall = () => {
+    // Don't call endSession here - let App.tsx handle it to avoid double calls
+    // Just trigger the parent's onEndCall which will handle everything
     onEndCall();
   };
 
@@ -673,9 +717,18 @@ export default function CallScreen({
           {/* End Call Button */}
           <button
             onClick={handleEndCall}
-            className="p-6 rounded-full bg-red-600 hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 group"
+            disabled={isEndingCall}
+            className={`p-6 rounded-full transition-all duration-200 shadow-lg group ${
+              isEndingCall 
+                ? 'bg-red-800 opacity-50 cursor-not-allowed' 
+                : 'bg-red-600 hover:bg-red-700 hover:shadow-xl hover:scale-105'
+            }`}
           >
-            <PhoneOff className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
+            {isEndingCall ? (
+              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <PhoneOff className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
+            )}
           </button>
 
           {/* Speaker Button */}
@@ -694,7 +747,9 @@ export default function CallScreen({
           <span className="text-slate-400 text-sm w-16 text-center">
             {callState.isMuted ? 'Unmute' : 'Mute'}
           </span>
-          <span className="text-slate-400 text-sm w-20 text-center">End Call</span>
+          <span className="text-slate-400 text-sm w-20 text-center">
+            {isEndingCall ? 'Ending...' : 'End Call'}
+          </span>
           <span className="text-slate-400 text-sm w-16 text-center">Speaker</span>
         </div>
       </div>

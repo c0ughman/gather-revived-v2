@@ -522,11 +522,26 @@ RESPONSE (JSON only, no other text):`;
   }
 
   /**
-   * Handle screen/tab leave - save immediately
+   * Handle screen/tab leave - save immediately without terminating session
    */
   handleScreenLeave(): void {
     console.log('👋 Screen leave detected, saving current session...');
-    this.saveCurrentSession();
+    this.saveSessionWithoutTerminating();
+  }
+
+  /**
+   * Save session to database but keep it active (for tab switches)
+   */
+  saveSessionWithoutTerminating(): void {
+    if (!this.activeSession?.isActive || this.activeSession.messages.length === 0) {
+      console.log('No active session with messages to save');
+      return;
+    }
+
+    console.log(`💾 Saving conversation session (keeping active) with ${this.activeSession.messages.length} messages`);
+
+    // Save to database asynchronously but keep session active
+    this.saveMessagesToDatabaseOnly(this.activeSession, this.activeSession.messages);
   }
 
   /**

@@ -77,12 +77,20 @@ type ViewType = 'landing' | 'signup' | 'pricing' | 'dashboard' | 'chat' | 'call'
 export default function App() {
   const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('landing');
+
+  // Debug: Track view changes
+  useEffect(() => {
+    console.log(`📺 View changed to: ${currentView}`);
+  }, [currentView]);
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
   const [contacts, setContacts] = useState<AIContact[]>([]);
   const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
-  
+
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Track the loaded user ID to prevent redundant reloads
+  const loadedUserIdRef = useRef<string | null>(null);
   const [callState, setCallState] = useState<CallState>({
     isActive: false,
     duration: 0,
@@ -91,6 +99,7 @@ export default function App() {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [isEndingCall, setIsEndingCall] = useState(false);
   
   // Ref for notes tab to refresh notes when needed
   const notesTabRef = useRef<NotesTabRef>(null);
@@ -114,6 +123,26 @@ export default function App() {
   const [settingsHasChanges, setSettingsHasChanges] = useState(false);
   const [isCleaningDocuments, setIsCleaningDocuments] = useState(false);
   
+
+  // Pre-warm audio for faster call initialization (Phase 2 optimization)
+  useEffect(() => {
+    if (user && contacts.length > 0) {
+      // Pre-initialize audio context after user logs in and has agents
+      // This gets microphone permission early so calls start instantly
+      const timer = window.setTimeout(() => {
+        console.log('🔥 Pre-warming audio context for instant calls...');
+        geminiLiveService.initialize().then((success) => {
+          if (success) {
+            console.log('✅ Audio pre-warmed! Next call will be instant (~50ms instead of ~1500ms)');
+          }
+        }).catch(() => {
+          console.log('⚠️ Audio pre-warm skipped (user may need to grant permission)');
+        });
+      }, 2000); // Wait 2 seconds after login to avoid blocking initial load
+      
+      return () => window.clearTimeout(timer);
+    }
+  }, [user, contacts]);
 
   // Update call duration
   useEffect(() => {
@@ -140,13 +169,19 @@ export default function App() {
 
     // Handle page visibility change (tab switch, window minimize)
     const handleVisibilityChange = async () => {
+      console.log(`👁️ Visibility changed: document.hidden = ${document.hidden}`);
+
       if (document.hidden) {
+        console.log('👋 Tab hidden - saving session without terminating');
+
         // Save note if there are unsaved changes when user switches away
         if (showNoteDocument && noteHasUnsavedChanges) {
           await saveNoteIfChanged();
         }
-        
+
         conversationSessionManager.handleScreenLeave();
+      } else {
+        console.log('👁️ Tab visible again - session should still be active');
       }
     };
 
@@ -315,61 +350,81 @@ export default function App() {
 
   // Load user data when authenticated
   useEffect(() => {
-    if (user && !dataLoading) {
-      loadUserData();
-      
-      // Register document generation callback for paper tool
-      geminiLiveService.onDocumentGeneration((document) => {
-        console.log('📄 Document generated from voice call:', {
-          contentLength: document.content.length,
-          wordCount: document.wordCount
-        });
-        
-        // Create a new document info object
-        const documentInfo: DocumentInfo = {
-          id: `voice-doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: `Voice Generated Document ${new Date().toLocaleString()}`,
-          type: 'text/markdown',
-          size: new Blob([document.content]).size,
-          uploadedAt: new Date(),
-          content: document.content,
-          summary: `Generated from voice call${document.wordCount ? ` (${document.wordCount} words)` : ''}`,
-          extractedText: document.content,
-          metadata: {
-            source: 'voice-call',
-            wordCount: document.wordCount,
-            generatedAt: new Date().toISOString()
-          }
-        };
-        
-        // Add to conversation documents - use a callback to get current state
-        setConversationDocuments(prev => {
-          // Find the currently active contact from the current state
-          const currentContactId = Object.keys(prev).find(id => 
-            prev[id] && prev[id].length >= 0 // Just check if this contact has a document array
-          ) || 'default';
-          
-          return {
-            ...prev,
-            [currentContactId]: [...(prev[currentContactId] || []), documentInfo]
+    console.log('👤 User effect triggered:', {
+      hasUser: !!user,
+      userId: user?.id,
+      email: user?.email,
+      dataLoading,
+      loadedUserId: loadedUserIdRef.current,
+      currentView,
+      callActive: callState.isActive
+    });
+
+    if (user) {
+      // Only load data if this is a different user than what we already loaded
+      // AND we're not in an active call (to prevent disrupting voice sessions)
+      if (loadedUserIdRef.current !== user.id && !dataLoading && !callState.isActive) {
+        console.log('🔄 New user detected - triggering loadUserData()');
+        loadedUserIdRef.current = user.id;
+        loadUserData();
+
+        // Register document generation callback for paper tool
+        geminiLiveService.onDocumentGeneration((document) => {
+          console.log('📄 Document generated from voice call:', {
+            contentLength: document.content.length,
+            wordCount: document.wordCount
+          });
+
+          // Create a new document info object
+          const documentInfo: DocumentInfo = {
+            id: `voice-doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: `Voice Generated Document ${new Date().toLocaleString()}`,
+            type: 'text/markdown',
+            size: new Blob([document.content]).size,
+            uploadedAt: new Date(),
+            content: document.content,
+            summary: `Generated from voice call${document.wordCount ? ` (${document.wordCount} words)` : ''}`,
+            extractedText: document.content,
+            metadata: {
+              source: 'voice-call',
+              wordCount: document.wordCount,
+              generatedAt: new Date().toISOString()
+            }
           };
+
+          // Add to conversation documents - use a callback to get current state
+          setConversationDocuments(prev => {
+            // Find the currently active contact from the current state
+            const currentContactId = Object.keys(prev).find(id =>
+              prev[id] && prev[id].length >= 0 // Just check if this contact has a document array
+            ) || 'default';
+
+            return {
+              ...prev,
+              [currentContactId]: [...(prev[currentContactId] || []), documentInfo]
+            };
+          });
+
+          console.log('✅ Document generated and will be added to active conversation');
         });
-        
-        console.log('✅ Document generated and will be added to active conversation');
-      });
-      
+      } else {
+        console.log('✅ Same user - skipping loadUserData() to prevent unmounting');
+      }
     } else if (!user) {
+      loadedUserIdRef.current = null;
       setContacts([]);
       setMessages([]);
       setConversationDocuments({});
-      
+
       // Save any active session before logout
       conversationSessionManager.handleAppClose();
-      
+
       // Clear callbacks when user logs out
       geminiLiveService.onDocumentGeneration(() => {});
+    } else if (user && loadedUserIdRef.current === user.id && callState.isActive) {
+      console.log('✅ Skipping loadUserData() - call is active');
     }
-  }, [user]);
+  }, [user, callState.isActive]);
 
   // Load messages for selected contact from database
   const loadMessagesFromDatabase = async (agentId: string) => {
@@ -680,78 +735,100 @@ export default function App() {
     });
     setCurrentView('call');
     
-    geminiLiveService.initialize().then(initialized => {
-      if (initialized) {
-        geminiLiveService.startSession(contact).then(() => {
-          setTimeout(() => {
-            setCallState(prev => ({ ...prev, status: 'connected' }));
-          }, 2000);
-        });
-      } else {
-        setTimeout(() => {
-          setCallState(prev => ({ ...prev, status: 'ended' }));
-          handleEndCall();
-        }, 2000);
-      }
-    });
+    // Note: Initialization is now handled entirely by CallScreen
+    // This eliminates duplicate initialization and 2-second artificial delay
+    // CallScreen will notify us via onCallReady when actually ready
+  };
+  
+  const handleCallReady = () => {
+    // Called by CallScreen when session is actually connected and listening
+    console.log('🎉 Call is ready and listening - instant!');
+    setCallState(prev => ({ ...prev, status: 'connected' }));
   };
 
   const handleEndCall = async () => {
-    try {
-      // Get conversation transcript from Gemini Live service before ending
-      if (selectedContact && user && geminiLiveService.hasConversationContent()) {
-        console.log(`🎙️ Voice call ending, getting transcript for memory extraction...`);
-        try {
-          const transcriptData = geminiLiveService.getConversationTranscript();
-          
-          if (transcriptData.length > 0) {
-            // Convert Gemini Live transcript to the format expected by conversationSessionManager
-            const transcript = {
-              messages: transcriptData.map(item => ({
-                id: item.messageId,
-                content: item.text,
-                role: item.speaker === 'user' ? 'user' : 'assistant',
-                text: item.text,
-                timestamp: item.timestamp.toISOString(),
-                metadata: {
-                  source: 'voice',
-                  conversationType: 'voice'
-                }
-              })),
-              metadata: {
-                started_at: transcriptData[0]?.timestamp?.toISOString(),
-                ended_at: transcriptData[transcriptData.length - 1]?.timestamp?.toISOString(),
-                total_messages: transcriptData.length
-              }
-            };
+    // Prevent multiple simultaneous end call operations
+    if (isEndingCall) {
+      console.log('⚠️ Call ending already in progress, ignoring duplicate click');
+      return;
+    }
 
-            // Save voice conversation and extract memories
-            await conversationSessionManager.saveVoiceConversation(
-              selectedContact,
-              user.id,
-              transcript
-            );
-            console.log(`✅ Voice conversation saved with ${transcript.messages.length} messages`);
-          } else {
-            console.log(`📝 Voice call had no transcript content to save`);
+    try {
+      setIsEndingCall(true);
+      console.log('📞 Starting call end process...');
+      
+      // Store contact reference before any async operations
+      const contactForChat = selectedContact;
+
+      // Update UI immediately for better responsiveness
+      setCallState(prev => ({
+        ...prev,
+        status: 'ended'
+      }));
+
+      // End the session (this handles cleanup)
+      await geminiLiveService.endSession();
+      
+      // Process transcript in background without blocking UI
+      if (contactForChat && user && geminiLiveService.hasConversationContent()) {
+        console.log(`🎙️ Processing transcript in background...`);
+        // Don't await - let it happen asynchronously
+        (async () => {
+          try {
+            const transcriptData = geminiLiveService.getConversationTranscript();
+            
+            if (transcriptData.length > 0) {
+              const transcript = {
+                messages: transcriptData.map(item => ({
+                  id: item.messageId,
+                  content: item.text,
+                  role: item.speaker === 'user' ? 'user' : 'assistant',
+                  text: item.text,
+                  timestamp: item.timestamp.toISOString(),
+                  metadata: {
+                    source: 'voice',
+                    conversationType: 'voice'
+                  }
+                })),
+                metadata: {
+                  started_at: transcriptData[0]?.timestamp?.toISOString(),
+                  ended_at: transcriptData[transcriptData.length - 1]?.timestamp?.toISOString(),
+                  total_messages: transcriptData.length
+                }
+              };
+
+              await conversationSessionManager.saveVoiceConversation(
+                contactForChat,
+                user.id,
+                transcript
+              );
+              console.log(`✅ Voice conversation saved with ${transcript.messages.length} messages`);
+            }
+          } catch (transcriptError) {
+            console.error('❌ Error processing voice transcript:', transcriptError);
           }
-        } catch (transcriptError) {
-          console.error('❌ Error processing voice transcript for memory extraction:', transcriptError);
-          // Continue ending call even if transcript fails
-        }
-      } else {
-        console.log(`📝 Voice call ending without transcript content`);
+        })();
       }
 
-      await geminiLiveService.endSession();
+      // Navigate to chat view with the same contact
       setCallState({
         isActive: false,
         duration: 0,
         isMuted: false,
         status: 'ended'
       });
-      setCurrentView('dashboard');
-      setSelectedContact(null);
+      
+      // Keep the contact selected and go to chat view
+      if (contactForChat) {
+        setSelectedContact(contactForChat);
+        setCurrentView('chat');
+      } else {
+        setCurrentView('dashboard');
+        setSelectedContact(null);
+      }
+      
+      console.log('✅ Call ended, navigated to chat');
+      
     } catch (error) {
       console.error('❌ Error ending call:', error);
       // Even if there are errors, still end the call
@@ -763,6 +840,11 @@ export default function App() {
       });
       setCurrentView('dashboard');
       setSelectedContact(null);
+    } finally {
+      // Reset the flag after a small delay to prevent rapid re-clicking
+      setTimeout(() => {
+        setIsEndingCall(false);
+      }, 500);
     }
   };
 
@@ -1624,6 +1706,8 @@ export default function App() {
                     showSidebar={showSidebar}
                     onToggleSidebar={handleToggleSidebar}
                     onNoteAdded={handleNoteAdded}
+                    isEndingCall={isEndingCall}
+                    onCallReady={handleCallReady}
                 />
             )}
 

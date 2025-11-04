@@ -3,6 +3,7 @@ import { AIContact } from '../../../core/types/types';
 import { integrationsService } from '../../integrations';
 import { documentContextService } from '../../fileManagement';
 import { voiceApiService } from '../../../core/services/voiceApiService';
+import { APP_CONFIG } from '../../../core/config';
 
 // Configuration for Gemini Live API
 interface GeminiLiveConfig {
@@ -86,10 +87,13 @@ class GeminiLiveService {
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
-    if (apiKey) {
+    if (apiKey && apiKey.trim().length > 0) {
       this.genAI = new GoogleGenAI({ apiKey });
+      console.log('✅ Gemini Live API initialized successfully');
     } else {
-      console.warn('Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file');
+      console.error('❌ Gemini API key not found! Voice calls will not work.');
+      console.error('📝 Please add VITE_GEMINI_API_KEY to your .env file');
+      console.error('💡 Get your API key from: https://aistudio.google.com/app/apikey');
     }
   }
 
@@ -222,31 +226,45 @@ class GeminiLiveService {
 
   /**
    * Initialize the audio context and request microphone permissions
+   * Idempotent - safe to call multiple times (reuses existing context)
    */
   public async initialize(): Promise<boolean> {
     try {
+      // Check if already initialized (Phase 2: reuse for instant calls)
+      if (this.audioContext && this.audioStream && this.audioStream.active) {
+        console.log("✅ Audio already initialized - reusing existing context (~instant)");
+        // Resume if suspended
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
+        return true;
+      }
+      
       console.log("🎤 Starting audio initialization...");
       
       // Initialize AudioContext with ULTRA LOW latency settings
-      this.audioContext = new AudioContext({
-        latencyHint: 'interactive',
-        sampleRate: 16000
-      });
-      
-      console.log("✅ AudioContext created");
+      if (!this.audioContext) {
+        this.audioContext = new AudioContext({
+          latencyHint: 'interactive',
+          sampleRate: 16000
+        });
+        console.log("✅ AudioContext created");
+      }
       
       // Request microphone permissions with ULTRA LOW latency
-      this.audioStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
+      if (!this.audioStream || !this.audioStream.active) {
+        this.audioStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
+        console.log("✅ Microphone access granted");
+      }
       
-      console.log("✅ Microphone access granted");
       console.log("🎤 Audio initialized with ULTRA-LOW latency");
       return true;
     } catch (error) {
@@ -263,8 +281,16 @@ class GeminiLiveService {
    */
   public async startSession(contact: AIContact): Promise<void> {
     try {
+      // Lazy initialization: try to initialize if not already done
       if (!this.genAI) {
-        throw new Error("Gemini API not initialized - check your API key");
+        const apiKey = APP_CONFIG.api.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
+        if (apiKey && apiKey.trim().length > 0) {
+          console.log('🔄 Lazy initializing Gemini API...');
+          this.genAI = new GoogleGenAI({ apiKey });
+          console.log('✅ Gemini API initialized successfully');
+        } else {
+          throw new Error("Gemini API not initialized - check your API key");
+        }
       }
 
       // Ensure audio is initialized - no polling needed
@@ -469,7 +495,11 @@ class GeminiLiveService {
         callbacks: {
           onopen: () => {
             console.log('✅ Live API session opened');
+            // Start audio capture and immediately update state
             this.startAudioCapture();
+            // Ensure listening state is set (defensive)
+            this.updateState('listening');
+            console.log('🎤 Audio capture started - now listening');
           },
           onmessage: (message: any) => {
             this.handleMessage(message);
@@ -913,11 +943,28 @@ class GeminiLiveService {
    * Start capturing and streaming audio with OPTIMAL settings for ultra-low latency
    */
   private startAudioCapture(): void {
-    if (!this.audioStream || !this.audioContext || !this.activeSession) {
+    if (!this.audioStream || !this.audioContext) {
+      console.error('❌ Cannot start audio capture - missing dependencies:', {
+        hasStream: !!this.audioStream,
+        hasContext: !!this.audioContext
+      });
       return;
     }
+    
+    // Note: activeSession is being assigned and will be available for sending audio
+    // We don't check it here because onopen fires before the assignment completes
 
     try {
+      // CRITICAL: Resume AudioContext if suspended (required after user interaction)
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        console.log('🎤 Resuming suspended AudioContext...');
+        this.audioContext.resume().then(() => {
+          console.log('✅ AudioContext resumed, state:', this.audioContext?.state);
+        });
+      } else if (this.audioContext) {
+        console.log('✅ AudioContext state:', this.audioContext.state);
+      }
+      
       // Starting audio capture
       this.isRecording = true;
       this.updateState('listening');
@@ -928,16 +975,24 @@ class GeminiLiveService {
       }
 
       // Create audio source from microphone
+      console.log('🎤 Creating audio source from microphone stream...');
       const source = this.audioContext.createMediaStreamSource(this.audioStream);
       this.audioSource = source;
+      console.log('✅ Audio source created');
       
       // Use ULTRA-LOW buffer size - 256 samples (16ms at 16kHz) for maximum responsiveness
       const processor = this.audioContext.createScriptProcessor(256, 1, 1);
       this.audioProcessor = processor;
       
+      let audioActivityCounter = 0;
       processor.onaudioprocess = (event) => {
-        if (!this.isRecording || !this.activeSession) {
+        if (!this.isRecording) {
           return;
+        }
+        
+        // activeSession will be set shortly after audio capture starts
+        if (!this.activeSession) {
+          return; // Silently skip until session is fully assigned
         }
 
         const inputData = event.inputBuffer.getChannelData(0);
@@ -955,23 +1010,34 @@ class GeminiLiveService {
           // Direct copy without extra allocation when possible
           const audioChunk = new Float32Array(inputData);
           this.audioChunks.push(audioChunk);
+          
+          // Log occasional audio activity (every ~100 chunks = ~1.6 seconds)
+          audioActivityCounter++;
+          if (audioActivityCounter % 100 === 0) {
+            console.log(`🎤 Microphone is capturing audio (chunk #${audioActivityCounter})`);
+          }
         }
       };
 
       // Connect audio processing chain
+      console.log('🔌 Connecting audio processing chain...');
       source.connect(processor);
       processor.connect(this.audioContext.destination);
+      console.log('✅ Audio chain connected: microphone → processor → destination');
 
       // Send audio chunks every 16ms for MAXIMUM responsiveness - ZERO LATENCY PATH
+      console.log('⏱️ Starting 16ms audio processing interval...');
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
         // COMPLETELY DISABLE automatic buffer management during audio processing
         // Only clean up when session ends or is explicitly stopped
         // This prevents any chance of cutting off speech mid-sentence
       }, 16);
+      
+      console.log('✅ Audio capture fully started and processing');
 
     } catch (error) {
-      console.error("Error starting audio capture:", error);
+      console.error("❌ Error starting audio capture:", error);
       this.isRecording = false;
       this.updateState('idle');
     }
@@ -990,6 +1056,7 @@ class GeminiLiveService {
       const chunksToSend = [...this.audioChunks];
       this.audioChunks = []; // Clear immediately
       
+      let totalSent = 0;
       for (const chunk of chunksToSend) {
         // Convert individual chunk directly
         const pcmData = this.fastConvertToPCM16(chunk);
@@ -1008,6 +1075,12 @@ class GeminiLiveService {
             mimeType: "audio/pcm;rate=16000"
           }
         });
+        totalSent++;
+      }
+      
+      // Log audio activity every 60 chunks (~1 second of audio)
+      if (totalSent > 0 && Math.random() < 0.05) {  // Log 5% of the time to avoid spam
+        console.log(`🎤 Sent ${totalSent} audio chunks to Gemini`);
       }
 
     } catch (error) {
@@ -1646,7 +1719,8 @@ class GeminiLiveService {
     this.currentContact = null;
     this.lastPaperHash = '';
     this.currentPaperContent = null;
-    this.genAI = null;
+    // NOTE: DO NOT clear this.genAI - it's needed for subsequent calls!
+    // The genAI client can be reused across multiple sessions
     
     // Clear callbacks and document generation tracking
     this.onResponseCallback = null;
@@ -1658,7 +1732,7 @@ class GeminiLiveService {
     this.documentGenerationInProgress.clear();
     this.lastDocumentGenerationTime = 0;
     
-    console.log("✅ Gemini Live service completely shut down - All memory freed");
+    console.log("✅ Gemini Live service completely shut down - All memory freed (API client preserved for reuse)");
   }
 
   // Conversation session methods removed for simple voice calls
@@ -2003,9 +2077,9 @@ Please reference this information in our ongoing conversation.`;
   }
 }
 
-// Export singleton instance
+// Export singleton instance with proper API key from config
 export const geminiLiveService = new GeminiLiveService({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+  apiKey: APP_CONFIG.api.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY || '',
   model: 'gemini-live-2.5-flash-preview',
   temperature: 0.9,
 });
