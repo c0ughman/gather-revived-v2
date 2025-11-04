@@ -338,7 +338,7 @@ export default function CallScreen({
       case 'idle':
         return 'text-slate-400';
       case 'listening':
-        return 'text-[#186799]';
+        return 'text-green-400';
       case 'processing':
         return 'text-yellow-400';
       case 'responding':
@@ -566,9 +566,7 @@ export default function CallScreen({
             className={`w-40 h-40 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
               pulseAnimation ? 'animate-pulse scale-110' : ''
             } ${
-              serviceState === 'listening' && callState.status === 'connected' ? 'ring-4 ring-green-500 ring-opacity-75' : ''
-            } ${
-              serviceState === 'listening' && callState.status === 'connecting' ? 'ring-4 ring-[#186799] ring-opacity-75 animate-pulse' : ''
+              serviceState === 'listening' ? 'ring-4 ring-green-500 ring-opacity-75' : ''
             } ${
               serviceState === 'responding' ? 'ring-4 ring-green-400 ring-opacity-75' : ''
             } ${
@@ -603,16 +601,9 @@ export default function CallScreen({
             </>
           )}
 
-          {/* State indicators */}
-          {serviceState === 'listening' && callState.status === 'connected' && (
+          {/* State indicators - seamless green for all listening states */}
+          {serviceState === 'listening' && (
             <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-pulse shadow-lg">
-              <Mic className="w-4 h-4 text-white" />
-            </div>
-          )}
-          
-          {/* Optimistic buffering indicator - shown when listening but not yet connected */}
-          {serviceState === 'listening' && callState.status === 'connecting' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#186799] rounded-full flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
               <Mic className="w-4 h-4 text-white" />
             </div>
           )}
@@ -641,21 +632,12 @@ export default function CallScreen({
         {/* Status Indicator */}
         <div className="mb-8">
           <div className={`px-6 py-3 rounded-full bg-slate-800 border ${
-            callState.status === 'connected' ? 'border-green-500' : 'border-slate-600'
+            serviceState === 'listening' ? 'border-green-500' : 'border-slate-600'
           }`}>
             <span className={`text-lg font-medium ${getServiceStateColor()}`}>
               {getServiceStateText()}
             </span>
           </div>
-          
-          {/* Optimistic buffering indicator */}
-          {serviceState === 'listening' && callState.status === 'connecting' && (
-            <div className="mt-3 flex items-center justify-center space-x-2 text-[#186799] text-sm animate-pulse">
-              <div className="w-2 h-2 bg-[#186799] rounded-full"></div>
-              <span>Capturing audio (buffering until connected)</span>
-              <div className="w-2 h-2 bg-[#186799] rounded-full"></div>
-            </div>
-          )}
         </div>
         
         {/* Response Text */}
