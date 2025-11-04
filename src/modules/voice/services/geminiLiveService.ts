@@ -75,6 +75,11 @@ class GeminiLiveService {
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
   
+  // Optimistic audio buffering - Phase 3 (Option 4)
+  private preSessionAudioBuffer: Float32Array[] = [];
+  private isBufferingPreSession: boolean = false;
+  private maxPreSessionBufferSize: number = 500; // ~8 seconds of audio at 16ms chunks
+  
   // State management to prevent rapid flipping
   private currentState: 'idle' | 'listening' | 'processing' | 'responding' = 'idle';
   private stateChangeTimeout: number | null = null;
@@ -324,6 +329,12 @@ class GeminiLiveService {
       this.currentAiTranscription = '';
       console.log('🗣️ Started new conversation transcript for voice call');
       
+      // Phase 3 (Option 4): Start audio capture IMMEDIATELY for optimistic buffering
+      // This allows user to start talking while Gemini connection is being established
+      console.log('🎤 Starting OPTIMISTIC audio capture - user can talk immediately!');
+      this.startAudioCapture();
+      console.log('✅ Audio capture active - buffering will begin if user talks during connection');
+      
       // Transcription is now handled by Gemini Live API directly
 
       // Removed conversation session creation for simple voice calls
@@ -495,11 +506,45 @@ class GeminiLiveService {
         callbacks: {
           onopen: () => {
             console.log('✅ Live API session opened');
-            // Start audio capture and immediately update state
-            this.startAudioCapture();
-            // Ensure listening state is set (defensive)
+            
+            // Phase 3 (Option 4): Flush buffered audio immediately
+            if (this.preSessionAudioBuffer.length > 0) {
+              const bufferedSeconds = (this.preSessionAudioBuffer.length * 16 / 1000).toFixed(2);
+              console.log(`🚀 FLUSHING BUFFERED AUDIO: ${this.preSessionAudioBuffer.length} chunks (~${bufferedSeconds}s) captured during connection`);
+              
+              // Send all buffered chunks immediately
+              let sentCount = 0;
+              for (const chunk of this.preSessionAudioBuffer) {
+                try {
+                  const pcmData = this.fastConvertToPCM16(chunk);
+                  if (pcmData.length > 0) {
+                    const base64Audio = this.fastPcmToBase64(pcmData);
+                    this.activeSession.sendRealtimeInput({
+                      audio: {
+                        data: base64Audio,
+                        mimeType: "audio/pcm;rate=16000"
+                      }
+                    });
+                    sentCount++;
+                  }
+                } catch (error) {
+                  console.error('❌ Error sending buffered chunk:', error);
+                }
+              }
+              
+              console.log(`✅ Successfully sent ${sentCount}/${this.preSessionAudioBuffer.length} buffered chunks - NO AUDIO LOST!`);
+              
+              // Clear buffer after sending
+              this.preSessionAudioBuffer = [];
+              this.isBufferingPreSession = false;
+            } else {
+              console.log('📭 No buffered audio - user was silent during connection');
+            }
+            
+            // Audio capture already started in startSession() for optimistic buffering
+            // Just ensure listening state is set
             this.updateState('listening');
-            console.log('🎤 Audio capture started - now listening');
+            console.log('🎤 Session ready - now processing audio in real-time');
           },
           onmessage: (message: any) => {
             this.handleMessage(message);
@@ -1045,14 +1090,43 @@ class GeminiLiveService {
 
   /**
    * Send audio chunks with MINIMAL batching for lowest latency
+   * Phase 3 (Option 4): Buffers audio optimistically before session is ready
    */
   private async sendAudioChunks(): Promise<void> {
-    if (!this.activeSession || this.audioChunks.length === 0 || !this.isRecording) {
+    if (this.audioChunks.length === 0 || !this.isRecording) {
+      return;
+    }
+
+    // OPTIMISTIC BUFFERING: If session isn't ready yet, buffer the audio
+    if (!this.activeSession) {
+      // Move chunks to pre-session buffer
+      const chunksToBuffer = [...this.audioChunks];
+      this.audioChunks = [];
+      
+      for (const chunk of chunksToBuffer) {
+        this.preSessionAudioBuffer.push(chunk);
+        
+        // Prevent buffer overflow (keep last N chunks)
+        if (this.preSessionAudioBuffer.length > this.maxPreSessionBufferSize) {
+          this.preSessionAudioBuffer.shift(); // Remove oldest chunk
+        }
+      }
+      
+      // Log buffering status occasionally
+      if (!this.isBufferingPreSession) {
+        this.isBufferingPreSession = true;
+        console.log(`🔵 Optimistic buffering active - capturing audio before session ready`);
+      }
+      
+      if (this.preSessionAudioBuffer.length % 50 === 0) {
+        console.log(`📦 Buffered ${this.preSessionAudioBuffer.length} audio chunks (~${(this.preSessionAudioBuffer.length * 16 / 1000).toFixed(2)}s of audio)`);
+      }
+      
       return;
     }
 
     try {
-      // Send chunks individually for ZERO batching latency
+      // Session is ready - send chunks immediately
       const chunksToSend = [...this.audioChunks];
       this.audioChunks = []; // Clear immediately
       
@@ -1557,6 +1631,13 @@ class GeminiLiveService {
     
     // Clear all audio buffers to free memory
     this.clearAudioBuffers();
+    
+    // Phase 3 (Option 4): Clear optimistic audio buffer
+    if (this.preSessionAudioBuffer.length > 0) {
+      console.log(`🧹 Clearing ${this.preSessionAudioBuffer.length} pre-session audio chunks`);
+      this.preSessionAudioBuffer = [];
+      this.isBufferingPreSession = false;
+    }
     
     // Now it's safe to do a thorough cleanup since session is ending
     this.safeBufferCleanup();

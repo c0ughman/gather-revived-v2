@@ -67,6 +67,10 @@ export default function CallScreen({
       console.log(`🎯 Initializing call for contact: ${contact.id}`);
       setPulseAnimation(true);
       
+      // Phase 3 (Option 4): Show "Listening..." IMMEDIATELY for optimistic UI
+      setServiceState('listening');
+      console.log('🎤 OPTIMISTIC UI: Showing "Listening..." immediately - audio buffering active');
+      
       // Clear document history for new call
       setDocumentHistory([]);
       setCurrentDocumentIndex(-1);
