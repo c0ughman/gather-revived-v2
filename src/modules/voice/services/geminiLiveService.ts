@@ -501,49 +501,61 @@ class GeminiLiveService {
         // as ephemeral tokens require special handling
       }
 
+      // Store reference to this for use in callbacks (to avoid timing issues)
+      const self = this;
+      
       this.activeSession = await sessionGenAI.live.connect({
         ...connectConfig,
         callbacks: {
           onopen: () => {
             console.log('✅ Live API session opened');
             
-            // Phase 3 (Option 4): Flush buffered audio immediately
-            if (this.preSessionAudioBuffer.length > 0) {
-              const bufferedSeconds = (this.preSessionAudioBuffer.length * 16 / 1000).toFixed(2);
-              console.log(`🚀 FLUSHING BUFFERED AUDIO: ${this.preSessionAudioBuffer.length} chunks (~${bufferedSeconds}s) captured during connection`);
-              
-              // Send all buffered chunks immediately
-              let sentCount = 0;
-              for (const chunk of this.preSessionAudioBuffer) {
-                try {
-                  const pcmData = this.fastConvertToPCM16(chunk);
-                  if (pcmData.length > 0) {
-                    const base64Audio = this.fastPcmToBase64(pcmData);
-                    this.activeSession.sendRealtimeInput({
-                      audio: {
-                        data: base64Audio,
-                        mimeType: "audio/pcm;rate=16000"
+            // Phase 3 (Option 4): Flush buffered audio after a tiny delay
+            // This ensures activeSession assignment completes (race condition fix)
+            setTimeout(() => {
+              if (self.preSessionAudioBuffer.length > 0) {
+                const bufferedSeconds = (self.preSessionAudioBuffer.length * 16 / 1000).toFixed(2);
+                console.log(`🚀 FLUSHING BUFFERED AUDIO: ${self.preSessionAudioBuffer.length} chunks (~${bufferedSeconds}s) captured during connection`);
+                
+                // Send all buffered chunks immediately
+                let sentCount = 0;
+                for (const chunk of self.preSessionAudioBuffer) {
+                  try {
+                    const pcmData = self.fastConvertToPCM16(chunk);
+                    if (pcmData.length > 0) {
+                      const base64Audio = self.fastPcmToBase64(pcmData);
+                      
+                      // Double-check activeSession is available
+                      if (self.activeSession) {
+                        self.activeSession.sendRealtimeInput({
+                          audio: {
+                            data: base64Audio,
+                            mimeType: "audio/pcm;rate=16000"
+                          }
+                        });
+                        sentCount++;
+                      } else {
+                        console.warn('⚠️ Session not ready yet, skipping buffered chunk');
                       }
-                    });
-                    sentCount++;
+                    }
+                  } catch (error) {
+                    console.error('❌ Error sending buffered chunk:', error);
                   }
-                } catch (error) {
-                  console.error('❌ Error sending buffered chunk:', error);
                 }
+                
+                console.log(`✅ Successfully sent ${sentCount}/${self.preSessionAudioBuffer.length} buffered chunks - NO AUDIO LOST!`);
+                
+                // Clear buffer after sending
+                self.preSessionAudioBuffer = [];
+                self.isBufferingPreSession = false;
+              } else {
+                console.log('📭 No buffered audio - user was silent during connection');
               }
-              
-              console.log(`✅ Successfully sent ${sentCount}/${this.preSessionAudioBuffer.length} buffered chunks - NO AUDIO LOST!`);
-              
-              // Clear buffer after sending
-              this.preSessionAudioBuffer = [];
-              this.isBufferingPreSession = false;
-            } else {
-              console.log('📭 No buffered audio - user was silent during connection');
-            }
+            }, 10); // 10ms delay to ensure activeSession assignment completes
             
             // Audio capture already started in startSession() for optimistic buffering
             // Just ensure listening state is set
-            this.updateState('listening');
+            self.updateState('listening');
             console.log('🎤 Session ready - now processing audio in real-time');
           },
           onmessage: (message: any) => {
