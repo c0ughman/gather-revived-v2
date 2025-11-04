@@ -1035,10 +1035,9 @@ class GeminiLiveService {
           return;
         }
         
-        // activeSession will be set shortly after audio capture starts
-        if (!this.activeSession) {
-          return; // Silently skip until session is fully assigned
-        }
+        // Phase 3 (Option 4): Don't skip chunks when session isn't ready
+        // Let sendAudioChunks() handle buffering via preSessionAudioBuffer
+        // This allows optimistic audio capture before Gemini connects
 
         const inputData = event.inputBuffer.getChannelData(0);
         
