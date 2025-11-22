@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Settings, Volume2, VolumeX, MoreVertical, FileText, MessageSquare } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { ArrowLeft, Mic, MicOff, PhoneOff, Pause, Plus, MoreVertical, FileText } from 'lucide-react';
 import { AIContact } from '../../../core/types/types';
 import { CallState } from '../types/voice';
 import { geminiLiveService } from '../services/geminiLiveService';
@@ -36,7 +36,6 @@ export default function CallScreen({
   const [serviceState, setServiceState] = useState<'idle' | 'listening' | 'processing' | 'responding'>('idle');
   const [documentContent, setDocumentContent] = useState<string>("");
   const [showDocument, setShowDocument] = useState(false);
-  const [documentWordCount, setDocumentWordCount] = useState<number | undefined>(undefined);
   const [isGeneratingDocument, setIsGeneratingDocument] = useState(false);
   const [documentHistory, setDocumentHistory] = useState<Array<{
     id: string;
@@ -45,8 +44,8 @@ export default function CallScreen({
     timestamp: Date;
   }>>([]);
   const [currentDocumentIndex, setCurrentDocumentIndex] = useState<number>(-1);
+  const [isPaused, setIsPaused] = useState(false);
   const pendingPaperUpdateRef = useRef<{ content: string, hasChanged: boolean } | null>(null);
-  const [currentEditorContent, setCurrentEditorContent] = useState<string>("");
   const currentEditorContentRef = useRef<string>("");
   const serviceInitialized = useRef(false);
   const initializationInProgress = useRef(false);
@@ -76,7 +75,6 @@ export default function CallScreen({
       setCurrentDocumentIndex(-1);
       setShowDocument(false);
       setDocumentContent("");
-      setDocumentWordCount(undefined);
       setIsGeneratingDocument(false);
       
       // Initialize the Gemini Live service when call is connecting
@@ -140,8 +138,6 @@ export default function CallScreen({
             
             // Show the new document
             setDocumentContent(document.content);
-            setDocumentWordCount(document.wordCount);
-            setCurrentEditorContent(document.content);
             currentEditorContentRef.current = document.content;
             setShowDocument(true);
           });
@@ -266,11 +262,11 @@ export default function CallScreen({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showDocument, documentHistory.length, currentDocumentIndex]);
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    if (callState.status === 'ended') {
+      setIsPaused(false);
+    }
+  }, [callState.status]);
 
   const sendDocumentToAI = async (content: string) => {
     if (!content || !content.trim()) {
@@ -289,32 +285,6 @@ export default function CallScreen({
       console.log('✅ Document update sent to AI successfully');
     } catch (error) {
       console.error('❌ Failed to send document update to AI:', error);
-    }
-  };
-
-  const getStatusText = () => {
-    switch (callState.status) {
-      case 'connecting':
-        return 'Connecting...';
-      case 'connected':
-        return 'Connected';
-      case 'ended':
-        return 'Call Ended';
-      default:
-        return 'Unknown';
-    }
-  };
-
-  const getStatusColor = () => {
-    switch (callState.status) {
-      case 'connecting':
-        return 'text-yellow-400';
-      case 'connected':
-        return 'text-green-400';
-      case 'ended':
-        return 'text-red-400';
-      default:
-        return 'text-slate-400';
     }
   };
 
@@ -349,9 +319,7 @@ export default function CallScreen({
   };
 
   const handleMicToggle = async () => {
-    if (callState.status === 'connected') {
-      onToggleMute();
-    }
+    onToggleMute();
   };
 
   const handleEndCall = () => {
@@ -364,6 +332,16 @@ export default function CallScreen({
     if (onToggleSidebar) {
       onToggleSidebar();
     }
+  };
+
+  const handleViewLatestDocument = () => {
+    if (documentHistory.length > 0) {
+      showDocumentAtIndex(documentHistory.length - 1);
+    }
+  };
+
+  const handlePauseToggle = () => {
+    setIsPaused((prev) => !prev);
   };
 
   const createAgentGradient = (color: string) => {
@@ -383,7 +361,6 @@ export default function CallScreen({
   const handleCloseDocument = () => {
     setShowDocument(false);
     setDocumentContent("");
-    setDocumentWordCount(undefined);
     setIsGeneratingDocument(false);
     setCurrentDocumentIndex(-1);
   };
@@ -420,9 +397,7 @@ export default function CallScreen({
     if (index >= 0 && index < documentHistory.length) {
       const doc = documentHistory[index];
       setDocumentContent(doc.content);
-      setDocumentWordCount(doc.wordCount);
       setCurrentDocumentIndex(index);
-      setCurrentEditorContent(doc.content);
       currentEditorContentRef.current = doc.content;
       setShowDocument(true);
     }
@@ -433,7 +408,6 @@ export default function CallScreen({
     setDocumentContent(newContent);
     
     // Always track current editor content for voice integration
-    setCurrentEditorContent(newContent);
     currentEditorContentRef.current = newContent;
     
     // Update the document in history
@@ -512,6 +486,8 @@ export default function CallScreen({
 
   // Calculate main content width based on sidebar visibility
   const mainContentClass = showSidebar ? "w-full" : "w-full";
+  const canToggleSidebar = Boolean(onToggleSidebar);
+  const latestDocumentAvailable = documentHistory.length > 0;
 
   return (
     <div className="h-full bg-glass-bg flex flex-col relative">
@@ -535,7 +511,7 @@ export default function CallScreen({
       )}
 
       {/* Header */}
-      <div className="p-6 flex items-center justify-between border-b border-slate-700 bg-glass-panel glass-effect">
+      <div className="p-6 flex items-center justify-between border-b border-structural-strong bg-glass-panel glass-effect">
         <button
           onClick={onBack}
           className="p-3 rounded-full hover:bg-slate-800 transition-colors duration-200"
@@ -545,8 +521,8 @@ export default function CallScreen({
         
         <div className="text-center">
           <h2 className="text-white text-xl font-semibold">{contact.name}</h2>
-          <p className={`text-sm font-medium ${getStatusColor()}`}>
-            {getStatusText()}
+          <p className={`text-sm font-medium ${getServiceStateColor()}`}>
+            {getServiceStateText()}
           </p>
         </div>
         
@@ -561,16 +537,10 @@ export default function CallScreen({
       {/* Main Call Area */}
       <div className={`flex-1 flex flex-col items-center justify-center px-8 ${mainContentClass}`}>
         {/* Avatar */}
-        <div className="relative mb-8">
+        <div className="relative mb-10">
           <div
-            className={`w-40 h-40 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
+            className={`w-56 h-56 rounded-3xl flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
               pulseAnimation ? 'animate-pulse scale-110' : ''
-            } ${
-              serviceState === 'listening' ? 'ring-4 ring-green-500 ring-opacity-75' : ''
-            } ${
-              serviceState === 'responding' ? 'ring-4 ring-green-400 ring-opacity-75' : ''
-            } ${
-              serviceState === 'processing' ? 'ring-4 ring-yellow-400 ring-opacity-75' : ''
             }`}
           >
             {contact.avatar ? (
@@ -587,91 +557,30 @@ export default function CallScreen({
             )}
           </div>
           
-          {/* Pulse rings for connecting state */}
-          {callState.status === 'connecting' && (
-            <>
-              <div 
-                className="absolute inset-0 rounded-2xl border-4 animate-ping opacity-50"
-                style={{ borderColor: contact.color }}
-              ></div>
-              <div 
-                className="absolute inset-0 rounded-2xl border-2 animate-ping opacity-30"
-                style={{ borderColor: contact.color, animationDelay: '0.5s' }}
-              ></div>
-            </>
-          )}
-
-          {/* State indicators - seamless green for all listening states */}
-          {serviceState === 'listening' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-pulse shadow-lg">
-              <Mic className="w-4 h-4 text-white" />
-            </div>
-          )}
-
-          {serviceState === 'responding' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
-              <Volume2 className="w-4 h-4 text-white" />
-            </div>
-          )}
-
-          {serviceState === 'processing' && (
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center animate-spin">
-              <div className="w-3 h-3 bg-white rounded-full"></div>
-            </div>
-          )}
         </div>
 
         {/* Contact Info */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{contact.name}</h1>
-          <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed ellipsis-2">
-            {contact.description}
-          </p>
-        </div>
-
-        {/* Status Indicator */}
-        <div className="mb-8">
-          <div className={`px-6 py-3 rounded-full bg-slate-800 border ${
-            serviceState === 'listening' ? 'border-green-500' : 'border-slate-600'
-          }`}>
-            <span className={`text-lg font-medium ${getServiceStateColor()}`}>
-              {getServiceStateText()}
-            </span>
-          </div>
+          {contact.description && (
+            <p className="text-slate-300 text-base max-w-md mx-auto leading-relaxed ellipsis-2">
+              {contact.description}
+            </p>
+          )}
         </div>
         
         {/* Response Text */}
         {responseText && callState.status === 'connected' && (
-          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border border-slate-700">
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg border-card">
             <p className="text-slate-300 text-sm italic">"{responseText}"</p>
-          </div>
-        )}
-
-        {/* Conversation Recording Hint */}
-        {callState.status === 'connected' && !showDocument && !isGeneratingDocument && (
-          <div className="mb-4 max-w-md bg-green-900 bg-opacity-30 p-3 rounded-lg border border-green-700">
-            <div className="flex items-center space-x-2 text-green-300 text-sm">
-              <MessageSquare className="w-4 h-4" />
-              <span>This conversation will be saved to past chats</span>
-            </div>
-          </div>
-        )}
-
-        {/* Document Generation Hint */}
-        {callState.status === 'connected' && !showDocument && !isGeneratingDocument && (
-          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-50 p-4 rounded-lg border border-slate-700">
-            <div className="flex items-center space-x-2 text-slate-400 text-sm">
-              <FileText className="w-4 h-4" />
-              <span>Say "write that down" or "put that on paper" to generate documents</span>
-            </div>
           </div>
         )}
 
         {/* Document Generation Indicator */}
         {isGeneratingDocument && (
-          <div className="mb-8 max-w-md bg-blue-900 bg-opacity-50 p-4 rounded-lg border border-blue-700">
+          <div className="mb-8 max-w-md bg-blue-900 bg-opacity-50 p-4 rounded-lg border-status-info">
             <div className="flex items-center space-x-2 text-blue-300 text-sm">
-              <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-4 h-4 border-spinner-blue rounded-full animate-spin"></div>
               <span>Generating your document...</span>
             </div>
           </div>
@@ -679,7 +588,7 @@ export default function CallScreen({
 
         {/* Document History Indicator */}
         {documentHistory.length > 0 && !showDocument && !isGeneratingDocument && (
-          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-50 p-4 rounded-lg border border-slate-700">
+          <div className="mb-8 max-w-md bg-slate-800 bg-opacity-50 p-4 rounded-lg border-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-slate-300 text-sm">
                 <FileText className="w-4 h-4" />
@@ -687,7 +596,7 @@ export default function CallScreen({
               </div>
               <button
                 onClick={() => showDocumentAtIndex(documentHistory.length - 1)}
-                className="text-xs text-[#186799] hover:text-[#1a5a7a] px-2 py-1 rounded border border-slate-600 hover:border-slate-500 transition-colors duration-200"
+                className="text-xs text-[#186799] hover:text-[#1a5a7a] px-2 py-1 rounded border-control border-control-hover"
               >
                 View Latest
               </button>
@@ -697,64 +606,85 @@ export default function CallScreen({
       </div>
 
       {/* Call Controls */}
-      <div className="pb-8 px-8">
-        <div className="flex items-center justify-center space-x-6">
-          {/* Mute Button */}
-          <button
-            onClick={handleMicToggle}
-            disabled={callState.status !== 'connected'}
-            className={`p-4 rounded-full transition-all duration-200 ${
-              callState.isMuted
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-slate-700 hover:bg-slate-600'
-            } ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
-            } shadow-lg hover:shadow-xl hover:scale-105`}
-          >
-            {callState.isMuted ? (
-              <MicOff className="w-6 h-6 text-white" />
-            ) : (
-              <Mic className="w-6 h-6 text-white" />
-            )}
-          </button>
+      <div className="pb-8 px-0">
+        <div className="w-full flex justify-center">
+          <div className="bg-slate-900/70 border-card rounded-3xl px-[5px] py-3 w-fit">
+            <div className="grid grid-cols-5 gap-[20px]">
+              <button
+                onClick={toggleSidebar}
+                disabled={!canToggleSidebar}
+                aria-label="Add action"
+                className={`w-16 h-16 mx-auto flex items-center justify-center rounded-full transition-all duration-200 ${
+                  canToggleSidebar
+                    ? 'bg-slate-700 hover:bg-slate-600 shadow-lg hover:shadow-xl hover:scale-105'
+                    : 'bg-slate-700 opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <Plus className="w-6 h-6 text-white" />
+              </button>
 
-          {/* End Call Button */}
-          <button
-            onClick={handleEndCall}
-            disabled={isEndingCall}
-            className={`p-6 rounded-full transition-all duration-200 shadow-lg group ${
-              isEndingCall 
-                ? 'bg-red-800 opacity-50 cursor-not-allowed' 
-                : 'bg-red-600 hover:bg-red-700 hover:shadow-xl hover:scale-105'
-            }`}
-          >
-            {isEndingCall ? (
-              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <PhoneOff className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
-            )}
-          </button>
+              <button
+                onClick={handleViewLatestDocument}
+                aria-label="Open notes"
+                className={`w-16 h-16 mx-auto flex items-center justify-center rounded-full transition-all duration-200 ${
+                  latestDocumentAvailable
+                    ? 'bg-slate-700 hover:bg-slate-600 shadow-lg hover:shadow-xl hover:scale-105'
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 shadow-lg hover:shadow-xl hover:scale-105'
+                }`}
+              >
+                {isGeneratingDocument ? (
+                  <div className="w-8 h-8 border-spinner-blue rounded-full animate-spin"></div>
+                ) : (
+                  <FileText className="w-6 h-6 text-white" />
+                )}
+              </button>
 
-          {/* Speaker Button */}
-          <button
-            disabled={callState.status !== 'connected'}
-            className={`p-4 rounded-full bg-slate-700 hover:bg-slate-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 ${
-              callState.status !== 'connected' ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <Volume2 className="w-6 h-6 text-white" />
-          </button>
-        </div>
+              <button
+                onClick={handlePauseToggle}
+                aria-label={isPaused ? 'Resume call' : 'Pause call'}
+                className={`group w-16 h-16 mx-auto flex items-center justify-center rounded-full transition-all duration-200 ${
+                  isPaused
+                    ? 'bg-amber-500 hover:bg-amber-600 shadow-lg hover:shadow-xl hover:scale-105'
+                    : 'bg-slate-700 hover:bg-slate-600 shadow-lg hover:shadow-xl hover:scale-105'
+                }`}
+              >
+                <Pause className="w-6 h-6 text-white" />
+              </button>
 
-        {/* Control Labels */}
-        <div className="flex items-center justify-center space-x-6 mt-4">
-          <span className="text-slate-400 text-sm w-16 text-center">
-            {callState.isMuted ? 'Unmute' : 'Mute'}
-          </span>
-          <span className="text-slate-400 text-sm w-20 text-center">
-            {isEndingCall ? 'Ending...' : 'End Call'}
-          </span>
-          <span className="text-slate-400 text-sm w-16 text-center">Speaker</span>
+              <button
+                onClick={handleMicToggle}
+                aria-label={callState.isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                className={`group w-16 h-16 mx-auto flex items-center justify-center rounded-full transition-all duration-200 ${
+                  callState.isMuted
+                    ? 'bg-red-600 hover:bg-red-700 shadow-lg hover:shadow-xl hover:scale-105'
+                    : 'bg-slate-700 hover:bg-slate-600 shadow-lg hover:shadow-xl hover:scale-105'
+                }`}
+              >
+                {callState.isMuted ? (
+                  <MicOff className="w-6 h-6 text-white" />
+                ) : (
+                  <Mic className="w-6 h-6 text-white" />
+                )}
+              </button>
+
+              <button
+                onClick={handleEndCall}
+                disabled={isEndingCall}
+                aria-label="End call"
+                className={`group w-16 h-16 mx-auto flex items-center justify-center rounded-full transition-all duration-200 ${
+                  isEndingCall
+                    ? 'bg-red-800 opacity-50 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 shadow-lg hover:shadow-xl hover:scale-105'
+                }`}
+              >
+                {isEndingCall ? (
+                  <div className="w-8 h-8 border-spinner-white rounded-full animate-spin"></div>
+                ) : (
+                  <PhoneOff className="w-7 h-7 text-white transition-transform duration-200 group-hover:rotate-12" />
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

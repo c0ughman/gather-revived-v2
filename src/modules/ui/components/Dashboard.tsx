@@ -36,7 +36,6 @@ interface DashboardProps {
   onNewChatClick: (contact: AIContact) => void;
   onCreateAgent: () => void;
   onCreateFromTemplate?: (template: AgentTemplate) => void;
-  onAddMockMemory?: (agentId: string) => Promise<void>;
 }
 
 export default function Dashboard({ 
@@ -47,8 +46,7 @@ export default function Dashboard({
   onSettingsClick,
   onNewChatClick,
   onCreateAgent,
-  onCreateFromTemplate,
-  onAddMockMemory
+  onCreateFromTemplate
 }: DashboardProps) {
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [integrationSearchQuery, setIntegrationSearchQuery] = useState('');
@@ -186,7 +184,7 @@ export default function Dashboard({
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || 'User'}</h1>
+                    <h1 className="text-4xl font-bold text-white">Good morning, {user?.email?.split('@')[0] || ''}</h1>
                     <SubscriptionBadge />
                   </div>
                   <p className="text-slate-400 text-lg">Ready to chat with your AI companions?</p>
@@ -205,9 +203,9 @@ export default function Dashboard({
                     </button>
                     
                     {showProfileDropdown && (
-                      <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50">
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg border-control shadow-lg z-50">
                         <div className="p-2">
-                          <div className="px-3 py-2 border-b border-slate-600 mb-2">
+                          <div className="px-3 py-2 border-b border-structural-strong mb-2">
                             <p className="text-white text-sm font-medium truncate">{user?.email?.split('@')[0]}</p>
                             <p className="text-slate-400 text-xs truncate">{user?.email}</p>
                           </div>
@@ -235,7 +233,7 @@ export default function Dashboard({
 
             {/* Stats Grid */}
             <div className="grid grid-cols-4 gap-4 mb-8">
-              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-structural">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-xl bg-[#186799]/20">
                     <Users className="w-5 h-5 text-[#186799]" />
@@ -246,7 +244,7 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-structural">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-xl bg-green-600/10">
                     <CheckCircle2 className="w-5 h-5 text-green-300" />
@@ -257,7 +255,7 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-structural">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-xl bg-purple-600/10">
                     <Grid3x3 className="w-5 h-5 text-purple-300" />
@@ -268,7 +266,7 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-slate-700/50">
+              <div className="bg-glass-panel/50 glass-effect rounded-2xl p-4 border border-structural">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-xl bg-orange-600/10">
                     <Zap className="w-5 h-5 text-orange-300" />
@@ -304,26 +302,26 @@ export default function Dashboard({
             </div>
             
             {contacts.length === 0 ? (
-              <div className="bg-glass-panel glass-effect rounded-2xl p-8 border border-slate-700 text-center">
-                <div className="w-24 h-24 bg-gradient-to-r from-[#186799] to-purple-600 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                  <Bot className="w-12 h-12 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-4">Create Your First AI Agent</h3>
-                <p className="text-slate-400 text-lg mb-6 max-w-md mx-auto">
-                  Start by creating a personalized AI assistant. Choose from our templates below or build your own from scratch.
-                </p>
-                <button
-                  onClick={onCreateAgent}
-                  className="px-6 py-3 bg-gradient-to-r from-[#186799] to-purple-600 hover:from-[#1a5a7a] hover:to-purple-700 text-white rounded-full font-semibold transition-all duration-200 transform hover:scale-105"
-                >
-                  Create Your First Agent
-                </button>
+              /* Skeleton loaders for agent cards */
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-glass-panel glass-effect rounded-2xl p-6 border-card">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="skeleton w-32 h-32 rounded-2xl"></div>
+                      <div className="w-full space-y-2">
+                        <div className="skeleton h-5 w-24 mx-auto"></div>
+                        <div className="skeleton h-3 w-full"></div>
+                        <div className="skeleton h-3 w-3/4 mx-auto"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {frequentAgents.map((agent) => (
                   <div key={agent.id} className="group relative">
-                    <div className="bg-glass-panel glass-effect rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:transform hover:scale-105 h-full">
+                    <div className="bg-glass-panel glass-effect rounded-2xl p-6 border-card border-card-hover transition-all duration-200 hover:transform hover:scale-105 h-full">
                       <div className="flex flex-col items-center text-center space-y-4 h-full">
                         <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden">
                           {agent.avatar ? (
@@ -386,15 +384,6 @@ export default function Dashboard({
                             <Sliders className="w-4 h-4 mx-auto" />
                           </button>
                         </div>
-                        {onAddMockMemory && (
-                          <button 
-                            onClick={() => onAddMockMemory(agent.id)}
-                            className="w-full mt-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-1 px-2 transition-colors"
-                            title="Add mock memory data for testing"
-                          >
-                            🧠 Add Test Memory
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -414,7 +403,7 @@ export default function Dashboard({
                   placeholder="Search templates..."
                   value={agentSearchQuery}
                   onChange={(e) => setAgentSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-[#186799] focus:outline-none"
+                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect rounded-lg text-white placeholder-slate-400 border-control focus-border-brand"
                 />
               </div>
             </div>
@@ -422,7 +411,7 @@ export default function Dashboard({
             {loadingTemplates ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 animate-pulse">
+                  <div key={i} className="bg-glass-panel glass-effect rounded-xl p-6 border-card animate-pulse">
                     <div className="flex items-start space-x-4">
                       <div className="w-16 h-16 bg-slate-600 rounded-xl"></div>
                       <div className="flex-1 space-y-2">
@@ -437,7 +426,7 @@ export default function Dashboard({
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredTemplates.map((template) => (
-                  <div key={template.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
+                  <div key={template.id} className="bg-glass-panel glass-effect rounded-xl p-6 border-card border-card-hover transition-all duration-200 group">
                     <div className="flex items-start space-x-4">
                       <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                         {template.default_avatar_url ? (
@@ -512,14 +501,14 @@ export default function Dashboard({
                   placeholder="Search integrations..."
                   value={integrationSearchQuery}
                   onChange={(e) => setIntegrationSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-[#186799] focus:outline-none"
+                  className="pl-10 pr-4 py-2 bg-glass-panel glass-effect rounded-lg text-white placeholder-slate-400 border-control focus-border-brand"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredIntegrations.map((integration) => (
-                <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 group">
+                <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border-card border-card-hover transition-all duration-200 group">
                   <div className="flex items-start space-x-4">
                     <div 
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0"

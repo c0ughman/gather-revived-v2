@@ -91,7 +91,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
               className={`${
                 product.popular 
                   ? "bg-gradient-to-b from-[#186799]/20 to-slate-800/50 backdrop-blur-sm rounded-2xl border border-[#186799] overflow-hidden transform scale-105 shadow-xl shadow-[#186799]/10 transition-all duration-300 hover:shadow-[#186799]/20" 
-                  : "bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden transition-all duration-300 hover:border-slate-600 hover:translate-y-[-4px]"
+                  : "bg-slate-800/50 backdrop-blur-sm rounded-2xl border-card border-card-hover overflow-hidden transition-all duration-300 hover:translate-y-[-4px]"
               }`}
             >
               {product.popular && (
@@ -126,10 +126,10 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
                   disabled={isLoading !== null}
                   className={`w-full py-3 px-4 rounded-lg ${
                     product.name === 'Standard' 
-                      ? "border border-slate-600 text-white hover:bg-slate-700" 
+                      ? "border-control text-white hover:bg-slate-700" 
                       : product.name === 'Premium'
                       ? "bg-[#186799] text-white hover:bg-[#1a5a7a] flex items-center justify-center space-x-2" 
-                      : "border border-purple-700 bg-purple-900/20 text-white hover:bg-purple-900/40"
+                      : "border-plan-pro bg-purple-900/20 text-white hover:bg-purple-900/40"
                   } transition-colors duration-200 mb-6`}
                 >
                   {isLoading === product.name.toLowerCase() ? (
@@ -180,22 +180,22 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
         <h2 className="text-3xl font-bold text-center mb-10">Frequently Asked Questions</h2>
         
         <div className="space-y-6">
-          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border-card">
             <h3 className="text-xl font-semibold text-white mb-3">Can I upgrade or downgrade my plan later?</h3>
             <p className="text-slate-300">Yes, you can change your plan at any time. When upgrading, you'll be charged the prorated amount for the remainder of your billing cycle. When downgrading, the new rate will apply at the start of your next billing cycle.</p>
           </div>
           
-          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border-card">
             <h3 className="text-xl font-semibold text-white mb-3">What happens if I reach my usage limits?</h3>
             <p className="text-slate-300">You'll receive a notification when you're approaching your limits. Once reached, you can continue using existing features but won't be able to create new agents or upload additional documents until the next billing cycle or until you upgrade your plan.</p>
           </div>
           
-          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border-card">
             <h3 className="text-xl font-semibold text-white mb-3">Is there a free trial for paid plans?</h3>
             <p className="text-slate-300">Yes, all paid plans come with a 14-day free trial. You can cancel anytime during the trial period and won't be charged.</p>
           </div>
           
-          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/30 backdrop-blur-sm rounded-xl p-6 border-card">
             <h3 className="text-xl font-semibold text-white mb-3">What does "Unlimited*" mean?</h3>
             <p className="text-slate-300">Unlimited plans are subject to fair usage policies. While we don't impose hard limits, we monitor usage patterns and may contact you if your usage significantly exceeds typical enterprise requirements.</p>
           </div>
@@ -203,7 +203,7 @@ export default function PricingPage({ onSelectPlan, onStayFree }: PricingPagePro
       </div>
 
       {/* Footer */}
-      <footer className="py-10 border-t border-slate-800">
+      <footer className="py-10 border-t border-structural-deep">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-slate-500 text-sm">
             © 2024 Gather AI. All rights reserved.

@@ -105,7 +105,7 @@ export default function IntegrationSetup({
   const IconComponent = iconMap[integration.icon as keyof typeof iconMap] || Globe;
 
   return (
-    <div className="bg-glass-panel rounded-lg p-6 border border-glass-border">
+    <div className="bg-glass-panel rounded-lg p-6 border-card-glass">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div 
@@ -144,7 +144,7 @@ export default function IntegrationSetup({
 
       {/* OAuth Disabled Warning */}
       {integration.requiresOAuth && (
-        <div className="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-700 rounded-lg">
+        <div className="mb-6 p-4 border-status-error">
           <div className="flex items-start space-x-2">
             <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
             <div>
@@ -167,7 +167,7 @@ export default function IntegrationSetup({
               id="enabled"
               checked={config.enabled}
               onChange={(e) => setConfig(prev => ({ ...prev, enabled: e.target.checked }))}
-              className="rounded border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
+              className="rounded border border-status-idle text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
             />
             <label htmlFor="enabled" className="text-white font-medium">
               Enable Integration
@@ -185,7 +185,7 @@ export default function IntegrationSetup({
                 <select
                   value={config.settings[field.id] || field.defaultValue || ''}
                   onChange={(e) => handleFieldChange(field, e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-gray-800 border-control rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {field.options?.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -199,7 +199,7 @@ export default function IntegrationSetup({
                   onChange={(e) => handleFieldChange(field, e.target.value)}
                   placeholder={field.placeholder}
                   rows={3}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-3 py-2 bg-gray-800 border-control rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 />
               ) : field.type === 'password' ? (
                 <input
@@ -207,7 +207,7 @@ export default function IntegrationSetup({
                   value={config.settings[field.id] || field.defaultValue || ''}
                   onChange={(e) => handleFieldChange(field, e.target.value)}
                   placeholder={field.placeholder}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-gray-800 border-control rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               ) : (
                 <input
@@ -215,7 +215,7 @@ export default function IntegrationSetup({
                   value={config.settings[field.id] || field.defaultValue || ''}
                   onChange={(e) => handleFieldChange(field, e.target.value)}
                   placeholder={field.placeholder}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-gray-800 border-control rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               )}
               
@@ -243,10 +243,10 @@ export default function IntegrationSetup({
 
       {/* Test Result */}
       {testResult && (
-        <div className={`p-4 rounded-lg border ${
+        <div className={`p-4 rounded-lg ${
           testResult.success 
-            ? 'bg-green-900 bg-opacity-30 border-green-700' 
-            : 'bg-red-900 bg-opacity-30 border-red-700'
+            ? 'border-status-success' 
+            : 'border-status-error'
         }`}>
           <div className="flex items-center space-x-2">
             {testResult.success ? (

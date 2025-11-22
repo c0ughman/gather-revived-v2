@@ -329,7 +329,7 @@ export default function SettingsSidebar({
   if (setupIntegration) {
     return (
       <div className={`h-full bg-glass-panel glass-effect flex flex-col ${className}`}>
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="p-4 border-b border-structural-strong flex items-center justify-between">
           <h3 className="text-white font-semibold font-inter">Setup Integration</h3>
           <button
             onClick={() => {
@@ -362,7 +362,7 @@ export default function SettingsSidebar({
   if (showIntegrationsLibrary) {
     return (
       <div className={`h-full bg-glass-panel glass-effect flex flex-col ${className}`}>
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="p-4 border-b border-structural-strong flex items-center justify-between">
           <h3 className="text-white font-semibold font-inter">Add Integration</h3>
           <button
             onClick={() => setShowIntegrationsLibrary(false)}
@@ -386,7 +386,7 @@ export default function SettingsSidebar({
   return (
     <div className={`h-full bg-glass-panel glass-effect flex flex-col font-inter ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 bg-glass-panel glass-effect">
+      <div className="p-4 border-b border-structural-strong bg-glass-panel glass-effect">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
@@ -423,7 +423,7 @@ export default function SettingsSidebar({
       {/* Settings Content - Scrollable */}
       <div className="flex-1 overflow-y-auto bg-glass-panel glass-effect">
         {/* Basic Info Section */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-structural-strong">
           <button
             onClick={() => toggleSection('basic')}
             className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
@@ -448,7 +448,7 @@ export default function SettingsSidebar({
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm"
                 />
               </div>
 
@@ -459,7 +459,7 @@ export default function SettingsSidebar({
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={3}
-                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm resize-none"
+                  className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm resize-none"
                 />
               </div>
 
@@ -472,7 +472,7 @@ export default function SettingsSidebar({
                 <div className="relative color-dropdown">
                   <button
                     onClick={() => setShowColorDropdown(!showColorDropdown)}
-                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer flex items-center justify-between"
+                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm appearance-none cursor-pointer flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-2">
                       <div 
@@ -485,7 +485,7 @@ export default function SettingsSidebar({
                   </button>
                   
                   {showColorDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border-control shadow-lg z-50 max-h-48 overflow-y-auto">
                       {availableColors.map((color) => (
                         <button
                           key={color.id}
@@ -519,7 +519,7 @@ export default function SettingsSidebar({
                   <select
                     value={formData.voice}
                     onChange={(e) => handleInputChange('voice', e.target.value)}
-                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
+                    className="w-full bg-glass-panel glass-effect text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm appearance-none cursor-pointer"
                   >
                     {availableVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>
@@ -601,7 +601,7 @@ export default function SettingsSidebar({
         </div>
 
         {/* Notes Section */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-structural-strong">
           <button
             onClick={() => toggleSection('notes')}
             className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
@@ -625,7 +625,7 @@ export default function SettingsSidebar({
         </div>
 
         {/* Integrations Section */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-structural-strong">
           <button
             onClick={() => toggleSection('integrations')}
             className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
@@ -648,7 +648,7 @@ export default function SettingsSidebar({
             <div className="px-4 pb-4 space-y-3">
               <button
                 onClick={() => setShowIntegrationsLibrary(true)}
-                className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-white/5 transition-colors duration-200 text-sm"
+                className="w-full flex items-center justify-center space-x-2 p-2 border-dashed-accent hover:border-dashed-active hover:bg-white/5 transition-colors duration-200 text-sm"
               >
                 <Plus className="w-4 h-4 text-slate-400" />
                 <span className="text-slate-400">Add Integration</span>
@@ -696,7 +696,7 @@ export default function SettingsSidebar({
         </div>
 
         {/* Documents Section */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-structural-strong">
           <button
             onClick={() => toggleSection('documents')}
             className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
@@ -718,7 +718,7 @@ export default function SettingsSidebar({
           {expandedSections.documents && (
             <div className="px-4 pb-4 space-y-3">
               {uploadError && (
-                <div className="p-2 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-300 text-xs">
+                <div className="p-2 border-status-error text-red-300 text-xs">
                   {uploadError}
                 </div>
               )}

@@ -208,7 +208,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#186799]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-spinner-brand"></div>
       </div>
     );
   }
@@ -217,7 +217,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
     <div className="max-w-4xl mx-auto p-6 space-y-1">
       {/* Error Display */}
       {error && (
-        <div className="bg-red-900 bg-opacity-50 border border-red-700 rounded-lg p-4 mb-6">
+        <div className="border-status-error p-4 mb-6">
           <p className="text-red-300">{error}</p>
         </div>
       )}
@@ -292,7 +292,7 @@ export default function MemoryManagement({ agentId, searchQuery = '' }: MemoryMa
               
               {/* Divider Line */}
               {index < memories.length - 1 && (
-                <div className="border-t border-slate-700 my-0"></div>
+                <div className="border-t border-structural-strong my-0"></div>
               )}
             </React.Fragment>
           );

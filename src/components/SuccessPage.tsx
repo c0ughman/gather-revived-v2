@@ -150,7 +150,7 @@ export default function SuccessPage() {
 
       {/* Success Content */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-8 text-center">
+        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm rounded-2xl border-card p-8 text-center">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             {isLoading ? (
               <Loader2 className="w-10 h-10 text-green-500 animate-spin" />
@@ -181,7 +181,7 @@ export default function SuccessPage() {
           </p>
           
           {error && (
-            <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg mb-6">
+            <div className="p-3 border-status-error mb-6">
               <p className="text-red-300 text-sm">{error}</p>
               <p className="text-red-400 text-xs mt-1">Don't worry, your payment was successful. You may need to refresh the app to see your subscription.</p>
             </div>
@@ -202,7 +202,7 @@ export default function SuccessPage() {
       </div>
 
       {/* Footer */}
-      <footer className="py-6 border-t border-slate-800">
+      <footer className="py-6 border-t border-structural-deep">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-slate-500 text-sm">
             © 2024 Gather AI. All rights reserved.

@@ -113,7 +113,7 @@ export default function PastChatsScreen({
   return (
     <div className="h-full flex flex-col bg-glass-bg">
       {/* Header with Search Bar and Back Arrow */}
-      <div className="p-4 border-b border-slate-700/50">
+      <div className="p-4 border-b border-structural">
         <div className="relative max-w-4xl mx-auto">
           <div className="flex items-center space-x-4">
             {/* Back Arrow */}
@@ -137,7 +137,7 @@ export default function PastChatsScreen({
               />
               {isSearching && (
                 <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-spinner-blue-thin"></div>
                 </div>
               )}
             </div>
@@ -150,7 +150,7 @@ export default function PastChatsScreen({
         <div className="max-w-4xl mx-auto p-6 space-y-1">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#186799]"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-spinner-brand"></div>
             </div>
           ) : error ? (
             <div className="text-center py-12">
@@ -241,7 +241,7 @@ export default function PastChatsScreen({
                   
                   {/* Divider Line */}
                   {index < filteredConversations.length - 1 && (
-                    <div className="border-t border-slate-700/30 my-0"></div>
+                    <div className="border-t border-structural-light my-0"></div>
                   )}
                 </React.Fragment>
               ))}

@@ -12,7 +12,7 @@ export default function SubscriptionBadge({ className = '' }: SubscriptionBadgeP
   if (isLoading) {
     return (
       <div className={`inline-flex items-center px-2 py-1 rounded-full bg-slate-700 text-slate-300 text-xs ${className}`}>
-        <div className="w-3 h-3 rounded-full border-2 border-slate-300 border-t-transparent animate-spin mr-1"></div>
+        <div className="w-3 h-3 rounded-full border-spinner-light animate-spin mr-1"></div>
         <span>Loading...</span>
       </div>
     );
@@ -29,7 +29,7 @@ export default function SubscriptionBadge({ className = '' }: SubscriptionBadgeP
           icon: Star,
           bgColor: 'bg-blue-900/30',
           textColor: 'text-blue-300',
-          borderColor: 'border-blue-700',
+          borderClass: 'border-plan-standard',
           label: 'Standard'
         };
       case 'premium':
@@ -37,7 +37,7 @@ export default function SubscriptionBadge({ className = '' }: SubscriptionBadgeP
           icon: Crown,
           bgColor: 'bg-[#186799]/30',
           textColor: 'text-[#186799]',
-          borderColor: 'border-[#186799]/50',
+          borderClass: 'border-plan-premium',
           label: 'Premium'
         };
       case 'pro':
@@ -45,7 +45,7 @@ export default function SubscriptionBadge({ className = '' }: SubscriptionBadgeP
           icon: Shield,
           bgColor: 'bg-purple-900/30',
           textColor: 'text-purple-300',
-          borderColor: 'border-purple-700',
+          borderClass: 'border-plan-pro',
           label: 'Pro'
         };
       default:
@@ -53,16 +53,16 @@ export default function SubscriptionBadge({ className = '' }: SubscriptionBadgeP
           icon: Star,
           bgColor: 'bg-slate-700',
           textColor: 'text-slate-300',
-          borderColor: 'border-slate-600',
+          borderClass: 'border-plan-default',
           label: plan.charAt(0).toUpperCase() + plan.slice(1)
         };
     }
   };
 
-  const { icon: Icon, bgColor, textColor, borderColor, label } = getBadgeConfig();
+  const { icon: Icon, bgColor, textColor, borderClass, label } = getBadgeConfig();
 
   return (
-    <div className={`inline-flex items-center px-2 py-1 rounded-full ${bgColor} ${textColor} text-xs border ${borderColor} ${className}`}>
+    <div className={`inline-flex items-center px-2 py-1 rounded-full ${bgColor} ${textColor} text-xs ${borderClass} ${className}`}>
       <Icon className="w-3 h-3 mr-1" />
       <span>{label}</span>
     </div>

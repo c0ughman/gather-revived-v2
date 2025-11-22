@@ -37,11 +37,11 @@ export default function TokenLimitError({
   const getBorderColor = () => {
     switch (type) {
       case 'warning':
-        return 'border-yellow-500/30 bg-yellow-900/20';
+        return 'border-status-warn';
       case 'info':
-        return 'border-blue-500/30 bg-blue-900/20';
+        return 'border-status-info';
       default:
-        return 'border-red-500/30 bg-red-900/20';
+        return 'border-status-error';
     }
   };
 
@@ -51,7 +51,7 @@ export default function TokenLimitError({
 
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-lg border ${getBorderColor()} ${className}`}
+      className={`flex items-start gap-3 p-4 rounded-lg ${getBorderColor()} ${className}`}
     >
       <div className="flex-shrink-0 mt-0.5">
         {getIcon()}

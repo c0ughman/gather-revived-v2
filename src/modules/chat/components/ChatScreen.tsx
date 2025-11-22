@@ -123,13 +123,13 @@ export default function ChatScreen({
     const extension = doc.name.toLowerCase().split('.').pop();
     
     if (extension === 'pdf' || doc.type.includes('pdf')) {
-      return 'bg-red-700/30 text-red-300 border border-red-700/50'; // PDF - red
+      return 'bg-red-700/30 text-red-300 border-tag-red'; // PDF - red
     } else if (['xlsx', 'xls', 'csv'].includes(extension || '') || doc.type.includes('spreadsheet') || doc.type.includes('excel') || doc.type.includes('csv')) {
-      return 'bg-green-700/30 text-green-300 border border-green-700/50'; // Excel/spreadsheet - green
+      return 'bg-green-700/30 text-green-300 border-tag-green'; // Excel/spreadsheet - green
     } else if (['docx', 'doc'].includes(extension || '') || doc.type.includes('word') || doc.type.includes('document')) {
-      return 'bg-blue-700/30 text-blue-300 border border-blue-700/50'; // Word/document - blue
+      return 'bg-blue-700/30 text-blue-300 border-tag-blue'; // Word/document - blue
     } else {
-      return 'bg-slate-700/30 text-slate-300 border border-slate-700/50'; // Default - gray
+      return 'bg-slate-700/30 text-slate-300 border-tag-default'; // Default - gray
     }
   };
 
@@ -213,7 +213,7 @@ export default function ChatScreen({
     <div className="h-full bg-glass-bg flex flex-col font-inter">
       {/* Header - Fixed at top with glass effect and backdrop blur */}
       <div 
-        className={`fixed top-0 ${mainContentClass} z-20 border-b border-slate-700 p-3`}
+        className={`fixed top-0 ${mainContentClass} z-20 border-b border-structural-strong p-3`}
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -346,7 +346,7 @@ export default function ChatScreen({
                   </span>
                 ))}
                 {contact.documents && contact.documents.length > 5 && (
-                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
+                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border-tag-default rounded-full text-xs">
                     +{contact.documents.length - 5} more
                   </span>
                 )}
@@ -361,7 +361,7 @@ export default function ChatScreen({
                   );
                 })}
                 {activeIntegrations.length > 5 && (
-                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/50 rounded-full text-xs">
+                  <span className="px-2 py-1 bg-slate-700/30 text-slate-300 border-tag-default rounded-full text-xs">
                     +{activeIntegrations.length - 5} more
                   </span>
                 )}
@@ -383,7 +383,7 @@ export default function ChatScreen({
                       
                       {/* Show attached documents (only newly attached in this message) */}
                       {message.attachments && message.attachments.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-opacity-20 border-white">
+                        <div className="mt-2 pt-2 border-t border-card-light-strong-color">
                           <p className="text-xs opacity-75 mb-1">New documents shared:</p>
                           {message.attachments.map((doc) => (
                             <div key={doc.id} className="text-xs opacity-90 bg-black bg-opacity-20 rounded px-2 py-1 mb-1">
@@ -444,7 +444,7 @@ export default function ChatScreen({
           </p>
           
           {uploadError && (
-            <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+            <div className="mb-4 p-3 border-status-error">
               <p className="text-red-300 text-sm">{uploadError}</p>
             </div>
           )}
@@ -466,7 +466,7 @@ export default function ChatScreen({
       <div className={`fixed bottom-0 z-10 p-4 ${mainContentClass}`}>
         <div className="relative max-w-6xl mx-auto">
           <div 
-            className="relative flex items-center rounded-full border border-slate-600 focus-within:border-[#186799] transition-colors duration-200 shadow-lg"
+            className="relative flex items-center rounded-full border-control focus-within:border-[#186799] shadow-lg"
             style={{
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
@@ -542,7 +542,7 @@ export default function ChatScreen({
       {totalConversationDocuments > 0 && !showDocumentUpload && (
         <div className={`fixed bottom-20 z-10 p-4 ${mainContentClass}`}>
           <div 
-            className="rounded-lg border border-slate-700 p-4 max-w-6xl mx-auto"
+            className="rounded-lg border-card p-4 max-w-6xl mx-auto"
             style={{
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',

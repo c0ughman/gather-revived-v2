@@ -30,12 +30,15 @@ class GeminiLiveService {
   private currentContact: AIContact | null = null;
   private isSessionActive: boolean = false;
 
+  // Session resumption for maintaining calls across connection resets
+  private sessionResumptionHandle: string | null = null;
+
   // Callbacks
   private onResponseCallback: ((response: GeminiLiveResponse) => void) | null = null;
   private onErrorCallback: ((error: Error) => void) | null = null;
   private onStateChangeCallback: ((state: 'idle' | 'listening' | 'processing' | 'responding') => void) | null = null;
   private onDocumentGenerationCallback: ((document: { content: string; wordCount?: number }) => void) | null = null;
-  
+
   // Context refresh for real-time notes updates
   private lastNotesHash: string = '';
 
@@ -306,10 +309,15 @@ class GeminiLiveService {
       console.log("✅ Audio is ready, proceeding with session...");
 
       // Prevent multiple concurrent sessions with stronger guard
-      if (this.isSessionActive || this.activeSession) {
+      // BUT: If we're resuming (have a handle), DON'T end the session - just close the old connection
+      if ((this.isSessionActive || this.activeSession) && !this.sessionResumptionHandle) {
         console.log("Session already active, ending current session first");
         await this.endSession();
         // No delay - instant session restart for maximum responsiveness
+      } else if (this.activeSession && this.sessionResumptionHandle) {
+        console.log("🔄 Resuming - closing old connection without ending session");
+        // Just close the old connection, keep everything else
+        this.activeSession = null;
       }
 
       this.isSessionActive = true;
@@ -317,43 +325,56 @@ class GeminiLiveService {
       // Store the contact
       this.currentContact = contact;
       this.updateState('idle');
-      
-      // Clear any existing audio queue
-      this.audioQueue = [];
-      
-      // Clear previous conversation transcript for new session
-      this.conversationTranscript = [];
-      this.currentUserInput = '';
-      this.currentAssistantResponse = '';
-      this.currentUserTranscription = '';
-      this.currentAiTranscription = '';
-      console.log('🗣️ Started new conversation transcript for voice call');
-      
-      // Phase 3 (Option 4): Start audio capture IMMEDIATELY for optimistic buffering
-      // This allows user to start talking while Gemini connection is being established
-      console.log('🎤 Starting OPTIMISTIC audio capture - user can talk immediately!');
-      this.startAudioCapture();
-      console.log('✅ Audio capture active - buffering will begin if user talks during connection');
-      
-      // Transcription is now handled by Gemini Live API directly
 
-      // Removed conversation session creation for simple voice calls
-
-      // 🎤 CREATE BACKEND VOICE SESSION
-      // This handles authentication, function declarations, and session management
-      console.log("🎤 Creating backend voice session...");
+      // CRITICAL: Only initialize for NEW sessions, not when resuming
       let backendSession = null;
-      
-      try {
-        // Try to use the backend voice service
-        if (await voiceApiService.isAvailable()) {
-          backendSession = await voiceApiService.createSession(contact);
-          console.log("✅ Backend voice session created:", backendSession.session_id);
-        } else {
-          console.warn("⚠️ Backend voice service unavailable, using fallback mode");
+
+      if (!this.sessionResumptionHandle) {
+        // NEW SESSION - full initialization
+        // Clear any existing audio queue
+        this.audioQueue = [];
+
+        // Clear previous conversation transcript for new session
+        this.conversationTranscript = [];
+        this.currentUserInput = '';
+        this.currentAssistantResponse = '';
+        this.currentUserTranscription = '';
+        this.currentAiTranscription = '';
+        console.log('🗣️ Started new conversation transcript for voice call');
+
+        // Phase 3 (Option 4): Start audio capture IMMEDIATELY for optimistic buffering
+        // This allows user to start talking while Gemini connection is being established
+        console.log('🎤 Starting OPTIMISTIC audio capture - user can talk immediately!');
+        this.startAudioCapture();
+        console.log('✅ Audio capture active - buffering will begin if user talks during connection');
+
+        // Transcription is now handled by Gemini Live API directly
+
+        // Removed conversation session creation for simple voice calls
+
+        // 🎤 CREATE BACKEND VOICE SESSION
+        // This handles authentication, function declarations, and session management
+        console.log("🎤 Creating backend voice session...");
+
+        try {
+          // Try to use the backend voice service
+          if (await voiceApiService.isAvailable()) {
+            backendSession = await voiceApiService.createSession(contact);
+            console.log("✅ Backend voice session created:", backendSession.session_id);
+          } else {
+            console.warn("⚠️ Backend voice service unavailable, using fallback mode");
+          }
+        } catch (error) {
+          console.warn("⚠️ Backend session creation failed, using fallback mode:", error);
         }
-      } catch (error) {
-        console.warn("⚠️ Backend session creation failed, using fallback mode:", error);
+      } else {
+        // RESUMING SESSION - skip initialization, preserve state
+        console.log('🔄 Resuming session - preserving conversation history and state');
+
+        // Restart audio capture since it was stopped during disconnect
+        console.log('🎤 Restarting audio capture for resumed session...');
+        this.startAudioCapture();
+        console.log('✅ Audio capture restarted');
       }
 
       // Use backend-provided system prompt to avoid duplication
@@ -371,14 +392,34 @@ class GeminiLiveService {
       // Debug voice selection
       const selectedVoice = this.getVoiceForContact(contact);
       console.log(`🎤 Selected voice for ${contact.name}: ${selectedVoice}`);
-      
+
+      // Log whether this is a new session or resuming
+      if (this.sessionResumptionHandle) {
+        console.log('🔄 RESUMING existing session - conversation context will be preserved');
+      } else {
+        console.log('🆕 Starting NEW session with full context');
+      }
+
       // Create session config following the docs exactly with ULTRA LOW LATENCY
       const config: any = {
         responseModalities: [Modality.AUDIO], // Audio only for compatibility
-        systemInstruction: localSystemPrompt, // ALWAYS use local prompt that includes memory
+        // CRITICAL: Only set systemInstruction for NEW sessions, not when resuming
+        // Setting it on resume will reset the conversation context!
+        ...(this.sessionResumptionHandle ? {} : { systemInstruction: localSystemPrompt }),
         // Enable transcription for conversation capture
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        // UNLIMITED SESSION DURATION: Enable context window compression
+        // This prevents automatic session closures after 15 minutes
+        // Allows calls to run for hours without interruption
+        contextWindowCompression: {
+          slidingWindow: {}
+        },
+        // Session resumption: Handle connection resets (~10min) without losing session
+        // This allows the same session to survive across multiple WebSocket connections
+        sessionResumption: {
+          handle: this.sessionResumptionHandle // null for new sessions, handle for resuming
+        },
         // Optimized VAD for better speech detection
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -399,10 +440,13 @@ class GeminiLiveService {
 
       // 🔧 USE BACKEND-PROVIDED FUNCTION DECLARATIONS
       // The backend handles all function declarations and authentication
+      // CRITICAL: Only configure tools for NEW sessions, not when resuming
       const functionDeclarations = [];
-      
-      // Add memory saving function (always available)
-      functionDeclarations.push({
+
+      if (!this.sessionResumptionHandle) {
+        // Only add function declarations for new sessions
+        // Add memory saving function (always available)
+        functionDeclarations.push({
         name: 'save_to_memory',
         description: 'Save important information, concepts, facts, insights, or summaries to memory for future reference',
         parameters: {
@@ -442,19 +486,22 @@ class GeminiLiveService {
         }
       });
 
-      
-      // Add backend function declarations if available
-      if (backendSession && backendSession.function_declarations && backendSession.function_declarations.length > 0) {
-        functionDeclarations.push(...backendSession.function_declarations);
-        console.log(`🔧 Backend tools configured: ${backendSession.function_declarations.map((f: any) => f.name).join(', ')}`);
-      }
-      
-      // Configure all tools
-      if (functionDeclarations.length > 0) {
-        config.tools = [{ functionDeclarations }];
-        console.log(`🔧 All tools configured: ${functionDeclarations.map((f: any) => f.name).join(', ')}`);
+
+        // Add backend function declarations if available
+        if (backendSession && backendSession.function_declarations && backendSession.function_declarations.length > 0) {
+          functionDeclarations.push(...backendSession.function_declarations);
+          console.log(`🔧 Backend tools configured: ${backendSession.function_declarations.map((f: any) => f.name).join(', ')}`);
+        }
+
+        // Configure all tools
+        if (functionDeclarations.length > 0) {
+          config.tools = [{ functionDeclarations }];
+          console.log(`🔧 All tools configured: ${functionDeclarations.map((f: any) => f.name).join(', ')}`);
+        } else {
+          console.log('🔧 No backend session or no tools configured - continuing without function calling');
+        }
       } else {
-        console.log('🔧 No backend session or no tools configured - continuing without function calling');
+        console.log('🔄 Resuming session - tools already configured from previous session');
       }
 
       console.log('🔧 Final session config (excluding long systemInstruction):', {
@@ -569,7 +616,35 @@ class GeminiLiveService {
           },
           onclose: (event: any) => {
             console.log('Live API session closed:', event.code, event.reason);
-            this.cleanup();
+
+            // If code 1011 (service unavailable) and we have a resumption handle, resume session
+            if (event.code === 1011 && this.currentContact && this.isSessionActive) {
+              if (this.sessionResumptionHandle) {
+                console.log('🔄 Connection reset detected (~10min limit) - resuming session with handle:', this.sessionResumptionHandle.substring(0, 20) + '...');
+              } else {
+                console.log('🔄 Connection reset detected - starting new session (no resumption handle yet)');
+              }
+
+              // Don't fully cleanup - just close the connection
+              if (this.activeSession) {
+                this.activeSession = null;
+              }
+
+              // Reconnect after brief delay to resume the session
+              setTimeout(() => {
+                if (this.currentContact) {
+                  this.startSession(this.currentContact).catch(err => {
+                    console.error('❌ Failed to resume session:', err);
+                    if (this.onErrorCallback) {
+                      this.onErrorCallback(new Error('Connection lost and could not resume'));
+                    }
+                  });
+                }
+              }, 1000);
+            } else {
+              // For other close codes, cleanup normally
+              this.cleanup();
+            }
           }
         }
       });
@@ -586,10 +661,20 @@ class GeminiLiveService {
   }
 
   /**
-   * Handle incoming messages from Live API 
+   * Handle incoming messages from Live API
    */
   private async handleMessage(message: any): Promise<void> {
     try {
+      // Handle session resumption updates
+      if (message.sessionResumptionUpdate) {
+        const update = message.sessionResumptionUpdate;
+        if (update.resumable && update.newHandle) {
+          this.sessionResumptionHandle = update.newHandle;
+          console.log('🔄 Session resumption handle updated - session can be resumed across connections');
+        }
+        return;
+      }
+
       // Handle server content messages
       // Handle user content (user speech transcription)
       if (message.userContent && message.userContent.userTurn) {
@@ -797,12 +882,10 @@ class GeminiLiveService {
       // Handle output transcription (AI speech transcribed)
       if (message.serverContent && message.serverContent.outputTranscription) {
         const transcription = message.serverContent.outputTranscription;
-        console.log("🤖 Output transcription chunk:", transcription.text);
-        
-        // Buffer the transcription - don't save immediately
+
+        // Buffer the transcription - don't save immediately (logging removed to reduce spam)
         if (transcription.text) {
           this.currentAiTranscription += transcription.text;
-          console.log(`📝 Buffering AI transcription (${this.currentAiTranscription.length} chars): "${this.currentAiTranscription}"`);
         }
         return;
       }
@@ -1066,11 +1149,11 @@ class GeminiLiveService {
           // Direct copy without extra allocation when possible
           const audioChunk = new Float32Array(inputData);
           this.audioChunks.push(audioChunk);
-          
-          // Log occasional audio activity (every ~100 chunks = ~1.6 seconds)
+
+          // Reduced logging: only log every ~500 chunks = ~8 seconds
           audioActivityCounter++;
-          if (audioActivityCounter % 100 === 0) {
-            console.log(`🎤 Microphone is capturing audio (chunk #${audioActivityCounter})`);
+          if (audioActivityCounter % 500 === 0) {
+            console.log(`🎤 Audio capture active (${(audioActivityCounter / 62.5).toFixed(0)}s)`);
           }
         }
       };
@@ -1163,10 +1246,7 @@ class GeminiLiveService {
         totalSent++;
       }
       
-      // Log audio activity every 60 chunks (~1 second of audio)
-      if (totalSent > 0 && Math.random() < 0.05) {  // Log 5% of the time to avoid spam
-        console.log(`🎤 Sent ${totalSent} audio chunks to Gemini`);
-      }
+      // Only log significant audio transmissions (removed to reduce spam)
 
     } catch (error) {
       console.error("Error sending audio:", error);
@@ -1719,13 +1799,13 @@ class GeminiLiveService {
    */
   public async endSession(): Promise<void> {
     console.log("🛑 Ending Gemini Live session");
-    
+
     // Prevent multiple endSession calls
     if (!this.isSessionActive) {
       console.log("⚠️ Session already ended, skipping duplicate endSession call");
       return;
     }
-    
+
     // Save conversation messages before cleanup
     // Clear conversation data
     console.log(`🧹 Clearing conversation data`);
@@ -1733,14 +1813,17 @@ class GeminiLiveService {
     this.currentAssistantResponse = '';
     this.currentUserTranscription = '';
     this.currentAiTranscription = '';
-    
+
     this.cleanup();
-    
+
     // Close session (but keep audio stream for future sessions)
     if (this.activeSession) {
       this.activeSession.close();
       this.activeSession = null;
     }
+
+    // Clear session resumption handle when ending session completely
+    this.sessionResumptionHandle = null;
     
     // 🎤 End backend voice session
     try {

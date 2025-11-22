@@ -64,9 +64,9 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
   const isSelected = (integrationId: string) => selectedIntegrations.includes(integrationId);
 
   return (
-    <div className={`bg-glass-panel glass-effect rounded-xl border border-slate-700 ${className}`}>
+    <div className={`bg-glass-panel glass-effect rounded-xl border-card ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-700">
+      <div className="p-4 border-b border-structural-strong">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-bold text-white">Integrations Library</h2>
@@ -88,7 +88,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
               placeholder="Search integrations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm"
+              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border-control focus-border-brand text-sm"
             />
           </div>
 
@@ -100,7 +100,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value as 'all' | 'source' | 'action')}
-                className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-[#186799] focus:outline-none"
+                className="bg-slate-700 text-white px-2 py-1 rounded text-xs border-control focus-border-brand"
               >
                 <option value="all">All Categories</option>
                 <option value="source">Data Sources</option>
@@ -112,7 +112,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-[#186799] focus:outline-none"
+              className="bg-slate-700 text-white px-2 py-1 rounded text-xs border-control focus-border-brand"
             >
               <option value="">All Tags</option>
               {allTags.map(tag => (
@@ -155,10 +155,10 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                 <div
                   key={integration.id}
                   onClick={() => handleIntegrationClick(integration)}
-                  className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer group ${
+                  className={`p-3 rounded-lg transition-all duration-200 cursor-pointer group ${
                     selected
-                      ? 'border-[#186799] bg-[#186799] bg-opacity-20'
-                      : 'border-slate-600 hover:border-slate-500 bg-slate-700 hover:bg-slate-650'
+                      ? 'border-control border-dashed-active bg-[#186799]/20'
+                      : 'border-control border-control-hover bg-slate-700 hover:bg-slate-650'
                   }`}
                 >
                   {/* Header */}
@@ -231,7 +231,7 @@ export default function IntegrationsLibrary({ onSelectIntegration, selectedInteg
                   </div>
 
                   {/* Action Indicator */}
-                  <div className="mt-2 pt-2 border-t border-slate-600 flex items-center justify-between">
+                  <div className="mt-2 pt-2 border-t border-structural-strong flex items-center justify-between">
                     <span className="text-xs text-slate-400">
                       {integration.fields.length} field{integration.fields.length !== 1 ? 's' : ''}
                     </span>

@@ -99,7 +99,7 @@ export default function ContactSidebar({
     <div className="h-full bg-glass-panel glass-effect flex flex-col font-inter relative">
       {/* Fixed Header with Glassmorphism - Similar to chat header */}
       <div 
-        className="fixed top-0 left-0 w-80 z-30 border-b border-slate-700"
+        className="fixed top-0 left-0 w-80 z-30 border-b border-structural-strong"
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -108,7 +108,7 @@ export default function ContactSidebar({
         }}
       >
         {/* Header */}
-        <div className="p-4 border-b border-slate-700/50">
+        <div className="p-4 border-b border-structural">
           <div className="flex items-center justify-between mb-4">
             <div 
               className="flex items-center space-x-3 cursor-pointer"
@@ -117,7 +117,11 @@ export default function ContactSidebar({
               <div>
                 <h1 className="text-xl font-bold text-white">Gather</h1>
                 <div className="flex items-center space-x-2">
-                  <p className="text-xs text-slate-400">Welcome, {user?.email?.split('@')[0]}</p>
+                  {user?.email ? (
+                    <p className="text-xs text-slate-400">Welcome, {user.email.split('@')[0]}</p>
+                  ) : (
+                    <div className="skeleton h-3 w-24"></div>
+                  )}
                   <SubscriptionBadge />
                 </div>
               </div>
@@ -132,13 +136,13 @@ export default function ContactSidebar({
               placeholder="Search or start a new chat"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 font-inter"
+              className="w-full bg-glass-panel glass-effect text-white pl-10 pr-4 py-2 rounded-lg border-control focus-border-brand font-inter"
             />
           </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="px-4 py-3 border-b border-slate-700/50">
+        <div className="px-4 py-3 border-b border-structural">
           <div className="flex space-x-1">
             {filters.map((filter) => (
               <button
@@ -170,7 +174,7 @@ export default function ContactSidebar({
 
       {/* Fixed Create Agent Section with Glassmorphism */}
       <div 
-        className="fixed bottom-0 left-0 w-80 z-30 border-t border-slate-700"
+        className="fixed bottom-0 left-0 w-80 z-30 border-t border-structural-strong"
         style={{
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -192,14 +196,21 @@ export default function ContactSidebar({
       {/* Contact List - Scrollable with padding for both top and bottom fixed sections */}
       <div className="flex-1 overflow-y-auto" style={{ paddingTop: '260px', paddingBottom: '80px' }}>
         {displayContacts.length === 0 ? (
-          <div className="p-4 text-center">
-            <div className="text-slate-500 mb-4">
-              <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No agents yet</p>
-              <p className="text-xs">Use the "Create New Agent" button below to get started</p>
-            </div>
-            {/* Add extra space to ensure content goes behind the bottom section */}
-            <div style={{ height: '120px' }}></div>
+          /* Skeleton loaders - show animated shimmer while loading */
+          <div className="space-y-1">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-4 py-3">
+                <div className="flex items-center space-x-3">
+                  {/* Avatar skeleton */}
+                  <div className="skeleton w-16 h-16 rounded-lg"></div>
+                  {/* Content skeleton */}
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-4 w-32"></div>
+                    <div className="skeleton h-3 w-48"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="space-y-1">

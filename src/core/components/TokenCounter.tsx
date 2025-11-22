@@ -74,7 +74,7 @@ export default function TokenCounter({
       
       {/* Warning message */}
       {!validation.isValid && (
-        <div className="flex items-start space-x-2 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+        <div className="flex items-start space-x-2 p-3 border-status-error">
           <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
           <div className="text-red-300 text-sm">
             <p className="font-medium">Token limit exceeded</p>

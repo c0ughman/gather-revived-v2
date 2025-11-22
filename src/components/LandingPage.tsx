@@ -141,7 +141,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
       <section className="relative z-10 pt-20 pb-32">
         <div className="max-w-7xl mx-auto px-6 text-center">
           <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-8">
+            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border-card-light mb-8">
               <Sparkles className="w-4 h-4 text-[#6143fa]" />
               <span className="text-sm font-medium">The future of AI collaboration is here</span>
             </div>
@@ -172,7 +172,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
               
               <button 
                 onClick={onSignUp}
-                className="group flex items-center space-x-3 px-6 py-4 bg-white/10 backdrop-blur-sm hover:bg-white/20 rounded-full border border-white/20 hover:border-white/40 transition-all duration-300"
+                className="group flex items-center space-x-3 px-6 py-4 bg-white/10 backdrop-blur-sm hover:bg-white/20 rounded-full border-card-light hover:border-card-light-strong transition-all duration-300"
               >
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
                   <Play className="w-4 h-4 ml-0.5" />
@@ -211,7 +211,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
             {benefits.map((benefit, index) => (
               <div
                 key={index}
-                className="relative p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-500"
+                className="relative p-8 bg-white/5 backdrop-blur-sm rounded-2xl border-card-light-strong hover:border-card-light transition-all duration-500"
                 style={{ animationDelay: `${index * 200}ms` }}
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-[#6143fa]/20 to-[#c750ce]/20 rounded-2xl flex items-center justify-center mb-6">
@@ -243,7 +243,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
             {testimonials.map((testimonial, index) => (
               <div
                 key={index}
-                className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border-card-light-strong hover:border-card-light transition-all duration-300"
               >
                 <div className="flex items-center space-x-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
@@ -323,7 +323,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
 
             <div className="relative">
               {/* Mock Interface */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-8 shadow-2xl">
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl border-card-light-strong p-8 shadow-2xl">
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-3 h-3 bg-red-400 rounded-full"></div>
                   <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
@@ -356,10 +356,10 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
               </div>
               
               {/* Floating Elements */}
-              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-[#6143fa]/20 to-[#c750ce]/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
+              <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-[#6143fa]/20 to-[#c750ce]/20 rounded-2xl backdrop-blur-sm border-card-light-strong flex items-center justify-center">
                 <Brain className="w-8 h-8 text-[#6143fa]" />
               </div>
-              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-[#c750ce]/20 to-[#4578ed]/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center">
+              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-[#c750ce]/20 to-[#4578ed]/20 rounded-xl backdrop-blur-sm border-card-light-strong flex items-center justify-center">
                 <Zap className="w-6 h-6 text-[#c750ce]" />
               </div>
             </div>
@@ -376,7 +376,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
             <div className="absolute bottom-10 right-10 w-32 h-32 animated-gradient-orb rounded-full blur-2xl opacity-25"></div>
           </div>
           
-          <div className="relative bg-white/5 backdrop-blur-md rounded-3xl border border-white/20 p-12 shadow-2xl">
+          <div className="relative bg-white/5 backdrop-blur-md rounded-3xl border-card-light p-12 shadow-2xl">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">
               <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
                 Ready to Transform
@@ -408,7 +408,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
       </section>
 
       {/* Footer */}
-      <footer className="relative z-10 py-16 border-t border-white/10">
+      <footer className="relative z-10 py-16 border-t border-structural-inverse">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
@@ -432,7 +432,7 @@ export default function LandingPage({ onGetStarted, onSignUp }: LandingPageProps
             </div>
           </div>
           
-          <div className="mt-8 pt-8 border-t border-white/10 text-center text-slate-500 text-sm">
+          <div className="mt-8 pt-8 border-t border-structural-inverse text-center text-slate-500 text-sm">
             © 2024 Gather AI. All rights reserved. Built for the future of work.
           </div>
         </div>

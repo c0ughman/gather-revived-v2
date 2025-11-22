@@ -357,7 +357,7 @@ export default function DocumentDisplay({
         ? 'translate-y-0 opacity-100 scale-100' 
         : 'translate-y-8 opacity-0 scale-95'
     }`}>
-      <div className={`w-full h-full shadow-2xl border border-gray-200 overflow-hidden rounded-[20px] flex flex-col relative transition-all duration-500 ease-out transform ${
+      <div className={`w-full h-full shadow-2xl border-document-frame overflow-hidden rounded-[20px] flex flex-col relative transition-all duration-500 ease-out transform ${
         isAnimating 
           ? 'translate-y-0 opacity-100 scale-100' 
           : 'translate-y-4 opacity-0 scale-98'
@@ -378,7 +378,7 @@ export default function DocumentDisplay({
         </button>
 
         {/* Document Header */}
-        <div className={`p-6 border-b border-gray-200 transition-all duration-500 transform ${
+        <div className={`p-6 border-b border-document-divider transition-all duration-500 transform ${
           isAnimating 
             ? 'translate-y-0 opacity-100' 
             : 'translate-y-4 opacity-0'
@@ -458,7 +458,7 @@ export default function DocumentDisplay({
                   {saved ? (
                     <Check className="w-4 h-4 text-green-600" />
                   ) : isSaving ? (
-                    <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-spinner-orange rounded-full animate-spin"></div>
                   ) : (
                     <BookOpen className="w-4 h-4 text-orange-600" />
                   )}
@@ -492,7 +492,7 @@ export default function DocumentDisplay({
 
         {/* Error Message */}
         {error && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mx-6 mt-4 p-3 bg-red-50 border-document-error rounded-lg">
             <p className="text-red-600 text-sm">{error}</p>
           </div>
         )}
@@ -515,7 +515,7 @@ export default function DocumentDisplay({
         </div>
 
         {/* Document Footer */}
-        <div className={`p-4 border-t border-gray-200 bg-gray-50 transition-all duration-500 transform ${
+        <div className={`p-4 border-t border-document-divider bg-gray-50 transition-all duration-500 transform ${
           isAnimating 
             ? 'translate-y-0 opacity-100' 
             : 'translate-y-2 opacity-0'

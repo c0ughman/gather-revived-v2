@@ -115,10 +115,8 @@ export default function DocumentUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 ${
-          isDragOver
-            ? 'border-[#186799] bg-[#186799] bg-opacity-10'
-            : 'border-slate-600 hover:border-slate-500'
+        className={`relative border-dashed-accent hover:border-dashed-active rounded-lg p-6 transition-all duration-200 ${
+          isDragOver ? 'border-dashed-active' : ''
         } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
       >
         <input
@@ -133,7 +131,7 @@ export default function DocumentUpload({
         <div className="text-center">
           <div className="mx-auto w-12 h-12 mb-4 flex items-center justify-center rounded-full bg-slate-700">
             {isProcessing ? (
-              <div className="w-6 h-6 border-2 border-[#186799] border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-spinner-brand-circle rounded-full animate-spin"></div>
             ) : (
               <Upload className="w-6 h-6 text-slate-400" />
             )}
@@ -235,7 +233,7 @@ export function DocumentList({ documents, onRemoveDocument, className = '' }: Do
       {documents.map((doc) => (
         <div
           key={doc.id}
-          className="flex items-center space-x-3 p-3 bg-slate-700 rounded-lg border border-slate-600"
+          className="flex items-center space-x-3 p-3 bg-slate-700 rounded-lg border-control"
         >
           {getFileIcon(doc.type, doc.name)}
           

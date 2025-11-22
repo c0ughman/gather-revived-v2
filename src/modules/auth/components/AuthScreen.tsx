@@ -118,7 +118,7 @@ export default function AuthScreen() {
         </div>
 
         {/* Auth Form */}
-        <div className="bg-glass-panel glass-effect rounded-2xl border border-slate-700 p-8 shadow-2xl">
+        <div className="bg-glass-panel glass-effect rounded-2xl border-card p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name Field (Sign Up Only) */}
             {isSignUp && (
@@ -134,7 +134,7 @@ export default function AuthScreen() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border-control focus-border-brand"
                     placeholder="Enter your full name"
                   />
                 </div>
@@ -154,7 +154,7 @@ export default function AuthScreen() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border-control focus-border-brand"
                   placeholder="Enter your email"
                 />
               </div>
@@ -173,7 +173,7 @@ export default function AuthScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-12 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white pl-12 pr-12 py-3 rounded-lg border-control focus-border-brand"
                   placeholder="Enter your password"
                 />
                 <button
@@ -200,7 +200,7 @@ export default function AuthScreen() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                    className="w-full bg-glass-panel glass-effect text-white pl-12 pr-4 py-3 rounded-lg border-control focus-border-brand"
                     placeholder="Confirm your password"
                   />
                 </div>
@@ -209,7 +209,7 @@ export default function AuthScreen() {
 
             {/* Error Message */}
             {error && (
-              <div className="flex items-center space-x-2 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 border-status-error">
                 <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
                 <p className="text-red-300 text-sm">{error}</p>
               </div>
@@ -217,7 +217,7 @@ export default function AuthScreen() {
 
             {/* Success Message */}
             {message && (
-              <div className="flex items-center space-x-2 p-3 bg-green-900 bg-opacity-50 border border-green-700 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 border-status-success">
                 <AlertCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
                 <p className="text-green-300 text-sm">{message}</p>
               </div>
@@ -253,7 +253,7 @@ export default function AuthScreen() {
           </form>
 
           {/* Toggle Sign Up/Sign In */}
-          <div className="mt-6 pt-6 border-t border-slate-700 text-center">
+          <div className="mt-6 pt-6 border-t border-structural-strong text-center">
             <p className="text-slate-400 text-sm">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
               <button

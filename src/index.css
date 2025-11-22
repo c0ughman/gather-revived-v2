@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-width: 0 !important;
+    border-style: none !important;
+    border-color: transparent !important;
+  }
+}
+
 @layer utilities {
   .line-clamp-2 {
     overflow: hidden;
@@ -10,7 +20,7 @@
     -webkit-line-clamp: 2;
     text-overflow: ellipsis;
   }
-  
+
   .line-clamp-3 {
     overflow: hidden;
     display: -webkit-box;
@@ -18,13 +28,13 @@
     -webkit-line-clamp: 3;
     text-overflow: ellipsis;
   }
-  
+
   .glass-effect {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   }
-  
+
   .ellipsis-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -32,12 +42,132 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .ellipsis-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Skeleton loading shimmer animation */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(51, 65, 85, 0.4) 0%,
+      rgba(71, 85, 105, 0.5) 50%,
+      rgba(51, 65, 85, 0.4) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 0.375rem;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Border tokens */
+  .border-structural {
+    @apply border-slate-700/50;
+  }
+
+  .border-structural-strong {
+    @apply border-slate-700;
+  }
+
+  .border-structural-light {
+    @apply border-slate-700/30;
+  }
+
+  .border-structural-soft {
+    @apply border-slate-600/50;
+  }
+
+  .border-structural-deep {
+    @apply border-slate-800;
+  }
+
+  .border-control {
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    transition: border-color 0.2s ease;
+  }
+
+  .border-control-hover {
+    transition: border-color 0.2s ease;
+  }
+
+  .border-control-hover:hover {
+    border-color: rgba(255, 255, 255, 0.16) !important;
+  }
+
+  .focus-border-brand:focus {
+    border-color: #186799 !important;
+    outline: none !important;
+  }
+
+  .border-control-error {
+    border: 1px solid rgba(239, 68, 68, 0.8) !important;
+    transition: border-color 0.2s ease;
+  }
+
+  .border-card {
+    border: none !important;
+    transition: border-color 0.2s ease;
+  }
+
+  .border-card-hover {
+    transition: transform 0.2s ease;
+  }
+
+  .border-card-hover:hover {
+    border-color: transparent !important;
+  }
+
+  .border-card-raise {
+    transition: transform 0.2s ease;
+  }
+
+  .border-card-light {
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    transition: border-color 0.2s ease;
+  }
+
+  .border-card-light-strong {
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  }
+
+  .border-card-light-soft {
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .border-card-glass {
+    border: 1px solid rgba(51, 65, 85, 0.4) !important;
+  }
+
+  .border-card-light-color {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .border-card-light-strong-color {
+    border-color: rgba(255, 255, 255, 0.18) !important;
+  }
+
+  .border-card-light-soft-color {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .hover\:border-card-light:hover {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .hover\:border-card-light-strong:hover {
+    border-color: rgba(255, 255, 255, 0.18) !important;
   }
 }

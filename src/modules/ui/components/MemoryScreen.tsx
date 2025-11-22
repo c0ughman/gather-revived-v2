@@ -13,7 +13,7 @@ export default function MemoryScreen({ contact, onBack }: MemoryScreenProps) {
 
   return (
     <div 
-      className="h-full flex flex-col rounded-t-[32px] overflow-hidden bg-glass-panel glass-effect border-t border-slate-600/50"
+      className="h-full flex flex-col rounded-t-[32px] overflow-hidden bg-glass-panel glass-effect border-t border-structural-soft"
       style={{
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
@@ -22,7 +22,7 @@ export default function MemoryScreen({ contact, onBack }: MemoryScreenProps) {
       }}
     >
       {/* Search Bar */}
-      <div className="p-4 border-b border-slate-700/50">
+      <div className="p-4 border-b border-structural">
         <div className="relative max-w-4xl mx-auto">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />

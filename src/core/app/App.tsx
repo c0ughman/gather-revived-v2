@@ -83,7 +83,8 @@ export default function App() {
     console.log(`📺 View changed to: ${currentView}`);
   }, [currentView]);
   const [selectedContact, setSelectedContact] = useState<AIContact | null>(null);
-  const [contacts, setContacts] = useState<AIContact[]>([]);
+  // Use localStorage caching for instant loads - fresh data will update in background
+  const [contacts, setContacts] = useLocalStorage<AIContact[]>('gather-cached-contacts', []);
   const [messages, setMessages] = useLocalStorage<Message[]>('gather-messages', []);
 
   const [conversationDocuments, setConversationDocuments] = useState<Record<string, DocumentInfo[]>>({});
@@ -540,68 +541,84 @@ export default function App() {
     if (!user || dataLoading) return;
 
     try {
+      // OPTIMISTIC LOADING: Don't set loading state - just refresh data silently in background
       setDataLoading(true);
-      console.log('🔄 Loading user data for:', user.email);
+      console.log('🔄 Priority loading: Sidebar first, then visible content');
 
-      // Test database connection
-      const connectionOk = await supabaseService.testConnection();
-      if (!connectionOk) {
-        console.error('❌ Database connection failed');
-        // Continue with empty data for now
-        setContacts([]);
-        return;
-      }
-
-      console.log('✅ Database connection successful');
-
-      // Load user agents from Supabase
+      // PRIORITY 1: Load basic agent data FAST (for sidebar + top agents section)
+      // Skip integrations and documents initially - load them later
       const userAgents = await supabaseService.getUserAgents(user.id);
-      console.log('📊 Loaded agents:', userAgents.length);
 
-      // Transform Supabase data to AIContact format
-      const transformedContacts: AIContact[] = userAgents.map((agent: any) => ({
-          id: agent.id,
-          name: agent.name,
-          description: agent.description,
-          initials: agent.initials,
-          color: agent.color,
-          voice: agent.voice,
-          avatar: agent.avatar_url,
-          status: agent.status as 'online' | 'busy' | 'offline',
+      // Quick transform with ONLY essential data (name, avatar, description)
+      const quickContacts: AIContact[] = userAgents.map((agent: any) => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        initials: agent.initials,
+        color: agent.color,
+        voice: agent.voice,
+        avatar: agent.avatar_url,
+        status: agent.status as 'online' | 'busy' | 'offline',
         lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
         total_messages: agent.total_messages,
-        integrations: agent.agent_integrations?.map((integration: any) => ({
-          id: integration.id,
-          integrationId: integration.template_id,
-          name: integration.name,
-          config: integration.config,
-          status: integration.status
-        })),
-        documents: agent.agent_documents?.map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.file_type,
-          size: doc.file_size,
-          uploadedAt: new Date(doc.uploaded_at),
-          content: doc.content || '',
-          summary: doc.summary,
-          extractedText: doc.extracted_text,
-          metadata: doc.metadata || {}
-        }))
+        // Skip integrations and documents for now - load later
+        integrations: undefined,
+        documents: undefined
       }));
 
-      setContacts(transformedContacts);
-      
-      // Document context will be loaded on-demand during voice sessions for better performance
-      
-      // Integration initialization (scheduling removed - integrations now execute on-demand only)
+      // Update immediately with basic data - sidebar shows instantly!
+      setContacts(quickContacts);
+      console.log('✅ Priority 1: Sidebar data loaded instantly');
 
-      console.log('✅ User data loaded successfully');
+      // PRIORITY 2: Load heavy data in background (integrations + documents)
+      // This runs AFTER the UI is already showing
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Priority 2: Loading integrations and documents...');
+
+          const fullContacts: AIContact[] = userAgents.map((agent: any) => ({
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            initials: agent.initials,
+            color: agent.color,
+            voice: agent.voice,
+            avatar: agent.avatar_url,
+            status: agent.status as 'online' | 'busy' | 'offline',
+            lastSeen: formatLastSeen(agent.last_seen, agent.last_used_at),
+            total_messages: agent.total_messages,
+            integrations: agent.agent_integrations?.map((integration: any) => ({
+              id: integration.id,
+              integrationId: integration.template_id,
+              name: integration.name,
+              config: integration.config,
+              status: integration.status
+            })),
+            documents: agent.agent_documents?.map((doc: any) => ({
+              id: doc.id,
+              name: doc.name,
+              type: doc.file_type,
+              size: doc.file_size,
+              uploadedAt: new Date(doc.uploaded_at),
+              content: doc.content || '',
+              summary: doc.summary,
+              extractedText: doc.extracted_text,
+              metadata: doc.metadata || {}
+            }))
+          }));
+
+          setContacts(fullContacts);
+          console.log('✅ Priority 2: Full data with integrations loaded');
+        } catch (error) {
+          console.warn('⚠️ Failed to load integrations/documents:', error);
+          // Keep the quick contacts we already showed
+        }
+      }, 100); // Load heavy data after 100ms delay
 
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
-      // Set empty contacts on error
-      setContacts([]);
+      console.warn('⚠️ Background refresh failed - keeping cached data:', error);
+      // OPTIMISTIC: Keep existing cached data on error instead of clearing it
+      // This ensures users can still use the app even if the network is down
     } finally {
       setDataLoading(false);
     }
@@ -1115,6 +1132,7 @@ export default function App() {
   // Old memory generation system removed - now using conversationSessionManager for intelligent extraction
 
   // Function to add mock memory data for testing - REMOVE IN PRODUCTION
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const addMockMemoryData = async (agentId: string) => {
     try {
       console.log('🧠 Adding mock memory data for agent:', agentId);
@@ -1264,6 +1282,7 @@ export default function App() {
       alert('Error adding mock data. Check the console for details.');
     }
   };
+  void addMockMemoryData;
 
   const handleSendMessage = async (content: string, documents?: DocumentInfo[]) => {
     if (!selectedContact || !user) return;
@@ -1595,24 +1614,8 @@ export default function App() {
     setCurrentView('settings');
   };
 
-  // Loading state
-  if (loading || dataLoading) {
-    return (
-      <div className="h-screen bg-glass-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#186799] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">
-            {loading ? 'Loading...' : 'Loading your AI agents...'}
-          </p>
-          {dataLoading && (
-            <p className="text-slate-400 text-sm mt-2">
-              Connecting to database...
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // OPTIMISTIC RENDERING: No loading screen - show UI immediately with cached/empty data
+  // Data loads in background and updates when ready
 
   // If not authenticated, show landing page or signup page based on currentView
   if (!user) {
@@ -1649,7 +1652,7 @@ export default function App() {
           <div className="h-screen flex bg-glass-bg">
 
             {/* Left Sidebar - Contacts */}
-            <div className="w-80 border-r border-slate-700">
+            <div className="w-80 border-r border-structural-strong">
                   <ContactSidebar
                     contacts={contacts}
                     onChatClick={handleChatClick}
@@ -1673,7 +1676,6 @@ export default function App() {
                     onSettingsClick={handleSettingsClick}
                     onNewChatClick={handleNewChatClick}
                     onCreateAgent={handleCreateAgent}
-                    onAddMockMemory={addMockMemoryData}
                   />
             )}
 
@@ -1766,7 +1768,7 @@ export default function App() {
 
               {/* Right Sidebar - Settings (when in chat view, call view, past-chats view, settings view, or create-agent view) */}
               {((currentView === 'chat' && showSidebar) || (currentView === 'call' && showSidebar) || (currentView === 'past-chats' && showSidebar) || currentView === 'settings' || currentView === 'create-agent') && (
-                <div className="w-80 border-l border-slate-700 z-20 relative">
+                <div className="w-80 border-l border-structural-strong z-20 relative">
                     <SettingsSidebar
                     contact={selectedContact}
                     onSave={handleSettingsSave}

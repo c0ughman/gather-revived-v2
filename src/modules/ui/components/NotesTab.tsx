@@ -217,7 +217,7 @@ const NotesTab = forwardRef<NotesTabRef, NotesTabProps>(({ agentId, agentName, o
       <div className="mb-3">
         <button
           onClick={() => setShowNewNote(true)}
-          className="w-full flex items-center justify-center space-x-2 p-2 border border-dashed border-slate-600 rounded-lg hover:border-slate-500 hover:bg-white/5 transition-colors duration-200 text-sm"
+          className="w-full flex items-center justify-center space-x-2 p-2 border-dashed-accent hover:border-dashed-active hover:bg-white/5 transition-colors duration-200 text-sm"
         >
           <Plus className="w-4 h-4 text-slate-400" />
           <span className="text-slate-400">Add Note</span>
@@ -284,10 +284,10 @@ const NotesTab = forwardRef<NotesTabRef, NotesTabProps>(({ agentId, agentName, o
                   <div
                     key={note.id}
                     onClick={() => handleNoteClick(note)}
-                    className={`border rounded-[10px] p-3 text-sm shadow-sm hover:shadow-md transition-all duration-200 relative group cursor-pointer ${
+                    className={`rounded-[10px] p-3 text-sm shadow-sm hover:shadow-md transition-all duration-200 relative group cursor-pointer ${
                       isExcluded 
-                        ? 'bg-gray-100 border-gray-300 opacity-60' 
-                        : 'bg-white border-gray-200'
+                        ? `bg-gray-100 border-note-muted opacity-60` 
+                        : `bg-white border-note-default`
                     } ${isExcluded ? 'text-gray-600' : 'text-black'}`}
                   >
                 
@@ -329,10 +329,10 @@ const NotesTab = forwardRef<NotesTabRef, NotesTabProps>(({ agentId, agentName, o
                   <div
                     key={note.id}
                     onClick={() => handleNoteClick(note)}
-                    className={`border rounded-[10px] p-3 text-sm shadow-sm hover:shadow-md transition-all duration-200 relative group cursor-pointer ${
+                    className={`rounded-[10px] p-3 text-sm shadow-sm hover:shadow-md transition-all duration-200 relative group cursor-pointer ${
                       isExcluded 
-                        ? 'bg-gray-100 border-gray-300 opacity-60' 
-                        : 'bg-white border-gray-200'
+                        ? `bg-gray-100 border-note-muted opacity-60` 
+                        : `bg-white border-note-default`
                     } ${isExcluded ? 'text-gray-600' : 'text-black'}`}
                   >
                     {/* Note content */}

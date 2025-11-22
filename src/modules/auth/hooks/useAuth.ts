@@ -20,14 +20,16 @@ export interface AuthState {
 }
 
 export function useAuth() {
+  // OPTIMISTIC RENDERING: Start with loading: false for instant UI render
+  // Session check happens in background and updates when ready
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     session: null,
-    loading: true,
+    loading: false, // Changed from true to false for instant render
   });
 
   useEffect(() => {
-    // Get initial session
+    // Get initial session in background
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthState({
         user: session?.user ?? null,

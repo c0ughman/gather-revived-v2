@@ -97,7 +97,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 required
-                className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 placeholder-slate-400"
+                className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 rounded-lg border-control focus-border-brand placeholder-slate-400"
                 placeholder="Enter your full name"
               />
             </div>
@@ -113,7 +113,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 required
-                className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 placeholder-slate-400"
+                className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 rounded-lg border-control focus-border-brand placeholder-slate-400"
                 placeholder="Enter your email"
               />
             </div>
@@ -130,7 +130,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   required
-                  className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 pr-12 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 placeholder-slate-400"
+                  className="w-full bg-slate-800/50 backdrop-blur-sm text-white px-4 py-3 pr-12 rounded-lg border-control focus-border-brand placeholder-slate-400"
                   placeholder="Create a password"
                 />
                 <button
@@ -146,7 +146,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
 
             {/* Error Message */}
             {error && (
-              <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg">
+              <div className="p-3 border-status-error">
                 <p className="text-red-300 text-sm">{error}</p>
               </div>
             )}
@@ -199,7 +199,7 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
         <div className="relative z-10 h-full flex flex-col justify-center p-12">
           {/* Main Headline */}
           <div className="mb-12">
-            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-6">
+            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border-card-light mb-6">
               <Sparkles className="w-4 h-4 text-[#6143fa]" />
               <span className="text-sm font-medium text-white">Join 50,000+ innovators</span>
             </div>
@@ -245,13 +245,13 @@ export default function SignupPage({ onSuccess, onBackToLanding, onSignIn }: Sig
           </div>
 
           {/* Floating AI Icons */}
-          <div className="absolute top-32 right-32 w-16 h-16 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-2xl backdrop-blur-sm border border-white/10 flex items-center justify-center animate-bounce">
+          <div className="absolute top-32 right-32 w-16 h-16 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-2xl backdrop-blur-sm border-card-light-strong flex items-center justify-center animate-bounce">
             <Brain className="w-8 h-8 text-[#186799]" />
           </div>
-          <div className="absolute bottom-32 right-16 w-12 h-12 bg-gradient-to-br from-purple-600/20 to-[#186799]/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center animate-bounce" style={{ animationDelay: '1s' }}>
+          <div className="absolute bottom-32 right-16 w-12 h-12 bg-gradient-to-br from-purple-600/20 to-[#186799]/20 rounded-xl backdrop-blur-sm border-card-light-strong flex items-center justify-center animate-bounce" style={{ animationDelay: '1s' }}>
             <Zap className="w-6 h-6 text-purple-400" />
           </div>
-          <div className="absolute top-1/2 right-8 w-14 h-14 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-xl backdrop-blur-sm border border-white/10 flex items-center justify-center animate-bounce" style={{ animationDelay: '2s' }}>
+          <div className="absolute top-1/2 right-8 w-14 h-14 bg-gradient-to-br from-[#186799]/20 to-purple-600/20 rounded-xl backdrop-blur-sm border-card-light-strong flex items-center justify-center animate-bounce" style={{ animationDelay: '2s' }}>
             <Users className="w-7 h-7 text-[#186799]" />
           </div>
         </div>

@@ -368,7 +368,7 @@ export default function SettingsScreen({
   if (showIntegrationsLibrary) {
     return (
       <div className="h-full bg-glass-bg flex flex-col">
-        <div className="bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center justify-between">
+        <div className="bg-glass-panel glass-effect border-b border-structural-strong p-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-white">Add Integration</h1>
           <button
             onClick={() => setShowIntegrationsLibrary(false)}
@@ -390,7 +390,7 @@ export default function SettingsScreen({
   return (
     <div className="h-full bg-glass-bg flex flex-col">
       {/* Header */}
-      <div className="bg-glass-panel glass-effect border-b border-slate-700 p-4 flex items-center justify-between">
+      <div className="bg-glass-panel glass-effect border-b border-structural-strong p-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
             onClick={onBack}
@@ -415,7 +415,7 @@ export default function SettingsScreen({
       </div>
 
       {/* Tabs */}
-      <div className="bg-glass-panel glass-effect border-b border-slate-700 px-4">
+      <div className="bg-glass-panel glass-effect border-b border-structural-strong px-4">
         <div className="flex space-x-1">
           <button
             onClick={() => setActiveTab('basic')}
@@ -465,7 +465,7 @@ export default function SettingsScreen({
           {activeTab === 'basic' ? (
             <>
               {/* Contact Preview */}
-              <div className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
+              <div className="bg-glass-panel glass-effect rounded-xl p-6 border-card">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
                   <User className="w-5 h-5" />
                   <span>Preview</span>
@@ -493,7 +493,7 @@ export default function SettingsScreen({
               </div>
 
               {/* Avatar Upload */}
-              <div className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
+              <div className="bg-glass-panel glass-effect rounded-xl p-6 border-card">
                 <label className="block text-sm font-medium text-white mb-4 flex items-center space-x-2">
                   <User className="w-4 h-4" />
                   <span>Profile Picture</span>
@@ -534,7 +534,7 @@ export default function SettingsScreen({
               </div>
 
               {/* Name Field */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <label className="block text-sm font-medium text-white mb-3 flex items-center space-x-2">
                   <User className="w-4 h-4" />
                   <span>Contact Name</span>
@@ -544,12 +544,12 @@ export default function SettingsScreen({
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   placeholder="Enter contact name"
-                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200"
+                  className="w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border-control focus-border-brand"
                 />
               </div>
 
               {/* Description Field */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <label className="block text-sm font-medium text-white mb-3 flex items-center space-x-2">
                   <FileText className="w-4 h-4" />
                   <span>Description</span>
@@ -563,10 +563,10 @@ export default function SettingsScreen({
                         onChange={(e) => handleInputChange('description', e.target.value)}
                         placeholder="Describe this AI's personality and capabilities..."
                         rows={4}
-                        className={`w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg border transition-colors duration-200 resize-none focus:outline-none ${
+                        className={`w-full bg-glass-panel glass-effect text-white px-4 py-3 rounded-lg resize-none ${
                           !descriptionValidation.isValid 
-                            ? 'border-red-500 focus:border-red-400' 
-                            : 'border-slate-600 focus:border-[#186799]'
+                            ? 'border-control-error'
+                            : 'border-control focus-border-brand'
                         }`}
                       />
                       <InlineTokenError validation={descriptionValidation} />
@@ -583,7 +583,7 @@ export default function SettingsScreen({
               </div>
 
               {/* Color Selection */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <label className="block text-sm font-medium text-white mb-4 flex items-center space-x-2">
                   <Palette className="w-4 h-4" />
                   <span>Avatar Color</span>
@@ -591,7 +591,7 @@ export default function SettingsScreen({
                 <div className="relative color-dropdown">
                   <button
                     onClick={() => setShowColorDropdown(!showColorDropdown)}
-                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer flex items-center justify-between"
+                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm appearance-none cursor-pointer flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-2">
                       <div 
@@ -604,7 +604,7 @@ export default function SettingsScreen({
                   </button>
                   
                   {showColorDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border border-slate-600 shadow-lg z-50 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border-control shadow-lg z-50 max-h-48 overflow-y-auto">
                       {availableColors.map((color) => (
                         <button
                           key={color.id}
@@ -629,7 +629,7 @@ export default function SettingsScreen({
               </div>
 
               {/* Voice Selection */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <label className="block text-sm font-medium text-white mb-4 flex items-center space-x-2">
                   <Volume2 className="w-4 h-4" />
                   <span>Voice</span>
@@ -638,7 +638,7 @@ export default function SettingsScreen({
                   <select
                     value={formData.voice}
                     onChange={(e) => handleInputChange('voice', e.target.value)}
-                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-[#186799] focus:outline-none transition-colors duration-200 text-sm appearance-none cursor-pointer"
+                    className="w-full bg-slate-700 text-white px-3 py-2 rounded-lg border-control focus-border-brand text-sm appearance-none cursor-pointer"
                   >
                     {availableVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>
@@ -653,7 +653,7 @@ export default function SettingsScreen({
           ) : activeTab === 'integrations' ? (
             <>
               {/* Integrations Header */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
                     <Database className="w-5 h-5 text-white" />
@@ -680,7 +680,7 @@ export default function SettingsScreen({
                     if (!integrationDef) return null;
 
                     return (
-                      <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border border-slate-700">
+                      <div key={integration.id} className="bg-glass-panel glass-effect rounded-xl p-6 border-card">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center space-x-3">
                             <div
@@ -727,7 +727,7 @@ export default function SettingsScreen({
                         </div>
 
                         {integration.config.description && (
-                          <div className="mt-3 pt-3 border-t border-slate-700">
+                          <div className="mt-3 pt-3 border-t border-structural-strong">
                             <p className="text-slate-300 text-sm ellipsis-2">{integration.config.description}</p>
                           </div>
                         )}
@@ -736,7 +736,7 @@ export default function SettingsScreen({
                   })}
                 </div>
               ) : (
-                <div className="bg-glass-panel glass-effect rounded-xl p-8 border border-slate-700 text-center">
+                <div className="bg-glass-panel glass-effect rounded-xl p-8 border-card text-center">
                   <Database className="w-12 h-12 text-slate-500 mx-auto mb-3" />
                   <p className="text-slate-400 mb-4">No integrations configured</p>
                   <button
@@ -752,7 +752,7 @@ export default function SettingsScreen({
           ) : activeTab === 'documents' ? (
             <>
               {/* Documents Tab */}
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="bg-slate-800 rounded-xl p-6 border-card">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
                     <FileText className="w-5 h-5 text-white" />
@@ -773,7 +773,7 @@ export default function SettingsScreen({
                 </p>
                 
                 {uploadError && (
-                  <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg">
+                  <div className="mb-4 p-3 border-status-error">
                     <p className="text-red-300 text-sm">{uploadError}</p>
                   </div>
                 )}
