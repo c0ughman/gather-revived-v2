@@ -77,21 +77,26 @@ class GeminiLiveService {
   private processingInterval: number | null = null;
   private audioProcessor: ScriptProcessorNode | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
-  
+
   // Optimistic audio buffering - Phase 3 (Option 4)
   private preSessionAudioBuffer: Float32Array[] = [];
   private isBufferingPreSession: boolean = false;
   private maxPreSessionBufferSize: number = 500; // ~8 seconds of audio at 16ms chunks
-  
+
   // State management to prevent rapid flipping
   private currentState: 'idle' | 'listening' | 'processing' | 'responding' = 'idle';
   private stateChangeTimeout: number | null = null;
-  
+
   // Memory management tracking
   private activeTimers: Set<number> = new Set();
   private eventListeners: Map<EventTarget, { event: string, handler: EventListenerOrEventListenerObject }[]> = new Map();
-  private maxAudioChunks: number = 500; // MASSIVELY increased to prevent any speech cutoffs
-  private maxAudioQueueSize: number = 200; // MASSIVELY increased to allow full conversations
+
+  // Hybrid memory management for 1-2 hour calls
+  private readonly MAX_AUDIO_CHUNKS = 1000; // ~16 seconds of input audio (bounded)
+  private readonly MAX_CONVERSATION_MESSAGES = 200; // Keep last 200 messages (sliding window)
+  private readonly CLEANUP_THRESHOLD = 1.5; // Clean when 50% over limit
+  private lastCleanupTime: number = 0;
+  private readonly CLEANUP_INTERVAL_MS = 60000; // Cleanup check every 60 seconds
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -174,53 +179,64 @@ class GeminiLiveService {
   }
 
   /**
-   * Audio buffer memory management - Smart cleanup that prevents speech cutoffs
+   * Hybrid memory management - Lazy cleanup with safe thresholds
+   * Only cleans when buffers exceed thresholds AND it's safe to do so
    */
-  private manageAudioBuffers(): void {
-    // CRITICAL: Don't clean buffers during any audio activity
-    if (this.isPlaying || this.isRecording || this.currentState === 'responding' || this.currentState === 'processing') {
-      return;
-    }
-    
+  private performLazyCleanup(): void {
     const now = Date.now();
-    
-    // Don't clean if speech started recently (within 2 seconds)
-    if (this.speechStartTime > 0 && (now - this.speechStartTime) < 2000) {
+
+    // Only check cleanup periodically (every 60 seconds)
+    if (now - this.lastCleanupTime < this.CLEANUP_INTERVAL_MS) {
       return;
-    }
-    
-    // Don't clean if recent interruption (user might be speaking)
-    if (this.lastInterruptionTime > 0 && (now - this.lastInterruptionTime) < 3000) {
-      return; 
-    }
-    
-    // Only clean when buffers are EXTREMELY large and no recent activity
-    if (now - this.lastDocumentGenerationTime < 5000) {
-      return; // Don't clean if recent activity
-    }
-    
-    // Only clean audio input chunks (not output queue) and only when extremely excessive
-    if (this.audioChunks.length > this.maxAudioChunks * 2) { // Only when 2x over limit
-      const excess = this.audioChunks.length - this.maxAudioChunks;
-      this.audioChunks.splice(0, excess);
-      console.log(`🧹 SMART cleanup: Removed ${excess} old input audio chunks`);
     }
 
-    // ABSOLUTELY NEVER clean audioQueue - this is the output speech that users hear
-    // Let it clean up naturally through playback completion
+    this.lastCleanupTime = now;
+
+    // CRITICAL: Don't clean during active audio processing
+    if (this.isPlaying || this.currentState === 'responding') {
+      return;
+    }
+
+    // Don't clean if speech started recently (within 3 seconds)
+    if (this.speechStartTime > 0 && (now - this.speechStartTime) < 3000) {
+      return;
+    }
+
+    let cleanedItems = 0;
+
+    // Clean audio chunks only when significantly over limit
+    if (this.audioChunks.length > this.MAX_AUDIO_CHUNKS * this.CLEANUP_THRESHOLD) {
+      const excess = this.audioChunks.length - this.MAX_AUDIO_CHUNKS;
+      this.audioChunks.splice(0, excess);
+      cleanedItems += excess;
+      console.log(`🧹 Lazy cleanup: Removed ${excess} old audio chunks`);
+    }
+
+    // Clean conversation transcript (sliding window)
+    if (this.conversationTranscript.length > this.MAX_CONVERSATION_MESSAGES * this.CLEANUP_THRESHOLD) {
+      const excess = this.conversationTranscript.length - this.MAX_CONVERSATION_MESSAGES;
+      this.conversationTranscript.splice(0, excess);
+      cleanedItems += excess;
+      console.log(`🧹 Lazy cleanup: Removed ${excess} old conversation messages`);
+    }
+
+    // NEVER clean audioQueue - it's actively being played back
+
+    if (cleanedItems > 0) {
+      console.log(`✅ Lazy cleanup completed: ${cleanedItems} items freed`);
+    }
   }
 
   private clearAudioBuffers(): void {
     console.log(`🧹 Clearing ${this.audioChunks.length} audio chunks and ${this.audioQueue.length} queue items`);
-    this.audioChunks.length = 0; // Clear array efficiently
+    this.audioChunks.length = 0;
     this.audioQueue.length = 0;
   }
 
   /**
-   * Safe buffer cleanup - only call when session is ending or definitely safe
+   * Safe buffer cleanup - only call when session is ending
    */
   private safeBufferCleanup(): void {
-    // Only cleanup when absolutely safe - session ending
     if (this.audioChunks.length > 0) {
       console.log(`🧹 SAFE cleanup: Removing ${this.audioChunks.length} input audio chunks`);
       this.audioChunks.length = 0;
@@ -1168,9 +1184,8 @@ class GeminiLiveService {
       console.log('⏱️ Starting 16ms audio processing interval...');
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
-        // COMPLETELY DISABLE automatic buffer management during audio processing
-        // Only clean up when session ends or is explicitly stopped
-        // This prevents any chance of cutting off speech mid-sentence
+        // Lazy cleanup runs periodically (every 60s) when safe
+        this.performLazyCleanup();
       }, 16);
       
       console.log('✅ Audio capture fully started and processing');
