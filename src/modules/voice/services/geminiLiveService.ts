@@ -97,6 +97,7 @@ class GeminiLiveService {
   private readonly CLEANUP_THRESHOLD = 1.5; // Clean when 50% over limit
   private readonly CLEANUP_INTERVAL_MS = 60000; // Cleanup check every 60 seconds
   private cleanupTimer: number | null = null; // Separate timer for cleanup (not in hot path)
+  private sessionStartTime: number = 0; // Track session start for dynamic context window
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -179,6 +180,37 @@ class GeminiLiveService {
   }
 
   /**
+   * Calculate dynamic max messages based on call duration
+   * Reduces context window as call gets longer for better VAD performance
+   */
+  private getMaxMessagesForDuration(): number {
+    if (this.sessionStartTime === 0) {
+      return 100; // Default for fresh sessions
+    }
+
+    const now = Date.now();
+    const sessionDurationSeconds = (now - this.sessionStartTime) / 1000;
+
+    // First 5 minutes: 100 messages (good context, fresh call)
+    if (sessionDurationSeconds < 300) {
+      return 100;
+    }
+
+    // 5-15 minutes: 75 messages (moderate context)
+    if (sessionDurationSeconds < 900) {
+      return 75;
+    }
+
+    // 15-30 minutes: 50 messages (prioritize responsiveness)
+    if (sessionDurationSeconds < 1800) {
+      return 50;
+    }
+
+    // 30+ minutes: 40 messages (maximum responsiveness for long calls)
+    return 40;
+  }
+
+  /**
    * Start cleanup timer (runs outside hot audio processing path)
    */
   private startCleanupTimer(): void {
@@ -209,6 +241,7 @@ class GeminiLiveService {
   /**
    * Hybrid memory management - Lazy cleanup with safe thresholds
    * Runs in separate timer (NOT in audio processing hot path)
+   * Uses dynamic context window that adapts to call duration
    */
   private performLazyCleanup(): void {
     // CRITICAL: Don't clean during active audio processing
@@ -242,12 +275,17 @@ class GeminiLiveService {
       console.log(`🧹 Lazy cleanup: Removed ${excess} old audio chunks`);
     }
 
-    // Clean conversation transcript (sliding window)
-    if (this.conversationTranscript.length > this.MAX_CONVERSATION_MESSAGES * this.CLEANUP_THRESHOLD) {
-      const excess = this.conversationTranscript.length - this.MAX_CONVERSATION_MESSAGES;
+    // Clean conversation transcript with DYNAMIC limit based on call duration
+    const dynamicMaxMessages = this.getMaxMessagesForDuration();
+    const currentMessages = this.conversationTranscript.length;
+
+    if (currentMessages > dynamicMaxMessages * this.CLEANUP_THRESHOLD) {
+      const excess = currentMessages - dynamicMaxMessages;
       this.conversationTranscript.splice(0, excess);
       cleanedItems += excess;
-      console.log(`🧹 Lazy cleanup: Removed ${excess} old conversation messages`);
+
+      const durationMins = this.sessionStartTime > 0 ? ((now - this.sessionStartTime) / 60000).toFixed(1) : '0';
+      console.log(`🧹 Lazy cleanup: Removed ${excess} old messages (${currentMessages} → ${dynamicMaxMessages} max, ${durationMins}min call)`);
     }
 
     if (cleanedItems > 0) {
@@ -375,6 +413,10 @@ class GeminiLiveService {
 
       if (!this.sessionResumptionHandle) {
         // NEW SESSION - full initialization
+        // Track session start time for dynamic context window
+        this.sessionStartTime = Date.now();
+        console.log('⏱️ Session start time recorded for dynamic context management');
+
         // Clear any existing audio queue
         this.audioQueue = [];
 
