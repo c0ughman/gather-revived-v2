@@ -81,7 +81,7 @@ class GeminiLiveService {
   // Optimistic audio buffering - Phase 3 (Option 4)
   private preSessionAudioBuffer: Float32Array[] = [];
   private isBufferingPreSession: boolean = false;
-  private maxPreSessionBufferSize: number = 500; // ~8 seconds of audio at 16ms chunks
+  private maxPreSessionBufferSize: number = 2500; // ~40 seconds of audio at 16ms chunks (handles long reconnection delays seamlessly)
 
   // State management to prevent rapid flipping
   private currentState: 'idle' | 'listening' | 'processing' | 'responding' = 'idle';
