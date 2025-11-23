@@ -95,8 +95,8 @@ class GeminiLiveService {
   private readonly MAX_AUDIO_CHUNKS = 1000; // ~16 seconds of input audio (bounded)
   private readonly MAX_CONVERSATION_MESSAGES = 200; // Keep last 200 messages (sliding window)
   private readonly CLEANUP_THRESHOLD = 1.5; // Clean when 50% over limit
-  private lastCleanupTime: number = 0;
   private readonly CLEANUP_INTERVAL_MS = 60000; // Cleanup check every 60 seconds
+  private cleanupTimer: number | null = null; // Separate timer for cleanup (not in hot path)
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -179,26 +179,56 @@ class GeminiLiveService {
   }
 
   /**
-   * Hybrid memory management - Lazy cleanup with safe thresholds
-   * Only cleans when buffers exceed thresholds AND it's safe to do so
+   * Start cleanup timer (runs outside hot audio processing path)
    */
-  private performLazyCleanup(): void {
-    const now = Date.now();
-
-    // Only check cleanup periodically (every 60 seconds)
-    if (now - this.lastCleanupTime < this.CLEANUP_INTERVAL_MS) {
-      return;
+  private startCleanupTimer(): void {
+    // Clear any existing cleanup timer
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
     }
 
-    this.lastCleanupTime = now;
+    // Run cleanup every 60 seconds in separate timer
+    this.cleanupTimer = this.setManagedInterval(() => {
+      this.performLazyCleanup();
+    }, this.CLEANUP_INTERVAL_MS);
 
+    console.log('🧹 Cleanup timer started (60s interval, outside audio hot path)');
+  }
+
+  /**
+   * Stop cleanup timer
+   */
+  private stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      this.clearManagedTimer(this.cleanupTimer);
+      this.cleanupTimer = null;
+      console.log('🧹 Cleanup timer stopped');
+    }
+  }
+
+  /**
+   * Hybrid memory management - Lazy cleanup with safe thresholds
+   * Runs in separate timer (NOT in audio processing hot path)
+   */
+  private performLazyCleanup(): void {
     // CRITICAL: Don't clean during active audio processing
-    if (this.isPlaying || this.currentState === 'responding') {
+    if (this.isPlaying || this.currentState === 'responding' || this.currentState === 'processing') {
       return;
     }
 
     // Don't clean if speech started recently (within 3 seconds)
+    const now = Date.now();
     if (this.speechStartTime > 0 && (now - this.speechStartTime) < 3000) {
+      return;
+    }
+
+    // Don't clean if audio queue has items (AI is speaking or about to speak)
+    if (this.audioQueue.length > 0) {
+      return;
+    }
+
+    // Only clean when in listening state
+    if (this.currentState !== 'listening') {
       return;
     }
 
@@ -219,8 +249,6 @@ class GeminiLiveService {
       cleanedItems += excess;
       console.log(`🧹 Lazy cleanup: Removed ${excess} old conversation messages`);
     }
-
-    // NEVER clean audioQueue - it's actively being played back
 
     if (cleanedItems > 0) {
       console.log(`✅ Lazy cleanup completed: ${cleanedItems} items freed`);
@@ -1184,9 +1212,11 @@ class GeminiLiveService {
       console.log('⏱️ Starting 16ms audio processing interval...');
       this.processingInterval = this.setFastInterval(() => {
         this.sendAudioChunks();
-        // Lazy cleanup runs periodically (every 60s) when safe
-        this.performLazyCleanup();
+        // Cleanup runs in separate timer (not in hot path)
       }, 16);
+
+      // Start separate cleanup timer (outside hot audio path)
+      this.startCleanupTimer();
       
       console.log('✅ Audio capture fully started and processing');
 
@@ -1694,11 +1724,14 @@ class GeminiLiveService {
    */
   private cleanup(): void {
     console.log("🧹 Starting comprehensive cleanup...");
-    
+
     this.isRecording = false;
     this.isPlaying = false;
     this.isSessionActive = false;
-    
+
+    // Stop cleanup timer
+    this.stopCleanupTimer();
+
     // Clear all timers (both managed and fast path)
     this.clearAllTimers();
     if (this.processingInterval) {
