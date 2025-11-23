@@ -103,6 +103,8 @@ class GeminiLiveService {
   private lastAudioSendTime: number = 0; // Track when audio was last sent
   private transmissionHealthCheckTimer: number | null = null; // Monitor transmission health
   private readonly TRANSMISSION_STALL_THRESHOLD_MS = 10000; // 10 seconds without transmission = stalled
+  private bufferingStartTime: number = 0; // Track when buffering started
+  private readonly MAX_BUFFERING_DURATION_MS = 3000; // Max 3 seconds of buffering before forcing reconnection
 
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
@@ -1378,30 +1380,53 @@ class GeminiLiveService {
 
     // OPTIMISTIC BUFFERING: If session isn't ready yet, buffer the audio
     if (!this.activeSession) {
+      // Track when buffering started
+      if (!this.isBufferingPreSession) {
+        this.bufferingStartTime = Date.now();
+        this.isBufferingPreSession = true;
+        console.log(`🔵 Optimistic buffering active - capturing audio before session ready`);
+      }
+
+      // Check if we've been buffering too long (indicates stuck reconnection)
+      const now = Date.now();
+      const bufferingDuration = now - this.bufferingStartTime;
+
+      if (bufferingDuration > this.MAX_BUFFERING_DURATION_MS && this.currentContact && this.isSessionActive) {
+        console.error(`🚨 PROLONGED BUFFERING DETECTED! Buffering for ${(bufferingDuration / 1000).toFixed(1)}s without active session`);
+        console.error(`📦 Buffer contains ${this.preSessionAudioBuffer.length} chunks (~${(this.preSessionAudioBuffer.length * 16 / 1000).toFixed(2)}s of audio)`);
+        console.error('🔄 Force reconnecting to restore real-time transmission...');
+
+        // Force reconnection to fix stuck session
+        this.forceReconnection();
+        return;
+      }
+
       // Move chunks to pre-session buffer
       const chunksToBuffer = [...this.audioChunks];
       this.audioChunks = [];
-      
+
       for (const chunk of chunksToBuffer) {
         this.preSessionAudioBuffer.push(chunk);
-        
+
         // Prevent buffer overflow (keep last N chunks)
         if (this.preSessionAudioBuffer.length > this.maxPreSessionBufferSize) {
           this.preSessionAudioBuffer.shift(); // Remove oldest chunk
         }
       }
-      
-      // Log buffering status occasionally
-      if (!this.isBufferingPreSession) {
-        this.isBufferingPreSession = true;
-        console.log(`🔵 Optimistic buffering active - capturing audio before session ready`);
-      }
-      
+
       if (this.preSessionAudioBuffer.length % 50 === 0) {
         console.log(`📦 Buffered ${this.preSessionAudioBuffer.length} audio chunks (~${(this.preSessionAudioBuffer.length * 16 / 1000).toFixed(2)}s of audio)`);
       }
-      
+
       return;
+    }
+
+    // Session is active - reset buffering tracking
+    if (this.isBufferingPreSession) {
+      const bufferingDuration = Date.now() - this.bufferingStartTime;
+      console.log(`✅ Buffering ended after ${(bufferingDuration / 1000).toFixed(2)}s - resuming real-time transmission`);
+      this.isBufferingPreSession = false;
+      this.bufferingStartTime = 0;
     }
 
     try {
