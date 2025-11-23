@@ -99,6 +99,11 @@ class GeminiLiveService {
   private cleanupTimer: number | null = null; // Separate timer for cleanup (not in hot path)
   private sessionStartTime: number = 0; // Track session start for dynamic context window
 
+  // Audio transmission health monitoring (fix for 30-second delay issue)
+  private lastAudioSendTime: number = 0; // Track when audio was last sent
+  private transmissionHealthCheckTimer: number | null = null; // Monitor transmission health
+  private readonly TRANSMISSION_STALL_THRESHOLD_MS = 10000; // 10 seconds without transmission = stalled
+
   constructor(config: GeminiLiveConfig) {
     const apiKey = config.apiKey;
     if (apiKey && apiKey.trim().length > 0) {
@@ -235,6 +240,96 @@ class GeminiLiveService {
       this.clearManagedTimer(this.cleanupTimer);
       this.cleanupTimer = null;
       console.log('🧹 Cleanup timer stopped');
+    }
+  }
+
+  /**
+   * Start audio transmission health monitoring
+   * Detects when audio is being captured but not transmitted (WebSocket stall)
+   */
+  private startTransmissionHealthMonitoring(): void {
+    // Clear any existing health check timer
+    if (this.transmissionHealthCheckTimer) {
+      clearInterval(this.transmissionHealthCheckTimer);
+    }
+
+    // Initialize last send time
+    this.lastAudioSendTime = Date.now();
+
+    // Check transmission health every 5 seconds
+    this.transmissionHealthCheckTimer = this.setManagedInterval(() => {
+      this.checkTransmissionHealth();
+    }, 5000);
+
+    console.log('🏥 Audio transmission health monitoring started (5s interval)');
+  }
+
+  /**
+   * Stop transmission health monitoring
+   */
+  private stopTransmissionHealthMonitoring(): void {
+    if (this.transmissionHealthCheckTimer) {
+      this.clearManagedTimer(this.transmissionHealthCheckTimer);
+      this.transmissionHealthCheckTimer = null;
+      console.log('🏥 Transmission health monitoring stopped');
+    }
+  }
+
+  /**
+   * Check if audio transmission is stalled
+   * If we have audio chunks but haven't sent any in 10+ seconds, force reconnection
+   */
+  private checkTransmissionHealth(): void {
+    // Only check if we're recording and have chunks to send
+    if (!this.isRecording || this.audioChunks.length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const timeSinceLastSend = now - this.lastAudioSendTime;
+
+    // If we have audio chunks but haven't sent anything in 10+ seconds, transmission is stalled
+    if (timeSinceLastSend > this.TRANSMISSION_STALL_THRESHOLD_MS) {
+      console.error(`🚨 TRANSMISSION STALL DETECTED! ${this.audioChunks.length} audio chunks waiting, but no transmission for ${(timeSinceLastSend / 1000).toFixed(1)}s`);
+      console.error('🔄 Force reconnecting to fix WebSocket transmission delay...');
+
+      // Force session reconnection to fix stuck WebSocket
+      this.forceReconnection();
+    }
+  }
+
+  /**
+   * Force reconnection when transmission is stalled
+   * Preserves session state while creating new WebSocket connection
+   */
+  private async forceReconnection(): Promise<void> {
+    console.log('🔄 Forcing reconnection due to transmission stall...');
+
+    if (!this.currentContact || !this.isSessionActive) {
+      console.warn('⚠️ Cannot reconnect - no active session');
+      return;
+    }
+
+    try {
+      // Save current contact
+      const contact = this.currentContact;
+
+      // Close old connection without ending session
+      if (this.activeSession) {
+        this.activeSession = null;
+      }
+
+      // Reconnect with session resumption
+      console.log('🔄 Reconnecting with session resumption to fix stalled transmission...');
+      await this.startSession(contact);
+
+      console.log('✅ Reconnection complete - transmission should be restored');
+
+    } catch (error) {
+      console.error('❌ Failed to reconnect:', error);
+      if (this.onErrorCallback) {
+        this.onErrorCallback(new Error('Audio transmission stalled and reconnection failed'));
+      }
     }
   }
 
@@ -1259,7 +1354,10 @@ class GeminiLiveService {
 
       // Start separate cleanup timer (outside hot audio path)
       this.startCleanupTimer();
-      
+
+      // Start transmission health monitoring to detect WebSocket stalls
+      this.startTransmissionHealthMonitoring();
+
       console.log('✅ Audio capture fully started and processing');
 
     } catch (error) {
@@ -1310,12 +1408,12 @@ class GeminiLiveService {
       // Session is ready - send chunks immediately
       const chunksToSend = [...this.audioChunks];
       this.audioChunks = []; // Clear immediately
-      
+
       let totalSent = 0;
       for (const chunk of chunksToSend) {
         // Convert individual chunk directly
         const pcmData = this.fastConvertToPCM16(chunk);
-        
+
         if (pcmData.length === 0) {
           continue;
         }
@@ -1332,7 +1430,12 @@ class GeminiLiveService {
         });
         totalSent++;
       }
-      
+
+      // Update last send time for health monitoring (only if we actually sent something)
+      if (totalSent > 0) {
+        this.lastAudioSendTime = Date.now();
+      }
+
       // Only log significant audio transmissions (removed to reduce spam)
 
     } catch (error) {
@@ -1774,6 +1877,9 @@ class GeminiLiveService {
     // Stop cleanup timer
     this.stopCleanupTimer();
 
+    // Stop transmission health monitoring
+    this.stopTransmissionHealthMonitoring();
+
     // Clear all timers (both managed and fast path)
     this.clearAllTimers();
     if (this.processingInterval) {
@@ -1870,16 +1976,19 @@ class GeminiLiveService {
   public stopListening(): void {
     console.log("🛑 Stopping listening with cleanup...");
     this.isRecording = false;
-    
+
     // Clear processing interval (fast path timer)
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
     }
-    
+
+    // Stop transmission health monitoring
+    this.stopTransmissionHealthMonitoring();
+
     // DON'T call manageAudioBuffers() here - it could interfere with ongoing speech
     // Let buffers clean up naturally or during full session cleanup
-    
+
     this.updateState('idle');
     console.log("✅ Listening stopped - speech buffers preserved");
   }
